@@ -2,7 +2,7 @@
 dbt models for OCPP logs [here](https://github.com/appspace/kwwhat)
 
 ---
-**kwwhat** is a community-driven dbt project that models reliability and utilization metrics from EV charger logs based on the OCPP 1.6 and 2.0.1 protocols. Starting from raw OCPP logs, the project builds a transparent path toward meaningful metrics like uptime, session success, and visit-level outcomes.
+**kwwhat** is an open-source dbt project that models reliability and utilization metrics from EV charger logs based on the OCPP 1.6 and 2.0.1 protocols. Starting from raw OCPP logs, the project builds a transparent path toward meaningful metrics like uptime, session success, and visit-level outcomes.
 
 This project is powered by public OCPP log data and is designed for CSMS providers, utilities, researchers, and data practitioners aiming to build their own charger analytics stack.
 
