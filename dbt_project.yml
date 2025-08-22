@@ -7,7 +7,7 @@ version: '1.0.0'
 config-version: 2
 
 # This setting configures which "profile" dbt uses for this project.
-profile: 'default'
+profile: 'kwwhat'
 
 # These configurations specify where dbt should look for different types of files.
 # The `model-paths` config, for example, states that models in this project can be
@@ -40,3 +40,10 @@ models:
     # Applies to all files under models/marts/
     marts:
       +materialized: table
+
+# Variables for source references
+# This makes it easier to reference sources in models and keeps source names consistent
+vars:
+  raw_database: "RAW"
+  raw_schema: "SEED"
+  ocpp_logs_identifier: "ocpp_1_6_synthetic_logs_1d"

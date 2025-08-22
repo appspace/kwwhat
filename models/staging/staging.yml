@@ -1,0 +1,26 @@
+
+version: 2
+
+sources:
+  - name: raw
+    description: "raw data"
+    database: "{{ var('raw_database', 'RAW') }}"
+    schema: "{{ var('raw_schema', 'SEED') }}"
+
+    tables:
+      - name: ocpp_logs
+        identifier: "{{ var('ocpp_logs_identifier') }}"
+        description: "raw OCPP logs"
+        loaded_at_field: timestamp
+        freshness:
+          warn_after: {count: 2, period: hour}
+          error_after: {count: 3, period: hour}
+        columns:
+          - name: timestamp
+            description: "Timestamp when the OCPP message was received in UTC ISO 8601 time notation"
+          - name: id
+            description: "Charge point identifier (e.g., CH-001)"
+          - name: action
+            description: "For messages with MessageTypeId = 2,OCPP action type (e.g., BootNotification, StatusNotification, Heartbeat, StartTransaction, StopTransaction, MeterValues, RemoteStartTransaction)"
+          - name: msg
+            description: "JSON array representing OCPP message. For request messages (MessageTypeId = 2): [2, \"<UniqueId>\", \"<Action>\", <Payload>]. For response messages (MessageTypeId = 3): [3, \"<UniqueId>\", <Payload>]"
