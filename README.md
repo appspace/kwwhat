@@ -52,7 +52,7 @@ Then update your `profiles.yml` to point to your raw data location (e.g., DuckDB
 
 - OCPP 1.6 logs were kindly donated by [Epic Charging](https://www.linkedin.com/company/epiccharging)
 
-- OCPP 2.0.1 logs were borrowed from [OCPP-2.0.1-Interim-KPI-Calculator](https://github.com/chargex-consortium/OCPP-2.0.1-Interim-KPI-Calculator$0)
+- OCPP 2.0.1 logs were borrowed from [OCPP-2.0.1-Interim-KPI-Calculator](https://github.com/chargex-consortium/OCPP-2.0.1-Interim-KPI-Calculator)
 
 Seed data was generated with [OCPP synthetic log generator](https://chatgpt.com/g/g-68923b4c67548191a90737f5c3dc4d57-ocpp-synthetic-log-generator)
 
