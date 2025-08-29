@@ -47,3 +47,9 @@ vars:
   raw_database: "RAW"
   raw_schema: "SEED"
   ocpp_logs_identifier: "ocpp_1_6_synthetic_logs_1d"
+  start_processing_date: "2025-01-01"
+  authorize_time_threshold_seconds: 300
+  message_type_ids:
+    request: "2"
+    confirmation: "3"
+
