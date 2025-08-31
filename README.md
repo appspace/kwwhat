@@ -93,7 +93,7 @@ Open to contributions from the EV data community. If you’re building in this s
 
 ## Contact
 
-Questions? Ideas? Drop an issue.
+Questions? Ideas? Drop an issue or find us on LinkedIn [kwwhat](https://www.linkedin.com/company/108154470)
 
 
 
