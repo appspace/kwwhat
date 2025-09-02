@@ -11,7 +11,7 @@ with source as (
 renamed as (
     select
         -- Convert timestamp to proper timestamp type using dbt macro for cross-platform compatibility
-        cast(timestamp as {{ dbt.type_timestamp() }}) as timestamp,
+        cast(timestamp as {{ dbt.type_timestamp() }}) as ingested_timestamp,
         
         -- Charge point identifier
         cast(id as {{ dbt.type_string() }}) as charge_point_id,
@@ -23,15 +23,8 @@ renamed as (
         -- Using fivetran_utils json_extract macro
         {{ fivetran_utils.json_extract(string="msg", string_path=[0]) }} as message_type_id,
         
-        -- Extract UniqueId from the JSON array
-        {{ fivetran_utils.json_extract(string="msg", string_path=[1]) }} as unique_id,
-        
-        -- Extract Action from the JSON array (only for request messages)
-        case 
-            when {{ fivetran_utils.json_extract(string="msg", string_path=[0]) }} = '2' 
-            then {{ fivetran_utils.json_extract(string="msg", string_path=[2]) }}
-            else null
-        end as extracted_action,
+        -- Extract MessageId from the JSON array
+        {{ fivetran_utils.json_extract(string="msg", string_path=[1]) }} as message_id,
         
         -- Extract Payload from the JSON array
         case 
@@ -40,7 +33,7 @@ renamed as (
             when {{ fivetran_utils.json_extract(string="msg", string_path=[0]) }} = '3' 
             then {{ fivetran_utils.json_extract(string="msg", string_path=[2]) }}
             else null
-        end as extracted_payload
+        end as payload
 
     from source
 )
