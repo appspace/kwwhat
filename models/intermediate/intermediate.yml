@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: int_status_changes
+    description: "Intermediate model that tracks connector status changes with previous status tracking and confirmation status. Grain: one row per status notification."
+    columns:
+      - name: charge_point_id
+        description: "Identifier for the charge point"
+        tests:
+          - not_null
+      - name: message_id
+        description: "Unique identifier for the OCPP message"
+        tests:
+          - not_null
+      - name: connector_id
+        description: "Identifier for the connector"
+        tests:
+          - not_null
+      - name: ingested_timestamp
+        description: "Timestamp when the status notification was ingested"
+        tests:
+          - not_null
+      - name: status
+        description: "Current status from the notification"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Available', 'Preparing', 'Charging', 'SuspendedEVSE', 'SuspendedEV', 'Finishing', 'Reserved', 'Unavailable', 'Faulted']
+      - name: error_code
+        description: "Error code from the status notification payload (NoError if no error to report)"
+        tests:
+          - not_null        
+      - name: payload
+        description: "Original payload from the status notification"
+      - name: previous_status
+        description: "Previous status for the same charge point and connector (null for first status)"
+      - name: previous_ingested_timestamp
+        description: "Timestamp of the previous status notification for the same charge point and connector (null for first status)"
+      - name: confirmation_ingested_timestamp
+        description: "Timestamp when the confirmation was ingested"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - connector_id
+              - ingested_timestamp
