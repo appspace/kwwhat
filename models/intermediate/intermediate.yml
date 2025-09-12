@@ -64,3 +64,36 @@ models:
             expression: "status != next_status or next_status is null"
           config:
             severity: error
+              - ingested_timestamp
+              
+  - name: int_charge_attempts
+    description: "Intermediate model that processes charge attempt events from OCPP logs, excluding status changes which are handled separately"
+    columns:
+      - name: charge_attempt_id
+        description: "Unique identifier for each charge attempt event"
+      - name: ingested_timestamp
+        description: "Timestamp when the event was ingested"
+      - name: charge_point_id
+        description: "Identifier for the charge point"
+      - name: unique_id
+        description: "Unique identifier for the OCPP message"
+      - name: action
+        description: "The OCPP action type (Authorize, StartTransaction, etc.)"
+      - name: id_tag
+        description: "RFID tag or user identifier"
+      - name: connector_id
+        description: "Identifier for the charging connector"
+      - name: transaction_timestamp
+        description: "Timestamp of the transaction"
+      - name: meter_value
+        description: "Meter reading value"
+      - name: stop_reason
+        description: "Reason for stopping the transaction"
+      - name: transaction_id
+        description: "Unique transaction identifier"
+      - name: confirmation_timestamp
+        description: "Timestamp of the confirmation response"
+      - name: confirmation_status
+        description: "Status from the confirmation response"
+      - name: final_transaction_id
+        description: "Final transaction ID after confirmation"
