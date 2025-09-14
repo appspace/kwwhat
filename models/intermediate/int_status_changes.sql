@@ -100,10 +100,35 @@
         from status_with_confirmation
     ),
 
+    -- Add next status using window function
+    status_with_lead as (
+        select
+            *,
+            lead(status) over (
+                partition by charge_point_id, connector_id order by ingested_timestamp
+            ) as next_status,
+            lead(ingested_timestamp) over (
+                partition by charge_point_id, connector_id order by ingested_timestamp
+            ) as next_ingested_timestamp
+        from status_with_lag
+    ),
+
     statuses as (
          select *,
-            (select incremental_timestamp from incremental_ts) as incremental_timestamp
-         from status_with_lag
+            (select incremental_timestamp from incremental_ts) as incremental_timestamp,
+            -- Calculate seconds to previous status
+            case 
+                when previous_ingested_timestamp is not null 
+                then {{ dbt.datediff('previous_ingested_timestamp', 'ingested_timestamp', 'second') }}
+                else null
+            end as seconds_to_previous_status,
+            -- Calculate seconds to next status
+            case 
+                when next_ingested_timestamp is not null 
+                then {{ dbt.datediff('ingested_timestamp', 'next_ingested_timestamp', 'second') }}
+                else null
+            end as seconds_to_next_status
+         from status_with_lead
     )
 
  select * 
