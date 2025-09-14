@@ -37,6 +37,14 @@ models:
         description: "Previous status for the same charge point and connector (null for first status)"
       - name: previous_ingested_timestamp
         description: "Timestamp of the previous status notification for the same charge point and connector (null for first status)"
+      - name: next_status
+        description: "Next status for the same charge point and connector (null for last status)"
+      - name: next_ingested_timestamp
+        description: "Timestamp of the next status notification for the same charge point and connector (null for last status)"
+      - name: seconds_to_previous_status
+        description: "Time in seconds from previous status to current status (null if no previous status)"
+      - name: seconds_to_next_status
+        description: "Time in seconds from current status to next status (null if no next status)"
       - name: confirmation_ingested_timestamp
         description: "Timestamp when the confirmation was ingested"
     tests:
