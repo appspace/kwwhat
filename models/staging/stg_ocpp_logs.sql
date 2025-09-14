@@ -24,7 +24,7 @@ renamed as (
         {{ fivetran_utils.json_extract(string="msg", string_path=[0]) }} as message_type_id,
         
         -- Extract MessageId from the JSON array
-        {{ fivetran_utils.json_extract(string="msg", string_path=[1]) }} as message_id,
+        {{ fivetran_utils.json_extract(string="msg", string_path=[1]) }} as unique_id,
         
         -- Extract Payload from the JSON array
         case 

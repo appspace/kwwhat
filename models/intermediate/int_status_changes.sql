@@ -53,7 +53,7 @@
         select
             ingested_timestamp,
             charge_point_id,
-            message_id,
+            unique_id,
             action,
             payload,
             {{ fivetran_utils.json_extract(string="payload", string_path="connectorId")}} as connector_id,
@@ -61,7 +61,7 @@
             {{ fivetran_utils.json_extract(string="payload", string_path="errorCode") }} as error_code
         from ocpp_logs
         where action = 'StatusNotification'
-            and message_type_id = {{ var("message_type_ids").request }}
+            and message_type_id = {{ var("message_type_ids").CALL }}
     ),
 
     -- Join status notifications with their confirmations
@@ -71,7 +71,7 @@
             req.charge_point_id,
             req.connector_id,
             req.ingested_timestamp,
-            req.message_id,
+            req.unique_id,
             req.status,
             req.error_code,
             req.payload,
@@ -81,8 +81,8 @@
             
         from status_notification_events req
         left join ocpp_logs conf
-            on req.message_id = conf.message_id
-            and conf.message_type_id = {{ var("message_type_ids").confirmation }}
+            on req.unique_id = conf.unique_id
+            and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
             and conf.ingested_timestamp >= req.ingested_timestamp
             and conf.ingested_timestamp <= {{ dbt.dateadd("second", 15, "req.ingested_timestamp") }}
     ),

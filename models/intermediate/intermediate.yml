@@ -8,7 +8,7 @@ models:
         description: "Identifier for the charge point"
         tests:
           - not_null
-      - name: message_id
+      - name: unique_id
         description: "Unique identifier for the OCPP message"
         tests:
           - not_null
