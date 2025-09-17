@@ -56,33 +56,63 @@ models:
               - ingested_timestamp
               
   - name: int_charge_attempts
-    description: "Intermediate model that processes charge attempt events from OCPP logs, excluding status changes which are handled separately"
+    description: "Intermediate model that processes charge attempt events from OCPP logs, excluding status changes which are handled separately. Groups events by status change to 'Preparing' and aggregates related transaction data."
     columns:
-      - name: charge_attempt_id
-        description: "Unique identifier for each charge attempt event"
-      - name: ingested_timestamp
-        description: "Timestamp when the event was ingested"
       - name: charge_point_id
         description: "Identifier for the charge point"
-      - name: unique_id
-        description: "Unique identifier for the OCPP message"
-      - name: action
-        description: "The OCPP action type (Authorize, StartTransaction, etc.)"
-      - name: id_tag
-        description: "RFID tag or user identifier"
+        tests:
+          - not_null
       - name: connector_id
         description: "Identifier for the charging connector"
-      - name: transaction_timestamp
-        description: "Timestamp of the transaction"
-      - name: meter_value
-        description: "Meter reading value"
-      - name: stop_reason
-        description: "Reason for stopping the transaction"
-      - name: transaction_id
-        description: "Unique transaction identifier"
-      - name: confirmation_timestamp
-        description: "Timestamp of the confirmation response"
-      - name: confirmation_status
-        description: "Status from the confirmation response"
-      - name: final_transaction_id
-        description: "Final transaction ID after confirmation"
+        tests:
+          - not_null
+      - name: charge_attempt_unique_id
+        description: "Unique identifier for the status change that triggered this charge attempt"
+        tests:
+          - not_null
+      - name: charge_attempt_timestamp
+        description: "Timestamp when the status changed to 'Preparing' (start of charge attempt)"
+        tests:
+          - not_null
+      - name: previous_status
+        description: "Status before changing to 'Preparing'"
+      - name: status
+        description: "Current status (should be 'Preparing')"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Preparing']
+      - name: next_status
+        description: "Next status after 'Preparing' (e.g., 'Charging', 'Available', 'Faulted')"
+      - name: confirmation_ingested_timestamp
+        description: "Timestamp when the status change confirmation was received"
+      - name: first_status_transition_timestamp
+        description: "Timestamp of the first status transition after 'Preparing'"
+      - name: id_tags
+        description: "Array of RFID tags or user identifiers from Authorize/StartTransaction messages"
+      - name: id_tag_statuses
+        description: "Array of authorization statuses (e.g., 'Accepted', 'Blocked')"
+      - name: transaction_ids
+        description: "Array of unique transaction identifiers from StartTransaction/StopTransaction messages"
+      - name: transaction_start_timestamps
+        description: "Array of transaction start timestamps from StartTransaction messages"
+      - name: transaction_stop_timestamps
+        description: "Array of transaction stop timestamps from StopTransaction messages"
+      - name: transaction_stop_reasons
+        description: "Array of reasons for stopping transactions (e.g., 'EVDisconnected', 'DeAuthorized')"
+      - name: meter_starts
+        description: "Array of meter readings at transaction start (in Wh)"
+      - name: meter_stops
+        description: "Array of meter readings at transaction stop (in Wh)"
+      - name: error_codes
+        description: "Array of error codes from StatusNotification messages"
+      - name: energy_transferred_wh
+        description: "Total energy transferred in Wh (meterStop - meterStart from StartTransaction and StopTransaction messages). Cast as NUMERIC for precision."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - connector_id
+              - charge_attempt_timestamp
