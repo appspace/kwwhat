@@ -6,7 +6,7 @@
   )
 }}
 
-{% set charge_attempt_actions = ['Authorize', 'StartTransaction', 'StopTransaction', 'MeterValues', 'StatusNotification', 'RemoteStartTransaction', 'RemoteStopTransaction'] %}
+{% set charge_attempt_actions = ['Authorize', 'StartTransaction', 'StopTransaction', 'StatusNotification', 'RemoteStartTransaction', 'RemoteStopTransaction'] %}
 
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
     with incremental_date_range as (
@@ -140,7 +140,6 @@ charge_attempt_details as (
         -- Meter details
         {{ payload_extract_meter_start('action', 'payload') }} as meter_start,
         {{ payload_extract_meter_stop('action', 'payload') }} as meter_stop,
-        {{ payload_extract_meter_value('action', 'conf_payload') }} as meter_value,
         -- Error details
         {{ payload_extract_error_code('action', 'payload') }} as error_code
     from charge_attempt_events_chaining att
@@ -199,7 +198,6 @@ charge_attempt_transaction_details as (
         -- Meter details
         {{ payload_extract_meter_start('action', 'payload') }} as meter_start,
         {{ payload_extract_meter_stop('action', 'payload') }} as meter_stop,
-        {{ payload_extract_meter_value('action', 'payload') }} as meter_value,
         -- Error details
         {{ payload_extract_error_code('action', 'payload') }} as error_code
     from charge_attempt_transactions att
@@ -238,11 +236,16 @@ charge_attempts as (
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_stop_reason") }}) as transaction_stop_reasons,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="meter_start") }}) as meter_starts,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="meter_stop") }}) as meter_stops,
-        -- {{ fivetran_utils.array_agg(field_to_agg="meter_value") }} as meter_values,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="error_code") }}) as error_codes,
-        
-        -- Count aggregations for testing
-        count(distinct case when transaction_id is not null then transaction_id end) as unique_transaction_count
+
+        -- Calculate energy transferred from meterStart and meterStop values
+        cast(
+            case 
+                when min(meter_start) is not null and min(meter_stop) is not null
+                then min(meter_stop) - min(meter_start)
+                else null
+            end as {{ dbt.type_numeric() }}
+        ) as energy_transferred_wh
         
     from charge_attempt_full_scope
     group by 
