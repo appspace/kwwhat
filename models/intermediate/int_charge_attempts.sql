@@ -74,7 +74,6 @@ charge_attempt_events as (
         {{ fivetran_utils.json_extract(string="payload", string_path="transactionId") }} as transaction_id
     from ocpp_logs
     where action in ({{ "'" + "', '".join(charge_attempt_actions) + "'" }})
-        --and message_type_id = {{ var('message_type_ids').request }}
 ),
 
 charge_attempt_events_conf as (
@@ -112,7 +111,7 @@ charge_attempt_events_chaining as (
         on att.charge_point_id = e.charge_point_id
         and att.connector_id = e.connector_id
         and e.ingested_timestamp > att.previous_ingested_timestamp
-        and e.ingested_timestamp < att.next_ingested_timestamp
+        and e.ingested_timestamp <= att.next_ingested_timestamp
 ),
 
 -- Extract relevant details based on action type
