@@ -245,7 +245,7 @@ charge_attempts as (
                 else null
             end as {{ dbt.type_numeric() }}
         ) as energy_transferred_wh
-        
+                
     from charge_attempt_full_scope
     group by 
         charge_point_id,
@@ -258,4 +258,12 @@ charge_attempts as (
         confirmation_ingested_timestamp
 )
 
-select * from charge_attempts
+select *,
+    -- Count aggregations for testing (database-agnostic)
+    case 
+        when transaction_ids is not null 
+        then {{ array_size('transaction_ids') }}
+        else 0
+    end as _unique_transaction_count
+
+from charge_attempts

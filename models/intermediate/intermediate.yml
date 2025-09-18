@@ -109,6 +109,12 @@ models:
         description: "Array of error codes from StatusNotification messages"
       - name: energy_transferred_wh
         description: "Total energy transferred in Wh (meterStop - meterStart from StartTransaction and StopTransaction messages). Cast as NUMERIC for precision."
+      - name: _unique_transaction_count
+        description: "Count of unique transaction IDs for this charge attempt (should be 0 or 1)"
+        tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
