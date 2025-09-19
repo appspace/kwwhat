@@ -259,7 +259,7 @@ charge_attempts as (
 )
 
 select *,
-    -- Count aggregations for testing (database-agnostic)
+    -- Count aggregations for testing
     case 
         when transaction_ids is not null 
         then {{ array_size('transaction_ids') }}
