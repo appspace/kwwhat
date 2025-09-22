@@ -144,74 +144,6 @@ charge_attempt_details as (
     from charge_attempt_events_chaining att
 ),
 
--- Group by transaction_id and extract transaction-level details
-charge_attempt_transactions as (
-    select
-        -- Charge attempts details
-        att.charge_point_id,
-        att.connector_id,
-        att.charge_attempt_unique_id,
-        att.charge_attempt_timestamp,
-        att.previous_status,
-        att.status,
-        att.next_status,
-        att.confirmation_ingested_timestamp,
-        att.first_status_transition_timestamp,
-
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_id") }})[0] as transaction_id
-    from charge_attempt_details att
-    where transaction_id is not null
-    group by 
-        charge_point_id,
-        connector_id,
-        charge_attempt_unique_id,
-        charge_attempt_timestamp,        
-        previous_status,
-        status,
-        next_status,
-        confirmation_ingested_timestamp,
-        first_status_transition_timestamp
-),
-
-charge_attempt_transaction_details as (
-    select
-        -- Charge attempts details
-        att.charge_point_id,
-        att.connector_id,
-        att.charge_attempt_unique_id,
-        att.charge_attempt_timestamp,
-        att.previous_status,
-        att.status,
-        att.next_status,
-        att.confirmation_ingested_timestamp,
-        att.first_status_transition_timestamp,
-        
-        -- Extract details based on action type using reusable macros
-        {{ payload_extract_id_tag('action', 'payload', 'conf_payload') }} as id_tag,
-        {{ payload_extract_id_tag_status('action', 'conf_payload') }} as id_tag_status,
-        -- Transaction details
-        {{ payload_extract_transaction_id('action', 'payload', 'conf_payload') }} as transaction_id,
-        {{ payload_extract_transaction_start_ts('action', 'payload') }} as transaction_start_ts,
-        {{ payload_extract_transaction_stop_ts('action', 'payload') }} as transaction_stop_ts,
-        {{ payload_extract_transaction_stop_reason('action', 'payload') }} as transaction_stop_reason,
-        -- Meter details
-        {{ payload_extract_meter_start('action', 'payload') }} as meter_start,
-        {{ payload_extract_meter_stop('action', 'payload') }} as meter_stop,
-        -- Error details
-        {{ payload_extract_error_code('action', 'payload') }} as error_code
-    from charge_attempt_transactions att
-    join charge_attempt_events_conf e on att.transaction_id = e.transaction_id
-        and att.charge_point_id = e.charge_point_id
-        -- StopTransaction does not have connectorId
-        -- and att.connector_id = e.connector_id
-        and att.first_status_transition_timestamp <= e.ingested_timestamp
-),
-
-charge_attempt_full_scope as (
-    select * from charge_attempt_details
-    union all
-    select * from charge_attempt_transaction_details
-),
 
 -- Group by status change details and aggregate into arrays
 charge_attempts as (
@@ -225,28 +157,15 @@ charge_attempts as (
         status,
         next_status,
         confirmation_ingested_timestamp,
+        next_status_timestamp,
                 
         -- Aggregate extracted details into arrays
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag") }}) as id_tags,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag_status") }}) as id_tag_statuses,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_id") }}) as transaction_ids,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_start_ts") }}) as transaction_start_timestamps,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_stop_ts") }}) as transaction_stop_timestamps,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_stop_reason") }}) as transaction_stop_reasons,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="meter_start") }}) as meter_starts,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="meter_stop") }}) as meter_stops,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="error_code") }}) as error_codes,
-
-        -- Calculate energy transferred from meterStart and meterStop values
-        cast(
-            case 
-                when min(meter_start) is not null and min(meter_stop) is not null
-                then min(meter_stop) - min(meter_start)
-                else null
-            end as {{ dbt.type_numeric() }}
-        ) as energy_transferred_wh
+        array_distinct({{ fivetran_utils.array_agg(field_to_agg="error_code") }}) as error_codes
                 
-    from charge_attempt_full_scope
+    from charge_attempt_details
     group by 
         charge_point_id,
         connector_id,
@@ -255,7 +174,8 @@ charge_attempts as (
         previous_status,
         status,
         next_status,
-        confirmation_ingested_timestamp
+        confirmation_ingested_timestamp,
+        next_status_timestamp
 )
 
 select *,
