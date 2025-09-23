@@ -95,8 +95,6 @@ transaction_details as (
         {{ payload_extract_meter_start('action', 'payload') }} as meter_start,
         {{ payload_extract_meter_stop('action', 'payload') }} as meter_stop,
         {{ payload_extract_meter_value('action', 'payload') }} as meter_value,
-        -- Error details
-        {{ payload_extract_error_code('action', 'payload') }} as error_code
     from transaction_events_conf e
 ),
 

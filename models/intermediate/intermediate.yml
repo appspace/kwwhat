@@ -101,8 +101,6 @@ models:
         description: "Meter reading at transaction start (in Wh, converted to kW for consistency)"
       - name: meter_stop_kw
         description: "Meter reading at transaction stop (in Wh, converted to kW for consistency)"
-      - name: error_codes
-        description: "Array of error codes from StatusNotification messages"
       - name: energy_transferred_kwh
         description: "Total energy transferred in kWh (calculated from meter_stop_kw - meter_start_kw)"
       - name: _unique_connectors_count
