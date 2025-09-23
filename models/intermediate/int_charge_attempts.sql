@@ -14,8 +14,11 @@
         select
             from_timestamp,
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            -- TODO: least of +3 month, max ingested status changes, max ingested ocpp logs
-            {{ dbt.dateadd("month", 3, "from_timestamp") }} as to_timestamp
+            least(
+                {{ dbt.dateadd("month", 3, "from_timestamp") }},
+                (select max(ingested_ts) from {{ ref("int_status_changes") }}),
+                (select max(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
+            ) as to_timestamp
         from
             (
                 select (select max(incremental_ts) from {{ this }}) as from_timestamp
@@ -26,7 +29,11 @@
         select
             from_timestamp,
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            {{ dbt.dateadd("month", 3, "from_timestamp") }} as to_timestamp
+            least(
+                {{ dbt.dateadd("month", 3, "from_timestamp") }},
+                (select max(ingested_ts) from {{ ref("int_status_changes") }}),
+                (select max(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
+            ) as to_timestamp
         from
             (
                 select
