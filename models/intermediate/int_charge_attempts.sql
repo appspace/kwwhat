@@ -13,10 +13,11 @@
         select
             from_timestamp,
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
+            -- TODO: least of +3 month, max ingested status changes, max ingested ocpp logs
             {{ dbt.dateadd("month", 3, "from_timestamp") }} as to_timestamp
         from
             (
-                select (select max(incremental_timestamp) from {{ this }}) as from_timestamp
+                select (select max(incremental_ts) from {{ this }}) as from_timestamp
             )
     ),
 {% else %}
@@ -43,28 +44,40 @@ status_changes_to_preparing as (
         charge_point_id,
         connector_id,
         unique_id,
-        ingested_timestamp,
+        ingested_ts,
         status,
         previous_status,
-        previous_ingested_timestamp,
+        previous_ingested_ts,
         next_status,
-        next_ingested_timestamp,
+        next_ingested_ts,
         error_code,
         -- payload,
         
         -- Confirmation details
-        confirmation_ingested_timestamp
+        confirmation_ingested_ts
     from {{ ref('int_status_changes') }}
-    where incremental_timestamp > (select buffer_from_timestamp from incremental_date_range)
-        and incremental_timestamp <= (select to_timestamp from incremental_date_range)
+    where ingested_ts > (select buffer_from_timestamp from incremental_date_range)
+        and ingested_ts <= (select to_timestamp from incremental_date_range)
         and status = 'Preparing'
 ),
 
 ocpp_logs as (
-    select *
+    select
+        charge_point_id,
+        action,
+        ingested_timestamp as ingested_ts,
+        message_type_id,
+        payload,
+        unique_id
     from {{ ref("stg_ocpp_logs") }}
     where ingested_timestamp > (select buffer_from_timestamp from incremental_date_range)
         and ingested_timestamp <= (select to_timestamp from incremental_date_range)
+),
+
+incremental as (
+    select
+        max(ingested_ts) as incremental_ts
+    from ocpp_logs
 ),
 
 -- Filter for charge attempt actions first
@@ -82,8 +95,8 @@ charge_attempt_events_conf as (
     from charge_attempt_events req
     left join ocpp_logs conf on req.unique_id = conf.unique_id
         and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
-        and conf.ingested_timestamp >= req.ingested_timestamp
-        and conf.ingested_timestamp <= {{ dbt.dateadd("second", 15, "req.ingested_timestamp") }}
+        and conf.ingested_ts >= req.ingested_ts
+        and conf.ingested_ts <= {{ dbt.dateadd("second", 15, "req.ingested_ts") }}
 
 ),
 
@@ -93,15 +106,15 @@ charge_attempt_events_chaining as (
         att.charge_point_id,
         att.connector_id,
         att.unique_id as charge_attempt_unique_id,
-        att.ingested_timestamp as charge_attempt_timestamp,
+        att.ingested_ts as charge_attempt_ingested_ts,
         att.previous_status,
         att.status,
         att.next_status,
-        att.confirmation_ingested_timestamp,
-        att.next_ingested_timestamp as first_status_transition_timestamp,
+        att.confirmation_ingested_ts,
+        att.next_ingested_ts as first_status_transition_ts,
         
         -- Charge attempt event details
-        e.ingested_timestamp,
+        e.ingested_ts,
         e.unique_id,
         e.action,
         e.payload,
@@ -110,8 +123,8 @@ charge_attempt_events_chaining as (
     left join charge_attempt_events_conf e
         on att.charge_point_id = e.charge_point_id
         and att.connector_id = e.connector_id
-        and e.ingested_timestamp > att.previous_ingested_timestamp
-        and e.ingested_timestamp <= att.next_ingested_timestamp
+        and e.ingested_ts > att.previous_ingested_ts
+        and e.ingested_ts <= att.next_ingested_ts
 ),
 
 -- Extract relevant details based on action type
@@ -121,24 +134,19 @@ charge_attempt_details as (
         att.charge_point_id,
         att.connector_id,
         att.charge_attempt_unique_id,
-        att.charge_attempt_timestamp,
+        att.charge_attempt_ingested_ts,
         att.previous_status,
         att.status,
         att.next_status,
-        att.confirmation_ingested_timestamp,
-        att.first_status_transition_timestamp,
+        att.confirmation_ingested_ts,
+        att.first_status_transition_ts,
         
         -- Extract details based on action type using reusable macros
         {{ payload_extract_id_tag('action', 'payload', 'conf_payload') }} as id_tag,
         {{ payload_extract_id_tag_status('action', 'conf_payload') }} as id_tag_status,
         -- Transaction details
         {{ payload_extract_transaction_id('action', 'payload', 'conf_payload') }} as transaction_id,
-        {{ payload_extract_transaction_start_ts('action', 'payload') }} as transaction_start_ts,
-        {{ payload_extract_transaction_stop_ts('action', 'payload') }} as transaction_stop_ts,
-        {{ payload_extract_transaction_stop_reason('action', 'payload') }} as transaction_stop_reason,
-        -- Meter details
-        {{ payload_extract_meter_start('action', 'payload') }} as meter_start,
-        {{ payload_extract_meter_stop('action', 'payload') }} as meter_stop,
+
         -- Error details
         {{ payload_extract_error_code('action', 'payload') }} as error_code
     from charge_attempt_events_chaining att
@@ -152,12 +160,11 @@ charge_attempts as (
         charge_point_id,
         connector_id,
         charge_attempt_unique_id,
-        charge_attempt_timestamp,
+        charge_attempt_ingested_ts,
         previous_status,
         status,
         next_status,
-        confirmation_ingested_timestamp,
-        next_status_timestamp,
+        confirmation_ingested_ts,
                 
         -- Aggregate extracted details into arrays
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag") }}) as id_tags,
@@ -170,20 +177,21 @@ charge_attempts as (
         charge_point_id,
         connector_id,
         charge_attempt_unique_id,
-        charge_attempt_timestamp,        
+        charge_attempt_ingested_ts,        
         previous_status,
         status,
         next_status,
-        confirmation_ingested_timestamp,
-        next_status_timestamp
+        confirmation_ingested_ts
 )
 
 select *,
     -- Count aggregations for testing
     case 
         when transaction_ids is not null 
-        then {{ array_size('transaction_ids') }}
+            then {{ array_size('transaction_ids') }}
         else 0
-    end as _unique_transaction_count
+    end as _unique_transaction_count,
+
+    (select incremental_ts from incremental) as incremental_ts
 
 from charge_attempts
