@@ -185,13 +185,18 @@ charge_attempts as (
 )
 
 select *,
+    case 
+        when transaction_ids is not null  and {{ array_size('transaction_ids') }} > 0
+            then transaction_ids[0]
+        else null
+    end as transaction_id,
+    (select incremental_ts from incremental) as incremental_ts,
+
     -- Count aggregations for testing
     case 
         when transaction_ids is not null 
             then {{ array_size('transaction_ids') }}
         else 0
-    end as _unique_transaction_count,
-
-    (select incremental_ts from incremental) as incremental_ts
+    end as _unique_transaction_count
 
 from charge_attempts
