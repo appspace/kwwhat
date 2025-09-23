@@ -121,7 +121,10 @@ select
     ca.error_codes as charge_attempt_error_codes,
     
     -- Processing metadata
-    greatest(ca.charge_attempt_incremental_ts, t.transaction_incremental_ts) as incremental_ts    
+    greatest(
+        coalesce(ca.charge_attempt_incremental_ts, '1900-01-01'::timestamp),
+        coalesce(t.transaction_incremental_ts, '1900-01-01'::timestamp)
+    ) as incremental_ts
     
 from charge_attempts ca
 full outer join transactions t

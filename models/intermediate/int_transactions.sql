@@ -118,10 +118,7 @@ transactions as (
         
         -- Energy transfer details
         min(meter_start) as meter_start_kw,
-        max(meter_stop) as meter_stop_kw,
-        
-        -- Error details
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="error_code") }}) as error_codes
+        max(meter_stop) as meter_stop_kw
         
     from transaction_details
     where transaction_id is not null
