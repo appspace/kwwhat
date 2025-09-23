@@ -1,8 +1,9 @@
 {{
   config(
     materialized='incremental',
-    unique_key='transaction_id',
-    on_schema_change='sync_all_columns'
+    unique_key=["charge_point_id", "connector_id", "transaction_ingested_ts"], 
+    incremental_strategy="merge",
+    cluster_by="transaction_ingested_ts"
   )
 }}
 
@@ -80,6 +81,7 @@ transaction_details as (
         -- Charge attempts details
         e.charge_point_id,
         e.connector_id,
+        e.ingested_ts,
 
         {{ payload_extract_transaction_id('action', 'payload', 'conf_payload') }} as transaction_id,
         -- Extract details based on action type using reusable macros
@@ -107,6 +109,7 @@ transactions as (
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="connector_id") }}) as connector_ids,
         
         -- Transaction timing details
+        min(ingested_ts) as transaction_ingested_ts,
         min(transaction_start_ts) as transaction_start_ts,
         max(transaction_stop_ts) as transaction_stop_ts,
         min(transaction_stop_reason) as transaction_stop_reason,

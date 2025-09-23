@@ -1,8 +1,9 @@
 {{
   config(
     materialized='incremental',
-    unique_key='charge_attempt_id',
-    on_schema_change='sync_all_columns'
+    unique_key=["charge_point_id", "connector_id", "charge_attempt_ingested_ts"], 
+    incremental_strategy="merge",
+    cluster_by="charge_attempt_ingested_ts"
   )
 }}
 
