@@ -54,3 +54,13 @@ models:
               - charge_point_id
               - connector_id
               - ingested_ts
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "status != previous_status or previous_status is null"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "status != next_status or next_status is null"
+          config:
+            severity: error

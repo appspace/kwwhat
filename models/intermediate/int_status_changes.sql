@@ -106,6 +106,13 @@
         from status_with_confirmation
     ),
 
+    change_from_lag as (
+        select *
+        from status_with_lag
+        where previous_status is null or previous_status <> status
+    ),
+
+
     -- Add next status using window function
     status_with_lead as (
         select
@@ -116,7 +123,7 @@
             lead(ingested_ts) over (
                 partition by charge_point_id, connector_id order by ingested_ts
             ) as next_ingested_ts
-        from status_with_lag
+        from change_from_lag
     ),
 
     statuses as (
@@ -139,4 +146,4 @@
  select *,
     (select incremental_ts from incremental) as incremental_ts
  from statuses
- where previous_status is null or previous_status <> status
+ 
