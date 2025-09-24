@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: int_status_changes
-    description: "Intermediate model that tracks connector status changes with previous status tracking and confirmation status. Grain: one row per status notification."
+    description: "Intermediate model that tracks connector status changes with previous status tracking and confirmation status. Uses incremental processing with 30-minute buffer to ensure accurate previous_status relationships. Grain: one row per status notification."
     columns:
       - name: charge_point_id
         description: "Identifier for the charge point"

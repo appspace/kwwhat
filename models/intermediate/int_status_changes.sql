@@ -18,6 +18,25 @@
                 select (select max(incremental_ts) from {{ this }}) as from_timestamp
             )
     ),
+
+    -- Get previous statuses from the existing table to extend lag window
+    statuses_buffer as (
+        select
+            charge_point_id,
+            connector_id,
+            ingested_ts,
+            unique_id,
+            status,
+            error_code,
+            payload,
+            confirmation_ingested_ts,
+            previous_status,
+            previous_ingested_ts
+        from {{ this }}
+        where (ingested_ts >= (select buffer_from_timestamp from incremental_date_range)
+            and ingested_ts <= (select from_timestamp from incremental_date_range))
+            or next_status is null
+    ),
 {% else %}
     with incremental_date_range as (
         select
@@ -44,7 +63,7 @@
             payload,
             unique_id
         from {{ ref("stg_ocpp_logs") }}
-        where ingested_timestamp > (select buffer_from_timestamp from incremental_date_range)
+        where ingested_timestamp > (select from_timestamp from incremental_date_range)
             and ingested_timestamp <= (select to_timestamp from incremental_date_range)
     ),
 
@@ -93,17 +112,47 @@
             and conf.ingested_timestamp <= {{ dbt.dateadd("second", 15, "req.ingested_timestamp") }}
     ),
 
-    -- Add previous status using window function
+    -- Combine current statuses with previous statuses for accurate lag calculation
+    statuses_with_buffer as (
+        select 
+            *,
+            cast(null as {{ dbt.type_string() }}) as previous_status,
+            cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts
+        from status_with_confirmation
+        
+        {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+        union all
+        
+        select * from statuses_buffer
+        {% endif %}
+    ),
+
+    -- Add previous status using window function on combined data
+    -- Use coalesce to prefer existing previous_status from buffer over recalculated values
     status_with_lag as (
         select
-            *,
-            lag(status) over (
-                partition by charge_point_id, connector_id order by ingested_ts
+            charge_point_id,
+            connector_id,
+            ingested_ts,
+            unique_id,
+            status,
+            error_code,
+            payload,
+            confirmation_ingested_ts,
+
+            coalesce(
+                previous_status,
+                lag(status) over (
+                    partition by charge_point_id, connector_id order by ingested_ts
+                )
             ) as previous_status,
-            lag(ingested_ts) over (
-                partition by charge_point_id, connector_id order by ingested_ts
+            coalesce(
+                previous_ingested_ts,
+                lag(ingested_ts) over (
+                    partition by charge_point_id, connector_id order by ingested_ts
+                )
             ) as previous_ingested_ts
-        from status_with_confirmation
+        from statuses_with_buffer
     ),
 
     change_from_lag as (
@@ -112,8 +161,7 @@
         where previous_status is null or previous_status <> status
     ),
 
-
-    -- Add next status using window function
+    -- Add next status using window function (will be null for edge cases, updated in next run)
     status_with_lead as (
         select
             *,
