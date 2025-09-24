@@ -64,7 +64,6 @@ models:
             expression: "status != next_status or next_status is null"
           config:
             severity: error
-              - ingested_timestamp
               
   - name: int_transactions
     description: "Intermediate model that processes transaction-related OCPP events (StartTransaction, StopTransaction, RemoteStartTransaction, RemoteStopTransaction, MeterValues) and groups them by transaction ID. Each row represents a unique transaction with aggregated details."
