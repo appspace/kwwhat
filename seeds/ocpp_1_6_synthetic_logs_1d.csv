@@ -7,6 +7,8 @@ timestamp,id,action,msg
 2025-08-18T12:00:02.040Z,CH-001,,"[3,""notif-6c2c3"",{}]"
 2025-08-18T12:00:03.000Z,CH-001,StatusNotification,"[2,""notif-0d466"",""StatusNotification"",{""connectorId"":3,""status"":""Available"",""errorCode"":""NoError"",""timestamp"":""2025-08-18T12:00:03.000Z""}]"
 2025-08-18T12:00:03.040Z,CH-001,,"[3,""notif-0d466"",{}]"
+2025-08-18T12:00:03.001Z,CH-001,StatusNotification,"[2,""notif-0d4661"",""StatusNotification"",{""connectorId"":3,""status"":""Available"",""errorCode"":""NoError"",""timestamp"":""2025-08-18T12:00:03.001Z""}]"
+2025-08-18T12:00:03.041Z,CH-001,,"[3,""notif-0d4661"",{}]"
 2025-08-18T12:00:04.000Z,CH-001,StatusNotification,"[2,""notif-a6e80"",""StatusNotification"",{""connectorId"":4,""status"":""Available"",""errorCode"":""NoError"",""timestamp"":""2025-08-18T12:00:04.000Z""}]"
 2025-08-18T12:00:04.040Z,CH-001,,"[3,""notif-a6e80"",{}]"
 2025-08-18T12:00:05.000Z,CH-001,Heartbeat,"[2,""hb-e1c51"",""Heartbeat"",{}]"
