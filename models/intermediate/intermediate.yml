@@ -16,7 +16,7 @@ models:
         description: "Identifier for the connector"
         tests:
           - not_null
-      - name: ingested_timestamp
+      - name: ingested_ts
         description: "Timestamp when the status notification was ingested"
         tests:
           - not_null
@@ -35,17 +35,17 @@ models:
         description: "Original payload from the status notification"
       - name: previous_status
         description: "Previous status for the same charge point and connector (null for first status)"
-      - name: previous_ingested_timestamp
+      - name: previous_ingested_ts
         description: "Timestamp of the previous status notification for the same charge point and connector (null for first status)"
       - name: next_status
         description: "Next status for the same charge point and connector (null for last status)"
-      - name: next_ingested_timestamp
+      - name: next_ingested_ts
         description: "Timestamp of the next status notification for the same charge point and connector (null for last status)"
       - name: seconds_to_previous_status
         description: "Time in seconds from previous status to current status (null if no previous status)"
       - name: seconds_to_next_status
         description: "Time in seconds from current status to next status (null if no next status)"
-      - name: confirmation_ingested_timestamp
+      - name: confirmation_ingested_ts
         description: "Timestamp when the confirmation was ingested"
     tests:
       - dbt_utils.unique_combination_of_columns:
@@ -53,4 +53,4 @@ models:
             combination_of_columns:
               - charge_point_id
               - connector_id
-              - ingested_timestamp
+              - ingested_ts
