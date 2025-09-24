@@ -1,9 +1,9 @@
 {{ 
     config(
         materialized="incremental", 
-        unique_key=["charge_point_id", "connector_id", "ingested_timestamp"], 
+        unique_key=["charge_point_id", "connector_id", "ingested_ts"], 
         incremental_strategy="merge",
-        cluster_by="ingested_timestamp"
+        cluster_by="ingested_ts"
     ) 
 }}
 
@@ -15,7 +15,7 @@
             {{ dbt.dateadd("month", 3, "from_timestamp") }} as to_timestamp
         from
             (
-                select (select max(incremental_timestamp) from {{ this }}) as from_timestamp
+                select (select max(incremental_ts) from {{ this }}) as from_timestamp
             )
     ),
 {% else %}
@@ -36,15 +36,21 @@
 {% endif %}
 
     ocpp_logs as (
-        select *
+        select
+            charge_point_id,
+            action,
+            ingested_timestamp,
+            message_type_id,
+            payload,
+            unique_id
         from {{ ref("stg_ocpp_logs") }}
         where ingested_timestamp > (select buffer_from_timestamp from incremental_date_range)
             and ingested_timestamp <= (select to_timestamp from incremental_date_range)
     ),
 
-    incremental_ts as (
+    incremental as (
         select
-            max(ingested_timestamp) as incremental_timestamp
+            max(ingested_timestamp) as incremental_ts
         from ocpp_logs
     ),
 
@@ -70,14 +76,14 @@
             -- Request details
             req.charge_point_id,
             req.connector_id,
-            req.ingested_timestamp,
+            req.ingested_timestamp as ingested_ts,
             req.unique_id,
             req.status,
             req.error_code,
             req.payload,
             
             -- Confirmation details
-            conf.ingested_timestamp as confirmation_ingested_timestamp
+            conf.ingested_timestamp as confirmation_ingested_ts
             
         from status_notification_events req
         left join ocpp_logs conf
@@ -92,11 +98,11 @@
         select
             *,
             lag(status) over (
-                partition by charge_point_id, connector_id order by ingested_timestamp
+                partition by charge_point_id, connector_id order by ingested_ts
             ) as previous_status,
-            lag(ingested_timestamp) over (
-                partition by charge_point_id, connector_id order by ingested_timestamp
-            ) as previous_ingested_timestamp
+            lag(ingested_ts) over (
+                partition by charge_point_id, connector_id order by ingested_ts
+            ) as previous_ingested_ts
         from status_with_confirmation
     ),
 
@@ -105,32 +111,32 @@
         select
             *,
             lead(status) over (
-                partition by charge_point_id, connector_id order by ingested_timestamp
+                partition by charge_point_id, connector_id order by ingested_ts
             ) as next_status,
-            lead(ingested_timestamp) over (
-                partition by charge_point_id, connector_id order by ingested_timestamp
-            ) as next_ingested_timestamp
+            lead(ingested_ts) over (
+                partition by charge_point_id, connector_id order by ingested_ts
+            ) as next_ingested_ts
         from status_with_lag
     ),
 
     statuses as (
          select *,
-            (select incremental_timestamp from incremental_ts) as incremental_timestamp,
             -- Calculate seconds to previous status
             case 
-                when previous_ingested_timestamp is not null 
-                then {{ dbt.datediff('previous_ingested_timestamp', 'ingested_timestamp', 'second') }}
+                when previous_ingested_ts is not null 
+                then {{ dbt.datediff('previous_ingested_ts', 'ingested_ts', 'second') }}
                 else null
             end as seconds_to_previous_status,
             -- Calculate seconds to next status
             case 
-                when next_ingested_timestamp is not null 
-                then {{ dbt.datediff('ingested_timestamp', 'next_ingested_timestamp', 'second') }}
+                when next_ingested_ts is not null 
+                then {{ dbt.datediff('ingested_ts', 'next_ingested_ts', 'second') }}
                 else null
             end as seconds_to_next_status
          from status_with_lead
     )
 
- select * 
+ select *,
+    (select incremental_ts from incremental) as incremental_ts
  from statuses
  where previous_status is null or previous_status <> status
