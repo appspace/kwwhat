@@ -128,11 +128,16 @@ charge_attempt_events_chaining as (
         e.payload,
         e.conf_payload
     from status_changes_to_preparing att
-    left join charge_attempt_events_conf e
-        on att.charge_point_id = e.charge_point_id
+    left join charge_attempt_events_conf e on att.charge_point_id = e.charge_point_id
         and att.connector_id = e.connector_id
-        and e.ingested_ts > att.previous_ingested_ts
-        and e.ingested_ts <= att.next_ingested_ts
+        and e.ingested_ts > coalesce(
+            att.previous_ingested_ts, 
+            {{ dbt.dateadd("second", -var("authorize_time_threshold_seconds"), "att.ingested_ts") }}
+        )
+        and e.ingested_ts <= coalesce(
+            att.next_ingested_ts,
+            {{ dbt.dateadd("second", var("authorize_time_threshold_seconds"), "att.ingested_ts") }}
+        )
 ),
 
 -- Extract relevant details based on action type
