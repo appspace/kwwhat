@@ -16,7 +16,7 @@
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
             least(
                 {{ dbt.dateadd("month", 3, "from_timestamp") }},
-                (select max(ingested_ts) from {{ ref("int_status_changes") }}),
+                (select max(incremental_ts) from {{ ref("int_status_changes") }}),
                 (select max(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
             ) as to_timestamp
         from
@@ -31,7 +31,7 @@
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
             least(
                 {{ dbt.dateadd("month", 3, "from_timestamp") }},
-                (select max(ingested_ts) from {{ ref("int_status_changes") }}),
+                (select max(incremental_ts) from {{ ref("int_status_changes") }}),
                 (select max(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
             ) as to_timestamp
         from
@@ -59,13 +59,14 @@ status_changes_to_preparing as (
         next_status,
         next_ingested_ts,
         error_code,
-        -- payload,
+        incremental_ts,
         
         -- Confirmation details
         confirmation_ingested_ts
     from {{ ref('int_status_changes') }}
-    where ingested_ts > (select buffer_from_timestamp from incremental_date_range)
-        and ingested_ts <= (select to_timestamp from incremental_date_range)
+    -- equal as we want to grab statuses updated when last status changes ran (and later, so greater or equal)
+    where incremental_ts >= (select buffer_from_timestamp from incremental_date_range)
+        and incremental_ts <= (select to_timestamp from incremental_date_range)
         and status = 'Preparing'
 ),
 
@@ -84,8 +85,8 @@ ocpp_logs as (
 
 incremental as (
     select
-        max(ingested_ts) as incremental_ts
-    from ocpp_logs
+        max(incremental_ts) as incremental_ts
+    from status_changes_to_preparing
 ),
 
 -- Filter for charge attempt actions first
