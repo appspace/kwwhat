@@ -21,10 +21,10 @@ renamed as (
                 
         -- Extract MessageTypeId from the JSON array for easier filtering
         -- Using fivetran_utils json_extract macro
-        {{ fivetran_utils.json_extract(string="msg", string_path=[0]) }} as message_type_id,
+        cast({{ fivetran_utils.json_extract(string="msg", string_path=[0]) }} as {{ dbt.type_string() }}) as message_type_id,
         
         -- Extract MessageId from the JSON array
-        {{ fivetran_utils.json_extract(string="msg", string_path=[1]) }} as unique_id,
+        cast({{ fivetran_utils.json_extract(string="msg", string_path=[1]) }} as {{ dbt.type_string() }}) as unique_id,
         
         -- Extract Payload from the JSON array
         case 
