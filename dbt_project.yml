@@ -47,8 +47,9 @@ vars:
   raw_database: "RAW"
   raw_schema: "SEED"
   ocpp_logs_identifier: "ocpp_1_6_synthetic_logs_1d"
-  start_processing_date: "2025-01-01"
+  start_processing_date: "2025-08-18"
   authorize_time_threshold_seconds: 300
+  transaction_message_retry_interval: 45
   message_type_ids:
     CALL: "2"
     CALLRESULT: "3"

@@ -64,3 +64,57 @@ models:
             expression: "status != next_status or next_status is null"
           config:
             severity: error
+
+  - name: int_connector_preparing
+    description: "Intermediate model that processes charge attempt events, anchoring on charger going into 'Preparing' state and aggregating related authentication data. Each row represents a unique status change to 'Preparing'."
+    columns:
+      - name: charge_point_id
+        description: "Identifier for the charge point"
+        tests:
+          - not_null
+      - name: connector_id
+        description: "Identifier for the charging connector"
+        tests:
+          - not_null
+      - name: unique_id
+        description: "Unique identifier for the status change that triggered this charge attempt"
+        tests:
+          - not_null
+      - name: ingested_ts
+        description: "Timestamp when the StatusNotification with status 'Preparing' was ingested (start of charge attempt)"
+        tests:
+          - not_null
+      - name: previous_status
+        description: "Status before changing to 'Preparing'"
+      - name: status
+        description: "Current status (should be 'Preparing')"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Preparing']
+      - name: next_status
+        description: "Next status after 'Preparing' (e.g., 'Charging', 'Available', 'Faulted')"
+      - name: confirmation_ingested_ts
+        description: "Timestamp when the status change confirmation was received"
+      - name: id_tags
+        description: "Array of RFID tags or user identifiers from Authorize/StartTransaction messages"
+      - name: id_tag_statuses
+        description: "Array of authorization statuses (e.g., 'Accepted', 'Blocked')"
+      - name: transaction_id
+        description: "Primary transaction ID for this charge attempt (first element from transaction_ids array)"
+      - name: error_codes
+        description: "Array of error codes from StatusNotification messages"
+      - name: _unique_transaction_count
+        description: "Count of unique transaction IDs for this charge attempt (should be 0 or 1)"
+        tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - connector_id
+              - ingested_ts
