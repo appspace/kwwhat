@@ -159,6 +159,7 @@ transaction_status_notifications as (
 
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
 ,
+
 combined_transactions as (
     select
         n.charge_point_id,
