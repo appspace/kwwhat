@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: charge_attempts
+    description: "Incremental marts model that combines charge attempts and transactions data using outer join. Provides comprehensive view of charge attempts with associated transaction details where available."
+    columns:
+      - name: charge_point_id
+        description: "Identifier for the charge point"
+        tests:
+          - not_null
+      - name: connector_id
+        description: "Identifier for the charging connector"
+        tests:
+          - not_null
+      - name: charge_attempt_unique_id
+        description: "Unique identifier for the charge attempt from status change"
+      - name: charge_attempt_ingested_ts
+        description: "Timestamp when the charge attempt was ingested"
+      - name: confirmation_ingested_ts
+        description: "Timestamp when the status change confirmation was received"
+      - name: previous_status
+        description: "Status before changing to 'Preparing'"
+      - name: status
+        description: "Current status (should be 'Preparing')"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Preparing']
+      - name: next_status
+        description: "Next status after 'Preparing' (e.g., 'Charging', 'Available', 'Faulted')"
+      - name: id_tags
+        description: "Array of RFID tags or user identifiers from charge attempt events"
+      - name: id_tag_statuses
+        description: "Array of authorization statuses from charge attempt events"
+      - name: transaction_id
+        description: "Transaction ID (from charge attempt or transaction data)"
+        tests:
+          - unique
+      - name: transaction_ingested_ts
+        description: "Earliest timestamp when any OCPP event for this transaction was ingested"
+      - name: transaction_start_ts
+        description: "Timestamp when the transaction started"
+      - name: transaction_stop_ts
+        description: "Timestamp when the transaction stopped"
+      - name: transaction_stop_reason
+        description: "Reason for stopping the transaction"
+      - name: transaction_id_tags
+        description: "Array of RFID tags or user identifiers from transaction events"
+      - name: transaction_id_tag_statuses
+        description: "Array of authorization statuses from transaction events"
+      - name: meter_start_wh
+        description: "Meter reading at transaction start (Wh)"
+      - name: meter_stop_wh
+        description: "Meter reading at transaction stop (Wh)"
+      - name: energy_transferred_kwh
+        description: "Total energy transferred in kWh"
+      - name: error_codes
+        description: "Array of error codes from both charge attempt events and StatusNotification events during the transaction"
+      - name: incremental_ts
+        description: "Latest incremental processing timestamp from both source models for incremental processing tracking"
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - connector_id
+              - ingested_ts
