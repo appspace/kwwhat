@@ -12,37 +12,19 @@
         select
             from_timestamp,
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            {{ dbt.dateadd("month", 3, "from_timestamp") }} as to_timestamp
+            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
         from
             (
                 select (select max(incremental_ts) from {{ this }}) as from_timestamp
             )
     ),
 
-    -- Get previous statuses from the existing table to extend lag window
-    statuses_buffer as (
-        select
-            charge_point_id,
-            connector_id,
-            ingested_ts,
-            unique_id,
-            status,
-            error_code,
-            payload,
-            confirmation_ingested_ts,
-            previous_status,
-            previous_ingested_ts
-        from {{ this }}
-        where (ingested_ts >= (select buffer_from_timestamp from incremental_date_range)
-            and ingested_ts <= (select from_timestamp from incremental_date_range))
-            or next_status is null
-    ),
 {% else %}
     with incremental_date_range as (
         select
             from_timestamp,
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            {{ dbt.dateadd("month", 3, "from_timestamp") }} as to_timestamp
+            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
         from
             (
                 select
@@ -112,7 +94,29 @@
             and conf.ingested_timestamp <= {{ dbt.dateadd("second", 15, "req.ingested_timestamp") }}
     ),
 
-    -- Combine current statuses with previous statuses for accurate lag calculation
+{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+    
+    -- Get previous statuses from the existing table to extend lag window
+    statuses_buffer as (
+        select
+            charge_point_id,
+            connector_id,
+            ingested_ts,
+            unique_id,
+            status,
+            error_code,
+            payload,
+            confirmation_ingested_ts,
+            previous_status,
+            previous_ingested_ts
+        from {{ this }}
+        where (ingested_ts >= (select buffer_from_timestamp from incremental_date_range)
+            and ingested_ts <= (select from_timestamp from incremental_date_range))
+            and next_status is null
+            -- no new data don't bother
+            and (select incremental_ts from incremental) is not null
+    ),
+
     statuses_with_buffer as (
         select 
             *,
@@ -120,12 +124,20 @@
             cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts
         from status_with_confirmation
         
-        {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
         union all
         
         select * from statuses_buffer
-        {% endif %}
     ),
+
+{% else %}
+    statuses_with_buffer as (
+        select 
+            *,
+            cast(null as {{ dbt.type_string() }}) as previous_status,
+            cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts
+        from status_with_confirmation
+    ),
+{% endif %}
 
     -- Add previous status using window function on combined data
     -- Use coalesce to prefer existing previous_status from buffer over recalculated values

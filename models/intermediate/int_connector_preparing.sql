@@ -15,7 +15,7 @@
             from_timestamp,
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
             least(
-                {{ dbt.dateadd("month", 3, "from_timestamp") }},
+                {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
                 (select max(incremental_ts) from {{ ref("int_status_changes") }}),
                 (select max(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
             ) as to_timestamp
@@ -31,7 +31,7 @@
             from_timestamp,
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
             least(
-                {{ dbt.dateadd("month", 3, "from_timestamp") }},
+                {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
                 (select max(incremental_ts) from {{ ref("int_status_changes") }}),
                 (select max(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
             ) as to_timestamp
