@@ -81,9 +81,9 @@
             unique_id,
             action,
             payload,
-            {{ fivetran_utils.json_extract(string="payload", string_path="connectorId")}} as connector_id,
-            {{ fivetran_utils.json_extract(string="payload", string_path="status") }} as status,
-            {{ fivetran_utils.json_extract(string="payload", string_path="errorCode") }} as error_code
+            {{ payload_extract_connector_id('action', 'payload') }} as connector_id,
+            {{ payload_extract_status('action', 'payload') }} as status,
+            {{ payload_extract_error_code('action', 'payload') }} as error_code
         from ocpp_logs
         where action = 'StatusNotification'
             and message_type_id = {{ var("message_type_ids").CALL }}
