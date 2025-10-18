@@ -99,24 +99,21 @@
 {% endmacro %}
 
 {% macro payload_extract_meter_values(action, payload) %}
-    case 
+    case
         when {{ action }} = 'MeterValues'
-            then 
+            then
                 {% if target.type == 'snowflake' %}
-                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array)
+                    try_parse_json({{ payload }}):meterValue
                 {% elif target.type == 'bigquery' %}
-                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array<json>)
-                {% elif target.type == 'duckdb' %}
-                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as json[])
-                {% elif target.type in ['postgres', 'redshift'] %}
-                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as json[])
-                {% elif target.type in ['spark', 'databricks'] %}
-                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array<struct<sampledValue:array<struct<measurand:string,value:double,unit:string,phase:string>>,timestamp:string>>)
+                    json_extract_array({{ payload }}, '$.meterValue')
                 {% elif target.type in ['trino', 'presto', 'athena'] %}
-                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array(json))
+                    cast(json_extract(try_parse_json({{ payload }}), '$.meterValue') as array(json))
+                {% elif target.type in ['postgres', 'redshift', 'duckdb'] %}
+                    ({{ payload }}::jsonb -> 'meterValue')
+                {% elif target.type in ['spark', 'databricks'] %}
+                    from_json({{ payload }}, 'STRUCT<meterValue: ARRAY<STRUCT<timestamp: STRING, sampledValue: ARRAY<STRUCT<measurand: STRING, value: STRING, unit: STRING, phase: STRING>>>>>').meterValue
                 {% else %}
-                    -- Fallback for other warehouses - may need adjustment
-                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array(json))
+                    cast(json_extract(try_parse_json({{ payload }}), '$.meterValue') as array(json))
                 {% endif %}
         else null
     end
