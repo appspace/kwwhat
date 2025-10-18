@@ -70,7 +70,7 @@
     --     }
     -- ]
 
-    meter_value_events as (
+    meter_value_messages as (
         select
             ingested_timestamp,
             charge_point_id,
@@ -94,8 +94,8 @@
             -- Extract timestamp from the meter value object
             cast({{ fivetran_utils.json_extract(string="mv.value", string_path="timestamp") }} as {{ dbt.type_timestamp() }}) as meter_timestamp,
             -- Keep the full meter value object for now
-            mv.value as sample_values
-        from meter_value_events
+            {{ fivetran_utils.json_extract(string="mv.value", string_path="sampledValue") }} as sample_values
+        from meter_value_messages
         {{ json_array_unnest('meter_values') }} as mv
         where meter_values is not null
             and mv.value is not null
@@ -109,8 +109,9 @@
             unique_id,
             ingested_timestamp,
             meter_timestamp,
-            sample_values
+            mv.value as sample_values
         from meter_values
+        {{ json_array_unnest('sample_values') }} as mv
     )
 
     select * from sample_values
