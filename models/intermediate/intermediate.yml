@@ -118,3 +118,55 @@ models:
               - charge_point_id
               - connector_id
               - ingested_ts
+
+  - name: int_transactions
+    description: "Intermediate model that processes transaction-related OCPP events (StartTransaction, StopTransaction, RemoteStartTransaction, RemoteStopTransaction, MeterValues) and groups them by transaction ID. Each row represents a unique transaction with aggregated details."
+    columns:
+      - name: transaction_id
+        description: "Unique identifier for the transaction from OCPP StartTransaction/StopTransaction messages"
+        tests:
+          - not_null
+      - name: charge_point_id
+        description: "Identifier for the charge point"
+        tests:
+          - not_null
+      - name: connector_id
+        description: "Connector ID for this transaction"
+        tests:
+          - not_null
+      - name: ingested_ts
+        description: "Earliest timestamp when any OCPP event for this transaction was ingested"
+        tests:
+          - not_null
+      - name: transaction_start_ts
+        description: "Timestamp when the transaction started (from StartTransaction message)"
+        tests:
+          - not_null
+      - name: transaction_stop_ts
+        description: "Timestamp when the transaction stopped (from StopTransaction message)"
+      - name: transaction_stop_reason
+        description: "Reason for stopping the transaction (e.g., 'EVDisconnected', 'DeAuthorized', 'Local')"
+      - name: id_tags
+        description: "Array of RFID tags or user identifiers from Authorize/StartTransaction messages"
+      - name: id_tag_statuses
+        description: "Array of authorization statuses (e.g., 'Accepted', 'Blocked', 'Expired')"
+      - name: meter_start_wh
+        description: "Meter reading at transaction start (Wh)"
+      - name: meter_stop_wh
+        description: "Meter reading at transaction stop (Wh)"
+      - name: energy_transferred_kwh
+        description: "Total energy transferred in kWh (calculated from meter_stop_kw - meter_start_kw)"
+      - name: error_codes
+        description: "Array of error codes from StatusNotification events that occurred during the transaction"
+      - name: _unique_connectors_count
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - connector_id
+              - ingested_ts
