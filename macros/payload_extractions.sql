@@ -97,3 +97,27 @@
         else null
     end
 {% endmacro %}
+
+{% macro payload_extract_meter_values(action, payload) %}
+    case 
+        when {{ action }} = 'MeterValues'
+            then 
+                {% if target.type == 'snowflake' %}
+                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array(json))
+                {% elif target.type == 'bigquery' %}
+                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array<json>)
+                {% elif target.type == 'duckdb' %}
+                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as json[])
+                {% elif target.type in ['postgres', 'redshift'] %}
+                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as json[])
+                {% elif target.type in ['spark', 'databricks'] %}
+                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array<struct<sampledValue:array<struct<measurand:string,value:double,unit:string,phase:string>>,timestamp:string>>)
+                {% elif target.type in ['trino', 'presto', 'athena'] %}
+                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array(json))
+                {% else %}
+                    -- Fallback for other warehouses - may need adjustment
+                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array(json))
+                {% endif %}
+        else null
+    end
+{% endmacro %}

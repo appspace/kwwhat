@@ -55,19 +55,33 @@
         from ocpp_logs
     ),
 
+    -- Example:
+    -- [
+    --     {
+    --         sampledValue:
+    --         [
+    --             {measurand:Energy.Active.Import.Register,unit:Wh,value:2300270.0},
+    --             {measurand:Voltage,phase:L1,unit:V,value:211.6},
+    --             {measurand:Current.Import,phase:L1,unit:A,value:0.41},
+    --             {measurand:Power.Offered,unit:W,value:1},
+    --             {measurand:Power.Active.Import,unit:W,value:1}
+    --         ],
+    --         timestamp:2025-10-03T18:02:01.700Z
+    --     }
+    -- ]
+
     meter_value_events as (
         select
             ingested_timestamp,
             charge_point_id,
             unique_id,
-            action,
             payload,
             {{ payload_extract_connector_id('action', 'payload') }} as connector_id,
-            {{ payload_extract_status('action', 'payload') }} as status,
-            {{ payload_extract_error_code('action', 'payload') }} as error_code
+            {{ payload_extract_transaction_id('action', 'payload', 'null') }} as transaction_id,
+            {{ payload_extract_meter_values('action', 'payload') }} as meter_values
         from ocpp_logs
         where action = 'MeterValues'
             and message_type_id = {{ var("message_type_ids").CALL }}
     )
-
+    
     select * from meter_value_events
