@@ -13,7 +13,7 @@
     with incremental_date_range as (
         select
             from_timestamp,
-            {{ dbt.dateadd("month", 3, "from_timestamp") }} as to_timestamp
+            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
         from
             (
                 select (select max(incremental_ts) from {{ this }}) as from_timestamp
@@ -24,7 +24,7 @@
     with incremental_date_range as (
         select
             from_timestamp,
-            {{ dbt.dateadd("month", 3, "from_timestamp") }} as to_timestamp
+            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
         from
             (
                 select cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
