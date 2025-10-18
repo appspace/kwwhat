@@ -97,3 +97,24 @@
         else null
     end
 {% endmacro %}
+
+{% macro payload_extract_meter_values(action, payload) %}
+    case
+        when {{ action }} = 'MeterValues'
+            then
+                {% if target.type == 'snowflake' %}
+                    try_parse_json({{ payload }}):meterValue
+                {% elif target.type == 'bigquery' %}
+                    json_extract_array({{ payload }}, '$.meterValue')
+                {% elif target.type in ['trino', 'presto', 'athena'] %}
+                    cast(json_extract(try_parse_json({{ payload }}), '$.meterValue') as array(json))
+                {% elif target.type in ['postgres', 'redshift', 'duckdb'] %}
+                    ({{ payload }}::jsonb -> 'meterValue')
+                {% elif target.type in ['spark', 'databricks'] %}
+                    from_json({{ payload }}, 'STRUCT<meterValue: ARRAY<STRUCT<timestamp: STRING, sampledValue: ARRAY<STRUCT<measurand: STRING, value: STRING, unit: STRING, phase: STRING>>>>>').meterValue
+                {% else %}
+                    cast(json_extract(try_parse_json({{ payload }}), '$.meterValue') as array(json))
+                {% endif %}
+        else null
+    end
+{% endmacro %}
