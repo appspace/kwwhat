@@ -96,9 +96,21 @@
             -- Keep the full meter value object for now
             mv.value as sample_values
         from meter_value_events
-        {{ json_array_unnest('meter_values', 'mv') }}
+        {{ json_array_unnest('meter_values') }} as mv
         where meter_values is not null
             and mv.value is not null
+    ),
+
+    sample_values as (
+        select
+            charge_point_id,
+            transaction_id,
+            connector_id,
+            unique_id,
+            ingested_timestamp,
+            meter_timestamp,
+            sample_values
+        from meter_values
     )
 
-    select * from meter_values
+    select * from sample_values
