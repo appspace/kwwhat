@@ -112,6 +112,19 @@
             mv.value as sample_values
         from meter_values
         {{ json_array_unnest('sample_values') }} as mv
+    ),
+
+    measurements as (
+        select
+            charge_point_id,
+            transaction_id,
+            connector_id,
+            unique_id,
+            ingested_timestamp,
+            meter_timestamp,
+            -- Extract individual measurand properties using pivot_json_extract
+            {{ fivetran_utils.pivot_json_extract(string="sample_values", list_of_properties=["measurand", "value", "unit", "phase"]) }}
+        from sample_values
     )
 
-    select * from sample_values
+    select * from measurements
