@@ -103,7 +103,7 @@
         when {{ action }} = 'MeterValues'
             then 
                 {% if target.type == 'snowflake' %}
-                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array(json))
+                    cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array)
                 {% elif target.type == 'bigquery' %}
                     cast({{ fivetran_utils.json_extract(string=payload, string_path="meterValue") }} as array<json>)
                 {% elif target.type == 'duckdb' %}
