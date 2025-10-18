@@ -82,6 +82,22 @@
         from ocpp_logs
         where action = 'MeterValues'
             and message_type_id = {{ var("message_type_ids").CALL }}
+    ),
+
+    meter_values as (
+        select
+            charge_point_id,
+            transaction_id,
+            connector_id,
+            ingested_timestamp,
+            -- Extract timestamp from the meter value object
+            cast({{ fivetran_utils.json_extract(string="mv.value", string_path="timestamp") }} as {{ dbt.type_timestamp() }}) as meter_timestamp,
+            -- Keep the full meter value object for now
+            mv.value as meter_value_obj
+        from meter_value_events
+        {{ json_array_unnest('meter_values', 'mv') }}
+        where meter_values is not null
+            and mv.value is not null
     )
-    
-    select * from meter_value_events
+
+    select * from meter_values
