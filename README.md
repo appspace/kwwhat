@@ -24,6 +24,8 @@ This project is powered by public OCPP log data and is designed for CSMS provide
 - Modular dbt structure to plug into your existing stack
 - Interval data for other reporting use cases that require energy delivery by 15-min time slices
 
+Check Tableau dashboard [here](https://public.tableau.com/app/profile/daria.sukhareva1853/viz/WIPkwwhatdemo/Overview)
+
 ---
 
 ## Installation
