@@ -67,3 +67,126 @@ models:
               - charge_point_id
               - connector_id
               - ingested_ts
+
+  - name: meter_values
+    description: "Transaction-level aggregated meter values. Provides min, max, and average values for each measurand aggregated across the entire transaction. Use for transaction-level analysis."
+    columns:
+      - name: charge_point_id
+        description: "Unique identifier for the charging point"
+        tests:
+          - not_null
+      - name: transaction_id
+        description: "Unique identifier for the charging transaction"
+        tests:
+          - not_null
+      - name: connector_id
+        description: "Unique identifier for the connector within the charging point"
+        tests:
+          - not_null
+      - name: ingested_ts
+        description: "Timestamp when transaction was ingested into the system"
+        tests:
+          - not_null
+      - name: measurand
+        description: "Type of measurement (e.g., Energy.Active.Import.Register, Voltage, Current.Import)"
+        tests:
+          - not_null
+      - name: unit
+        description: "Unit of measurement (e.g., Wh, V, A, W)"
+        tests:
+          - not_null
+      - name: phase
+        description: "Electrical phase (e.g., L1, L2, L3) or null for single-phase measurements"
+      - name: first_measurement_ts
+        description: "Meter timestamp of the first measurement for the transaction"
+        tests:
+          - not_null
+      - name: last_measurement_ts
+        description: "Meter timestamp of the last measurement for the transaction"
+        tests:
+          - not_null
+      - name: min_value
+        description: "Minimum value recorded for the transaction"
+        tests:
+          - not_null
+      - name: max_value
+        description: "Maximum value recorded for the transaction"
+        tests:
+          - not_null
+      - name: avg_value
+        description: "Average value for the transaction"
+        tests:
+          - not_null
+      - name: _count
+        description: "Total number of measurements for the transaction"
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - connector_id
+              - transaction_id
+              - ingested_ts
+              - measurand
+              - unit
+              - phase
+
+  - name: interval_data
+    description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
+    columns:
+      - name: charge_point_id
+        description: "Unique identifier for the charging point"
+        tests:
+          - not_null
+      - name: transaction_id
+        description: "Unique identifier for the charging transaction"
+        tests:
+          - not_null
+      - name: connector_id
+        description: "Unique identifier for the connector within the charging point"
+        tests:
+          - not_null
+      - name: ingested_ts
+        description: "Timestamp when transaction was ingested into the system"
+        tests:
+          - not_null
+      - name: measurand
+        description: "Type of measurement (e.g., Energy.Active.Import.Register, Voltage, Current.Import)"
+        tests:
+          - not_null
+      - name: unit
+        description: "Unit of measurement (e.g., Wh, V, A, W)"
+        tests:
+          - not_null
+      - name: phase
+        description: "Electrical phase (e.g., L1, L2, L3) or null for single-phase measurements"
+      - name: meter_15min_interval_start
+        description: "Start timestamp of the 15-minute interval. For the first interval, this is the actual first measurement time; for subsequent intervals, it's the 15-minute boundary."
+        tests:
+          - not_null
+      - name: meter_15min_interval_stop
+        description: "End timestamp of the 15-minute interval. For the last interval, this is the actual last measurement time; for other intervals, it's the next 15-minute boundary."
+        tests:
+          - not_null
+      - name: avg_value
+        description: "Average value for the measurand within this 15-minute interval"
+        tests:
+          - not_null
+      - name: _count
+        description: "Number of measurements within this 15-minute interval"
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - connector_id
+              - transaction_id
+              - ingested_ts
+              - measurand
+              - unit
+              - phase
+              - meter_15min_interval_start
