@@ -24,3 +24,54 @@ sources:
             description: "For messages with MessageTypeId = 2,OCPP action type (e.g., BootNotification, StatusNotification, Heartbeat, StartTransaction, StopTransaction, MeterValues, RemoteStartTransaction)"
           - name: msg
             description: "JSON array representing OCPP message. For request messages (MessageTypeId = 2): [2, \"<UniqueId>\", \"<Action>\", <Payload>]. For response messages (MessageTypeId = 3): [3, \"<UniqueId>\", <Payload>]"
+      
+      - name: ports
+        description: Charger/port/connector data. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE). Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time.
+        columns:
+          - name: charger_id
+            description: "Charger identifier"
+          - name: port_id
+            description: "Port identifier within the charger"
+          - name: connector_id
+            description: "Connector identifier within the port"
+          - name: connector_type
+            description: "Type of connector (e.g., CCS, NACS)"
+          - name: commissioned_ts
+            description: "Timestamp when the charger was commissioned (null if not commissioned yet)"
+          - name: decommissioned_ts
+            description: "Timestamp when the charger was decommissioned (null if still active)"
+
+models:
+  - name: stg_ports
+    description: "Staging model for ports/connectors data. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE). Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time."
+    columns:
+      - name: charger_id
+        description: "Charger identifier. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE)."
+        tests:
+          - not_null
+      - name: port_id
+        description: "Port identifier within the charge point. Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time."
+        tests:
+          - not_null
+      - name: connector_id
+        description: "Connector identifier within the port"
+        tests:
+          - not_null
+      - name: connector_type
+        description: "Type of connector (e.g., CCS, NACS)"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['CCS', 'CHAdeMO', 'NACS', 'Type 2', 'Type 1']
+      - name: commissioned_ts
+        description: "Timestamp when the charge point was commissioned (null if not commissioned yet)"
+      - name: decommissioned_ts
+        description: "Timestamp when the charge point was decommissioned (null if still active)"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charger_id
+              - port_id
+              - connector_id

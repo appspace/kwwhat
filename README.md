@@ -28,6 +28,17 @@ Check Tableau dashboard [here](https://public.tableau.com/app/profile/daria.sukh
 
 ---
 
+## Definitions
+
+Charger definitions aligned with National Electric Vehicle Infrastructure (NEVI) standards:
+  - *Charger* means a device with one or more charging ports and connectors for charging EVs. Also referred to as Electric Vehicle Supply Equipment (EVSE).
+  - *Charging port* means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time.
+  - *Connector* means the device that attaches an EV to a charging port in order to transfer electricity.
+  
+  Source: [23 CFR §680.104 — National Electric Vehicle Infrastructure Standards and Requirements](https://www.ecfr.gov/current/title-23/section-680.104)
+
+---
+
 ## Installation
 
 ```bash
