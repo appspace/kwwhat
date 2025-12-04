@@ -71,12 +71,13 @@
             and message_type_id = {{ var("message_type_ids").CALL }}
     ),
 
-    -- Join status notifications with their confirmations
+    -- Join status notifications with their confirmations and ports
     status_with_confirmation as (
         select
             -- Request details
             req.charge_point_id,
             req.connector_id,
+            p.port_id,
             req.ingested_timestamp as ingested_ts,
             req.unique_id,
             req.status,
@@ -87,6 +88,9 @@
             conf.ingested_timestamp as confirmation_ingested_ts
             
         from status_notification_events req
+        left join {{ ref("stg_ports") }} p
+            on req.charge_point_id = p.charge_point_id
+            and req.connector_id = p.connector_id
         left join ocpp_logs conf
             on req.unique_id = conf.unique_id
             and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
@@ -101,6 +105,7 @@
         select
             charge_point_id,
             connector_id,
+            port_id,
             ingested_ts,
             unique_id,
             status,
@@ -145,6 +150,7 @@
         select
             charge_point_id,
             connector_id,
+            port_id,
             ingested_ts,
             unique_id,
             status,

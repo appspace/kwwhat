@@ -190,3 +190,36 @@ models:
               - unit
               - phase
               - meter_15min_interval_start
+
+  - name: fact_downtime_daily
+    description: "Daily aggregation of charge point downtime derived from offline outages. Splits outages across calendar days and aggregates per charge point and port. Currently only OFFLINE type; FAULT can be added later."
+    columns:
+      - name: date_id
+        description: "Calendar date for the downtime aggregation"
+        tests:
+          - not_null
+      - name: charge_point_id
+        description: "Identifier for the charge point"
+        tests:
+          - not_null
+      - name: port_id
+        description: "Port identifier associated with the charge point (may be null if unavailable)"
+      - name: duration_minutes
+        description: "Total downtime minutes for the date/charge_point/port combination"
+        tests:
+          - not_null
+      - name: type
+        description: "Downtime type. Currently always 'OFFLINE'."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['OFFLINE', 'FAULTED']
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - date_id
+              - charge_point_id
+              - port_id
+              - type
