@@ -53,6 +53,7 @@ vars:
     length: 3
 
   authorize_time_threshold_seconds: 300
+  heartbeat_interval_seconds: 300
   transaction_message_retry_interval: 45
   message_type_ids:
     CALL: "2"
