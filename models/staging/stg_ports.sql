@@ -10,7 +10,7 @@ with source as (
 
 renamed as (
     select
-        cast(charger_id as {{ dbt.type_string() }}) as charger_id,
+        cast(charge_point_id as {{ dbt.type_string() }}) as charge_point_id,
         cast(port_id as {{ dbt.type_string() }}) as port_id,
         cast(connector_id as {{ dbt.type_string() }}) as connector_id,
         cast(connector_type as {{ dbt.type_string() }}) as connector_type,
