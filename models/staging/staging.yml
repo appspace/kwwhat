@@ -28,7 +28,7 @@ sources:
       - name: ports
         description: Charger/port/connector data. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE). Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time.
         columns:
-          - name: charger_id
+          - name: charge_point_id
             description: "Charger identifier"
           - name: port_id
             description: "Port identifier within the charger"
@@ -45,7 +45,7 @@ models:
   - name: stg_ports
     description: "Staging model for ports/connectors data. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE). Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time."
     columns:
-      - name: charger_id
+      - name: charge_point_id
         description: "Charger identifier. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE)."
         tests:
           - not_null
@@ -72,6 +72,6 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charger_id
+              - charge_point_id
               - port_id
               - connector_id
