@@ -1,0 +1,662 @@
+version: 2
+
+unit_tests:
+  - name: test_authorized_visits_15min_apart_same_location
+    description: "Two authorized attempts on the same charger 15 minutes apart should result in one visit (gap from stop_ts to start_ts < 30 min)"
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        rows: |
+          select 
+              'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 10:10:00' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 10:00:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TXN-001' as transaction_id,
+              cast('2025-10-02 10:00:00' as timestamp) as transaction_start_ts,
+              cast('2025-10-02 10:10:00' as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              5.5 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              true as is_successful,
+              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
+          union all
+          select 
+              'CH-002' || '1' || '2025-10-02 10:15:00' as charge_attempt_id,
+              'CH-002' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 10:25:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 10:35:00' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 10:25:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TXN-002' as transaction_id,
+              cast('2025-10-02 10:15:00' as timestamp) as transaction_start_ts,
+              cast('2025-10-02 10:25:00' as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              6.2 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              true as is_successful,
+              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
+      - input: ref('stg_ports')
+        format: sql
+        fixture: stg_ports_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7}
+
+  - name: test_authorized_visits_15min_apart_different_location
+    description: "Two authorized attempts 15 minutes apart in different locations should result in two separate visits (authorized visits group by location_id + idTag)"
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        rows: |
+          select 
+              'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 10:10:00' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 10:00:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TXN-001' as transaction_id,
+              cast('2025-10-02 10:00:00' as timestamp) as transaction_start_ts,
+              cast('2025-10-02 10:10:00' as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              5.5 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              true as is_successful,
+              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
+          union all
+          select 
+              'CH-003' || '1' || '2025-10-02 10:25:00' as charge_attempt_id,
+              'CH-003' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 10:25:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 10:35:00' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 10:25:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TXN-002' as transaction_id,
+              cast('2025-10-02 10:15:00' as timestamp) as transaction_start_ts,
+              cast('2025-10-02 10:25:00' as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              6.2 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              true as is_successful,
+              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
+      - input: ref('stg_ports')
+        format: sql
+        fixture: stg_ports_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
+        - {location_id: 'LOC-002', id_tag: 'TAG-001', charge_attempt_count: 1}
+
+  - name: test_authorized_visits_35min_apart_same_location
+    description: "Two authorized attempts on the same charger 35 minutes apart should result in two separate visits (gap from stop_ts to start_ts > 30 minutes)"
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        rows: |
+          select 
+              'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 10:05:00' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 10:00:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TXN-001' as transaction_id,
+              cast('2025-10-02 10:00:00' as timestamp) as transaction_start_ts,
+              cast('2025-10-02 10:05:00' as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              5.5 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              true as is_successful,
+              cast('2025-10-02 10:40:00' as timestamp) as incremental_ts
+          union all
+          select 
+              'CH-001' || '1' || '2025-10-02 10:40:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 10:40:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 10:41:00' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 10:40:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TXN-002' as transaction_id,
+              cast('2025-10-02 10:40:00' as timestamp) as transaction_start_ts,
+              cast('2025-10-02 10:41:00' as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              6.2 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              true as is_successful,
+              cast('2025-10-02 10:40:00' as timestamp) as incremental_ts
+      - input: ref('stg_ports')
+        format: sql
+        fixture: stg_ports_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
+
+  - name: test_unauthorized_visits_15min_apart_same_charger
+    description: "Two unauthorized attempts on the same charger 15 minutes apart should result in two separate visits (unauthorized visits group by charge_point_id within 2 minutes)"
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        rows: |
+          select 
+              'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 11:10:00' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 11:00:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              [] as id_tags,
+              [] as id_tag_statuses,
+              'TXN-003' as transaction_id,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              3.0 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+          union all
+          select 
+              'CH-001' || '1' || '2025-10-02 11:25:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 11:25:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 11:35:00' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 11:25:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              [] as id_tags,
+              [] as id_tag_statuses,
+              'TXN-004' as transaction_id,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              2.5 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+      - input: ref('stg_ports')
+        format: sql
+        fixture: stg_ports_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
+        - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
+
+  - name: test_unauthorized_visits_1min_apart_same_charger
+    description: "Two unauthorized attempts on the same charger less than 2 minute apart should result in one visit (gap from stop_ts to start_ts < 2 minutes)"
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        rows: |
+          select 
+              'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 11:00:30' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 11:00:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              [] as id_tags,
+              [] as id_tag_statuses,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              3.0 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+          union all
+          select 
+              'CH-001' || '1' || '2025-10-02 11:01:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 11:01:35' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 11:01:30' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              [] as id_tags,
+              [] as id_tag_statuses,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              2.5 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+      - input: ref('stg_ports')
+        format: sql
+        fixture: stg_ports_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 2}
+
+  - name: test_unauthorized_visits_1min_apart_different_charger_same_location
+    description: "Two unauthorized attempts 1 minute apart on different chargers in the same location should result in two separate visits (unauthorized visits group by charge_point_id within 2 minutes)"
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        rows: |
+          select 
+              'CH-001' || '1' || '2025-10-02 12:00:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 12:00:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 12:00:30' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 12:00:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              [] as id_tags,
+              [] as id_tag_statuses,
+              'TXN-005' as transaction_id,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              3.0 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 12:20:00' as timestamp) as incremental_ts
+          union all
+          select 
+              'CH-002' || '1' || '2025-10-02 12:01:30' as charge_attempt_id,
+              'CH-002' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 12:01:30' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 12:01:35' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 12:01:30' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              [] as id_tags,
+              [] as id_tag_statuses,
+              'TXN-006' as transaction_id,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              2.5 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 12:20:00' as timestamp) as incremental_ts
+      - input: ref('stg_ports')
+        format: sql
+        fixture: stg_ports_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
+        - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
+
+  - name: test_infer_id_tag_1min_apart
+    description: "Should infer idTag from the second authorized attempt if gap from first stop_ts to second start_ts < 2 minutes on the same charger"
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        rows: |
+          select 
+              'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 11:00:30' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 11:00:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              [] as id_tags,
+              [] as id_tag_statuses,
+              'TXN-003' as transaction_id,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              3.0 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+          union all
+          select 
+              'CH-001' || '1' || '2025-10-02 11:01:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 11:01:35' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 11:01:30' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TXN-004' as transaction_id,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              2.5 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+      - input: ref('stg_ports')
+        format: sql
+        fixture: stg_ports_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2}
+
+  - name: test_dont_infer_id_tag_3min_apart
+    description: "Unauthorized attempt followed by authorized attempt 3 minutes apart should NOT infer idTag (gap from stop_ts to start_ts > 2 minutes)"
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        rows: |
+          select 
+              'CH-001' || '1' || '2025-10-02 13:00:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 13:00:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 13:00:30' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 13:00:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              [] as id_tags,
+              [] as id_tag_statuses,
+              'TXN-007' as transaction_id,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              3.0 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 13:20:00' as timestamp) as incremental_ts
+          union all
+          select 
+              'CH-001' || '1' || '2025-10-02 13:03:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 13:03:30' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 13:03:35' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 13:03:30' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TXN-008' as transaction_id,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              2.5 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 13:20:00' as timestamp) as incremental_ts
+      - input: ref('stg_ports')
+        format: sql
+        fixture: stg_ports_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
+
+  - name: test_unauth_auth_auth_visit
+    description: "Should infer idTag from the second authorized attempt if gap < 2 minutes and join to other attempts in the visit"
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        rows: |
+          select 
+              'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 11:00:30' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 11:00:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              [] as id_tags,
+              [] as id_tag_statuses,
+              'TXN-003' as transaction_id,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              3.0 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+          union all
+          select 
+              'CH-001' || '1' || '2025-10-02 11:01:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 11:01:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 11:01:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TXN-004' as transaction_id,
+              cast('2025-10-02 11:01:00' as timestamp) as transaction_start_ts,
+              cast('2025-10-02 11:01:30' as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              2.5 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+          union all
+          select 
+              'CH-002' || '1' || '2025-10-02 11:20:00' as charge_attempt_id,
+              'CH-002' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 11:20:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 11:20:30' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 11:20:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TXN-005' as transaction_id,
+              cast('2025-10-02 11:20:00' as timestamp) as transaction_start_ts,
+              cast('2025-10-02 11:20:30' as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              2.5 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts              
+      - input: ref('stg_ports')
+        format: sql
+        fixture: stg_ports_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 3}

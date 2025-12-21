@@ -159,6 +159,7 @@ preparing_details as (
         
         {{ payload_extract_id_tag('action', 'payload', 'conf_payload') }} as id_tag,
         {{ payload_extract_id_tag_status('action', 'conf_payload') }} as id_tag_status,
+        {{ payload_extract_parent_id_tag('action', 'payload', 'conf_payload') }} as parent_id_tag,
         -- Transaction details
         {{ payload_extract_transaction_id('action', 'payload', 'conf_payload') }} as transaction_id,
 
@@ -188,6 +189,7 @@ preparing_agg as (
         -- Aggregate extracted details into arrays
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag") }}) as id_tags,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag_status") }}) as id_tag_statuses,
+        array_distinct({{ fivetran_utils.array_agg(field_to_agg="parent_id_tag") }}) as parent_id_tags,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_id") }}) as transaction_ids,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="error_code") }}) as error_codes
                 
@@ -231,6 +233,8 @@ combined_preparing as (
         array_distinct({{ array_concat('n.id_tags', 'b.id_tags') }}) as id_tags,
 
         array_distinct({{ array_concat('n.id_tag_statuses', 'b.id_tag_statuses') }}) as id_tag_statuses,
+
+        array_distinct({{ array_concat('n.parent_id_tags', 'b.parent_id_tags') }}) as parent_id_tags,
 
         array_distinct({{ array_concat('n.transaction_ids', 'b.transaction_ids') }}) as transaction_ids,
 
