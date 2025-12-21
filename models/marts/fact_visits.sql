@@ -42,7 +42,7 @@
 charge_attempts_with_location as (
     select
         ca.charge_point_id,
-        ca.port_id,
+        p.port_id,
         ca.connector_id,
         ca.ingested_ts,
         ca.charge_attempt_unique_id,
@@ -94,9 +94,26 @@ previous_visits as (
 -- Identify visit groups using window functions
 -- Strategy 1: Group by location_id and idTag (when idTag is not null) within 30 minutes
 -- Strategy 2: Group by location_id and charge_point_id (when idTag is null) within 2 minutes
+attempts_with_strategies as (
+    select
+        att.*,
+        -- Determine grouping key: use idTag if available, otherwise use charge_point_id
+        case 
+            when att.id_tag is not null then att.location_id || '_' || att.id_tag
+            else att.charge_point_id
+        end as grouping_key,
+        -- Determine time window: 30 minutes for idTag, 2 minutes for charge_point_id
+        case 
+            when att.id_tag is not null then 30
+            else 2
+        end as time_window_minutes
+    from charge_attempts_with_location att
+),
+
 visit_candidates as (
     select
         att.charge_point_id,
+        att.port_id,
         att.connector_id,
         att.ingested_ts,
         att.charge_attempt_unique_id,
@@ -105,35 +122,19 @@ visit_candidates as (
         att.id_tag,
         att.id_tag_statuses,
         att.energy_transferred_kwh,
-        -- Determine grouping key: use idTag if available, otherwise use charge_point_id
-        case 
-            when att.id_tag is not null then att.id_tag
-            else att.charge_point_id
-        end as grouping_key,
-        -- Determine time window: 30 minutes for idTag, 2 minutes for charge_point_id
-        case 
-            when att.id_tag is not null then 30
-            else 2
-        end as time_window_minutes,
-        -- Find the previous attempt in the same group
+        att.grouping_key,
+        att.time_window_minutes,
+        -- Find the previous attempt in the same group (using grouping_key for partitioning)
         lag(ingested_ts) over (
-            partition by att.location_id, 
-                case 
-                    when att.id_tag is not null then att.id_tag
-                    else att.charge_point_id
-                end
-            order by att.ingested_ts
+            partition by grouping_key
+            order by ingested_ts
         ) as prev_attempt_ts,
         -- Find the next attempt in the same group
         lead(ingested_ts) over (
-            partition by att.location_id,
-                case 
-                    when att.id_tag is not null then att.id_tag
-                    else att.charge_point_id
-                end
-            order by att.ingested_ts
+            partition by grouping_key
+            order by ingested_ts
         ) as next_attempt_ts
-    from charge_attempts_with_location att
+    from attempts_with_strategies att
 ),
 
 -- Identify visit boundaries: start a new visit when gap exceeds time window
@@ -186,8 +187,7 @@ visits_aggregated as (
         max(ingested_ts) as visit_end_ts,
         count(*) as charge_attempt_count,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="charge_point_id") }}) as charge_point_ids,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="connector_id") }}) as connector_ids,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_id") }}) as transaction_ids,
+        array_distinct({{ fivetran_utils.array_agg(field_to_agg="charge_attempt_unique_id") }}) as charge_attempt_ids,
         sum(coalesce(energy_transferred_kwh, 0)) as total_energy_transferred_kwh,
         {{ dbt.datediff('min(ingested_ts)', 'max(ingested_ts)', 'minute') }} as visit_duration_minutes
     from visits_with_ids
@@ -242,8 +242,7 @@ merged_visits as (
         ) as visit_end_ts,
         coalesce(pv.charge_attempt_count, 0) + va.charge_attempt_count as charge_attempt_count,
         array_distinct({{ array_concat('pv.charge_point_ids', 'va.charge_point_ids') }}) as charge_point_ids,
-        array_distinct({{ array_concat('pv.connector_ids', 'va.connector_ids') }}) as connector_ids,
-        array_distinct({{ array_concat('pv.transaction_ids', 'va.transaction_ids') }}) as transaction_ids,
+        array_distinct({{ array_concat('pv.charge_attempt_ids', 'va.charge_attempt_ids') }}) as charge_attempt_ids,
         coalesce(pv.total_energy_transferred_kwh, 0) + va.total_energy_transferred_kwh as total_energy_transferred_kwh,
         {{ dbt.datediff('least(coalesce(pv.visit_start_ts, va.visit_start_ts), va.visit_start_ts)', 'greatest(coalesce(pv.visit_end_ts, va.visit_end_ts), va.visit_end_ts)', 'minute') }} as visit_duration_minutes
     from visits_aggregated va
@@ -261,8 +260,7 @@ merged_visits as (
         pv.visit_end_ts,
         pv.charge_attempt_count,
         pv.charge_point_ids,
-        pv.connector_ids,
-        pv.transaction_ids,
+        pv.charge_attempt_ids,
         pv.total_energy_transferred_kwh,
         pv.visit_duration_minutes
     from previous_visits pv
@@ -281,8 +279,7 @@ select
     mv.visit_end_ts,
     mv.charge_attempt_count,
     mv.charge_point_ids,
-    mv.connector_ids,
-    mv.transaction_ids,
+    mv.charge_attempt_ids,
     mv.total_energy_transferred_kwh,
     mv.visit_duration_minutes,
     {% else %}
@@ -293,8 +290,7 @@ select
     va.visit_end_ts,
     va.charge_attempt_count,
     va.charge_point_ids,
-    va.connector_ids,
-    va.transaction_ids,
+    va.charge_attempt_ids,
     va.total_energy_transferred_kwh,
     va.visit_duration_minutes,
     {% endif %}
