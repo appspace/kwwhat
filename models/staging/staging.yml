@@ -11,8 +11,8 @@ sources:
       - name: ocpp_logs
         identifier: "{{ var('ocpp_logs_identifier') }}"
         description: "raw OCPP logs"
-        loaded_at_field: timestamp
         config:
+          loaded_at_field: timestamp
           freshness:
             warn_after: {count: 2, period: hour}
             error_after: {count: 3, period: hour}
