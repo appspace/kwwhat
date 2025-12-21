@@ -42,6 +42,7 @@
 charge_attempts_with_location as (
     select
         ca.charge_point_id,
+        ca.port_id,
         ca.connector_id,
         ca.ingested_ts,
         ca.charge_attempt_unique_id,
@@ -76,13 +77,12 @@ previous_visits as (
     select
         visit_id,
         location_id,
+        charge_point_ids,
         id_tag,
         visit_start_ts,
         visit_end_ts,
         charge_attempt_count,
-        charge_point_ids,
-        connector_ids,
-        transaction_ids,
+        charge_attempt_ids,
         total_energy_transferred_kwh,
         visit_duration_minutes
     from {{ this }}
@@ -96,44 +96,44 @@ previous_visits as (
 -- Strategy 2: Group by location_id and charge_point_id (when idTag is null) within 2 minutes
 visit_candidates as (
     select
-        cal.charge_point_id,
-        cal.connector_id,
-        cal.ingested_ts,
-        cal.charge_attempt_unique_id,
-        cal.transaction_id,
-        cal.location_id,
-        cal.id_tag,
-        cal.id_tag_statuses,
-        cal.energy_transferred_kwh,
+        att.charge_point_id,
+        att.connector_id,
+        att.ingested_ts,
+        att.charge_attempt_unique_id,
+        att.transaction_id,
+        att.location_id,
+        att.id_tag,
+        att.id_tag_statuses,
+        att.energy_transferred_kwh,
         -- Determine grouping key: use idTag if available, otherwise use charge_point_id
         case 
-            when cal.id_tag is not null then cal.id_tag
-            else cal.charge_point_id
+            when att.id_tag is not null then att.id_tag
+            else att.charge_point_id
         end as grouping_key,
         -- Determine time window: 30 minutes for idTag, 2 minutes for charge_point_id
         case 
-            when cal.id_tag is not null then 30
+            when att.id_tag is not null then 30
             else 2
         end as time_window_minutes,
         -- Find the previous attempt in the same group
         lag(ingested_ts) over (
-            partition by cal.location_id, 
+            partition by att.location_id, 
                 case 
-                    when cal.id_tag is not null then cal.id_tag
-                    else cal.charge_point_id
+                    when att.id_tag is not null then att.id_tag
+                    else att.charge_point_id
                 end
-            order by cal.ingested_ts
+            order by att.ingested_ts
         ) as prev_attempt_ts,
         -- Find the next attempt in the same group
         lead(ingested_ts) over (
-            partition by cal.location_id,
+            partition by att.location_id,
                 case 
-                    when cal.id_tag is not null then cal.id_tag
-                    else cal.charge_point_id
+                    when att.id_tag is not null then att.id_tag
+                    else att.charge_point_id
                 end
-            order by cal.ingested_ts
+            order by att.ingested_ts
         ) as next_attempt_ts
-    from charge_attempts_with_location cal
+    from charge_attempts_with_location att
 ),
 
 -- Identify visit boundaries: start a new visit when gap exceeds time window
