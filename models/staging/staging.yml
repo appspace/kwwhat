@@ -12,9 +12,10 @@ sources:
         identifier: "{{ var('ocpp_logs_identifier') }}"
         description: "raw OCPP logs"
         loaded_at_field: timestamp
-        freshness:
-          warn_after: {count: 2, period: hour}
-          error_after: {count: 3, period: hour}
+        config:
+          freshness:
+            warn_after: {count: 2, period: hour}
+            error_after: {count: 3, period: hour}
         columns:
           - name: timestamp
             description: "Timestamp when the OCPP message was received in UTC ISO 8601 time notation"
