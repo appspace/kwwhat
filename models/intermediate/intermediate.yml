@@ -171,23 +171,57 @@ models:
               - connector_id
               - ingested_ts
 
-  - name: int_offline_outages
-    description: "Intermediate incremental model that detects offline outages for charge points by identifying periods longer than heartbeat_interval_seconds without any charge point initiated messages (CALL messages). Grain: one row per outage period per charge point."
+  - name: int_meter_values
+    description: "Intermediate incremental model that processes transaction-level aggregated meter values. Provides min, max, and average values for each measurand aggregated across the entire transaction. Use for transaction-level analysis."
     columns:
       - name: charge_point_id
-        description: "Identifier for the charge point that experienced the outage"
+        description: "Unique identifier for the charging point"
         tests:
           - not_null
-      - name: from_ts
-        description: "Timestamp when the outage period started (beginning of the quiet period without communication)"
+      - name: transaction_id
+        description: "Unique identifier for the charging transaction"
         tests:
           - not_null
-      - name: to_ts
-        description: "Timestamp when the outage period ended (when communication resumed or monitoring period ended)"
+      - name: connector_id
+        description: "Unique identifier for the connector within the charging point"
         tests:
           - not_null
-      - name: duration_minutes
-        description: "Duration of the outage in minutes (calculated from from_ts to to_ts). Only outages longer than heartbeat_interval_seconds are included."
+      - name: ingested_ts
+        description: "Timestamp when transaction was ingested into the system"
+        tests:
+          - not_null
+      - name: measurand
+        description: "Type of measurement (e.g., Energy.Active.Import.Register, Voltage, Current.Import)"
+        tests:
+          - not_null
+      - name: unit
+        description: "Unit of measurement (e.g., Wh, V, A, W)"
+        tests:
+          - not_null
+      - name: phase
+        description: "Electrical phase (e.g., L1, L2, L3) or null for single-phase measurements"
+      - name: first_measurement_ts
+        description: "Meter timestamp of the first measurement for the transaction"
+        tests:
+          - not_null
+      - name: last_measurement_ts
+        description: "Meter timestamp of the last measurement for the transaction"
+        tests:
+          - not_null
+      - name: min_value
+        description: "Minimum value recorded for the transaction"
+        tests:
+          - not_null
+      - name: max_value
+        description: "Maximum value recorded for the transaction"
+        tests:
+          - not_null
+      - name: avg_value
+        description: "Average value for the transaction"
+        tests:
+          - not_null
+      - name: _count
+        description: "Total number of measurements for the transaction"
         tests:
           - not_null
     tests:
@@ -195,35 +229,9 @@ models:
           arguments:
             combination_of_columns:
               - charge_point_id
-              - from_ts
-
-  - name: int_faulted_outages
-    description: "Intermediate incremental model that detects port-level faulted outages by aggregating connector fault periods. Only periods where ALL connectors for a port are simultaneously faulted are considered outages. Grain: one row per faulted outage period per port."
-    columns:
-      - name: charge_point_id
-        description: "Identifier for the charge point that experienced the faulted outage"
-        tests:
-          - not_null
-      - name: port_id
-        description: "Identifier for the port that experienced the faulted outage (all connectors on this port were faulted during the outage period)"
-        tests:
-          - not_null
-      - name: from_ts
-        description: "Timestamp when the faulted outage period started (when all connectors for the port became faulted)"
-        tests:
-          - not_null
-      - name: to_ts
-        description: "Timestamp when the faulted outage period ended (when at least one connector recovered from faulted status)"
-        tests:
-          - not_null
-      - name: duration_minutes
-        description: "Duration of the faulted outage in minutes (calculated from from_ts to to_ts). Only periods where all connectors for the port are faulted are included."
-        tests:
-          - not_null
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns:
-              - charge_point_id
-              - port_id
-              - from_ts
+              - connector_id
+              - transaction_id
+              - ingested_ts
+              - measurand
+              - unit
+              - phase

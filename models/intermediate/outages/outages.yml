@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: int_offline_outages
+    description: "Intermediate incremental model that detects offline outages for charge points by identifying periods longer than heartbeat_interval_seconds without any charge point initiated messages (CALL messages). Grain: one row per outage period per charge point."
+    columns:
+      - name: charge_point_id
+        description: "Identifier for the charge point that experienced the outage"
+        tests:
+          - not_null
+      - name: from_ts
+        description: "Timestamp when the outage period started (beginning of the quiet period without communication)"
+        tests:
+          - not_null
+      - name: to_ts
+        description: "Timestamp when the outage period ended (when communication resumed or monitoring period ended)"
+        tests:
+          - not_null
+      - name: duration_minutes
+        description: "Duration of the outage in minutes (calculated from from_ts to to_ts). Only outages longer than heartbeat_interval_seconds are included."
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - from_ts
+
+  - name: int_faulted_outages
+    description: "Intermediate incremental model that detects port-level faulted outages by aggregating connector fault periods. Only periods where ALL connectors for a port are simultaneously faulted are considered outages. Grain: one row per faulted outage period per port."
+    columns:
+      - name: charge_point_id
+        description: "Identifier for the charge point that experienced the faulted outage"
+        tests:
+          - not_null
+      - name: port_id
+        description: "Identifier for the port that experienced the faulted outage (all connectors on this port were faulted during the outage period)"
+        tests:
+          - not_null
+      - name: from_ts
+        description: "Timestamp when the faulted outage period started (when all connectors for the port became faulted)"
+        tests:
+          - not_null
+      - name: to_ts
+        description: "Timestamp when the faulted outage period ended (when at least one connector recovered from faulted status)"
+        tests:
+          - not_null
+      - name: duration_minutes
+        description: "Duration of the faulted outage in minutes (calculated from from_ts to to_ts). Only periods where all connectors for the port are faulted are included."
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - port_id
+              - from_ts
+

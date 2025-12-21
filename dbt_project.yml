@@ -47,6 +47,7 @@ vars:
   raw_database: "RAW"
   raw_schema: "SEED"
   ocpp_logs_identifier: "ocpp_1_6_synthetic_logs_14d"
+  ports_identifier: "ports"
   start_processing_date: "2025-10-01"
   incremental_window:
     unit: "month"

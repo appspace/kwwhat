@@ -14,7 +14,7 @@
                 {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
                 least(
                     {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
-                    (select max(incremental_ts) from {{ ref("meter_values") }})
+                    (select max(incremental_ts) from {{ ref("int_meter_values") }})
                 ) as to_timestamp
         from
             (
@@ -29,7 +29,7 @@
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
             least(
                 {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
-                (select max(incremental_ts) from {{ ref("meter_values") }})
+                (select max(incremental_ts) from {{ ref("int_meter_values") }})
             ) as to_timestamp
         from
             (
@@ -67,7 +67,7 @@
             {{ dbt.dateadd("minute", '-(minute(last_measurement_ts) % 15)', dbt.date_trunc("minute", 'last_measurement_ts')) }} as last_interval,
             first_measurement_ts,
             last_measurement_ts
-        from {{ ref("meter_values") }}
+        from {{ ref("int_meter_values") }}
     ),
 
     incremental as (

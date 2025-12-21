@@ -27,6 +27,7 @@ sources:
             description: "JSON array representing OCPP message. For request messages (MessageTypeId = 2): [2, \"<UniqueId>\", \"<Action>\", <Payload>]. For response messages (MessageTypeId = 3): [3, \"<UniqueId>\", <Payload>]"
       
       - name: ports
+        identifier: "{{ var('ports_identifier') }}"
         description: Charger/port/connector data. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE). Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time.
         columns:
           - name: charge_point_id
