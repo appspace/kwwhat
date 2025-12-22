@@ -56,6 +56,8 @@ models:
         description: "Total energy transferred in kWh"
       - name: error_codes
         description: "Array of error codes from both charge attempt events and StatusNotification events during the transaction"
+      - name: is_successful
+        description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, next status is not 'Faulted', transaction stop reason is 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.01 kWh."
       - name: incremental_ts
         description: "Latest incremental processing timestamp from both source models for incremental processing tracking"
         tests:

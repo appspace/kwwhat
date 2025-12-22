@@ -50,8 +50,10 @@
 
 {% macro payload_extract_transaction_stop_reason(action, payload) %}
     case 
-        when {{ action }} = 'StopTransaction' 
-            then cast({{ fivetran_utils.json_extract(string=payload, string_path="reason") }} as {{ dbt.type_string() }})
+        when {{ action }} = 'StopTransaction'
+            -- If a transaction is ended in a normal way (e.g. EV-driver presented his identification to stop the transaction), the
+            -- Reason element MAY be omitted and the Reason SHOULD be assumed 'Local'.
+            then coalesce(cast({{ fivetran_utils.json_extract(string=payload, string_path="reason") }} as {{ dbt.type_string() }}), 'Local')
         else null
     end
 {% endmacro %}
