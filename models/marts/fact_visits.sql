@@ -51,6 +51,7 @@ charge_attempts_with_location as (
         ca.id_tag_statuses,
         ca.energy_transferred_kwh,
         p.location_id,
+        ca.is_successful,
         -- Extract first idTag from array (or null if empty)
         case 
             when ca.id_tags is not null and {{ array_size('ca.id_tags') }} > 0
@@ -84,7 +85,8 @@ previous_visits as (
         charge_attempt_count,
         charge_attempt_ids,
         total_energy_transferred_kwh,
-        visit_duration_minutes
+        visit_duration_minutes,
+        is_successful
     from {{ this }}
     where visit_end_ts >= (select buffer_from_timestamp from incremental_date_range)
         and visit_end_ts < (select to_timestamp from incremental_date_range)
@@ -92,8 +94,8 @@ previous_visits as (
 {% endif %}
 
 -- Identify visit groups using window functions
--- Strategy 1: Group by location_id and idTag (when idTag is not null) within 30 minutes
--- Strategy 2: Group by location_id and charge_point_id (when idTag is null) within 2 minutes
+-- Strategy 1: Group by location_id and idTag when idTag is not null within 30 minutes
+-- Strategy 2: Group by location_id and charge_point_id when idTag is null within 2 minutes
 attempts_with_strategies as (
     select
         att.*,
@@ -110,7 +112,7 @@ attempts_with_strategies as (
     from charge_attempts_with_location att
 ),
 
-visit_candidates as (
+attempts_chaining as (
     select
         att.charge_point_id,
         att.port_id,
@@ -124,6 +126,7 @@ visit_candidates as (
         att.energy_transferred_kwh,
         att.grouping_key,
         att.time_window_minutes,
+        att.is_successful,
         -- Find the previous attempt in the same group (using grouping_key for partitioning)
         lag(ingested_ts) over (
             partition by grouping_key
@@ -137,44 +140,61 @@ visit_candidates as (
     from attempts_with_strategies att
 ),
 
--- Identify visit boundaries: start a new visit when gap exceeds time window
-visit_boundaries as (
+attempts_lag_lead as (
     select
         *,
         case
             -- Start of visit: no previous attempt OR gap exceeds time window
             when prev_attempt_ts is null 
                 or {{ dbt.datediff('prev_attempt_ts', 'ingested_ts', 'minute') }} > time_window_minutes
-            then 1
-            else 0
+            then True
+            else False
         end as is_visit_start,
         case
             -- End of visit: no next attempt OR gap exceeds time window
             when next_attempt_ts is null
                 or {{ dbt.datediff('ingested_ts', 'next_attempt_ts', 'minute') }} > time_window_minutes
-            then 1
-            else 0
+            then True
+            else False
         end as is_visit_end
-    from visit_candidates
+    from attempts_chaining
 ),
 
--- Assign visit IDs using cumulative sum of visit starts
-visits_with_ids as (
+visit_boundaries as (
+    select *
+    from (
+        select
+            grouping_key,
+            ingested_ts as visit_start_ts,
+            lead(ingested_ts) as visit_end_ts
+        from attempts_lag_lead
+        where is_visit_start = True or is_visit_end = True
+    )
+    where is_visit_start
+),
+
+attempts_grouping as (
     select
-        *,
-        sum(is_visit_start) over (
-            partition by location_id, grouping_key
-            order by ingested_ts
-            rows unbounded preceding
-        ) as visit_number,
-        -- Create visit_id: location_id + grouping_key + visit_number
-        location_id || '_' || grouping_key || '_' || 
-        cast(sum(is_visit_start) over (
-            partition by location_id, grouping_key
-            order by ingested_ts
-            rows unbounded preceding
-        ) as {{ dbt.type_string() }}) as visit_id
-    from visit_boundaries
+        att.charge_point_id,
+        att.port_id,
+        att.connector_id,
+        att.ingested_ts,
+        att.charge_attempt_unique_id,
+        att.transaction_id,
+        att.location_id,
+        att.id_tag,
+        att.id_tag_statuses,
+        att.energy_transferred_kwh,
+        att.grouping_key,
+        att.is_successful,
+        b.visit_start_ts,
+        att.ingested_ts = b.visit_start_ts as is_visit_start,
+        att.ingested_ts = b.visit_end_ts as is_visit_end
+    from visit_boundaries b
+    inner join attempts_with_strategies att
+        on att.grouping_key = vb.grouping_key
+        and att.ingested_ts >= vb.visit_start_ts
+        and att.ingested_ts < vb.visit_end_ts
 ),
 
 -- Aggregate visits
@@ -187,11 +207,10 @@ visits_aggregated as (
         max(ingested_ts) as visit_end_ts,
         count(*) as charge_attempt_count,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="charge_point_id") }}) as charge_point_ids,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="charge_attempt_unique_id") }}) as charge_attempt_ids,
         sum(coalesce(energy_transferred_kwh, 0)) as total_energy_transferred_kwh,
-        {{ dbt.datediff('min(ingested_ts)', 'max(ingested_ts)', 'minute') }} as visit_duration_minutes
-    from visits_with_ids
-    group by visit_id, location_id, id_tag
+        max(case when is_last_attempt then is_successful else null end) as is_successful
+    from attempts_grouping
+    group by grouping_key, visit_start_ts
 )
 
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
