@@ -257,5 +257,7 @@
         meter_15min_interval_stop,
         avg_value,
         _count,
+        -- Generate a deterministic unique ID from the composite key
+        {{ dbt_utils.generate_surrogate_key(['charge_point_id', 'transaction_id', 'ingested_ts', 'connector_id', 'measurand', 'unit', 'phase', 'meter_15min_interval_start']) }} as interval_data_id,
         (select incremental_ts from incremental) as incremental_ts
     from final

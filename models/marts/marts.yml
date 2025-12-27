@@ -12,6 +12,11 @@ models:
         description: "Identifier for the charging connector"
         tests:
           - not_null
+      - name: charge_attempt_id
+        description: "Surrogate key for the charge attempt, generated from charge_point_id, connector_id, and ingested_ts."
+        tests:
+          - unique
+          - not_null
       - name: charge_attempt_unique_id
         description: "Unique identifier for the charge attempt from status change"
       - name: charge_attempt_ingested_ts
@@ -115,6 +120,11 @@ models:
         description: "Number of measurements within this 15-minute interval"
         tests:
           - not_null
+      - name: interval_data_id
+        description: "Surrogate key for the interval data record, generated from charge_point_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start"
+        tests:
+          - unique
+          - not_null
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -152,6 +162,11 @@ models:
           - accepted_values:
               arguments:
                 values: ['OFFLINE', 'FAULTED']
+      - name: downtime_id
+        description: "Surrogate key for the downtime record, generated from date_id, charge_point_id, port_id, and type"
+        tests:
+          - unique
+          - not_null
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

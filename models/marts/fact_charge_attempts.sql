@@ -202,6 +202,8 @@ attempts_and_transactions as (
 {% endif %}
 
 select *,
+    -- Generate a deterministic unique ID from the composite key
+    {{ dbt_utils.generate_surrogate_key(['charge_point_id', 'connector_id', 'ingested_ts']) }} as charge_attempt_id,
     case
         when transaction_id is not null
             and (next_status is null or next_status != 'Faulted')
