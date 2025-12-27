@@ -32,6 +32,8 @@ sources:
         columns:
           - name: charge_point_id
             description: "Charger identifier"
+          - name: location_id
+            description: "Location identifier where the charger is located"
           - name: port_id
             description: "Port identifier within the charger"
           - name: connector_id
@@ -49,6 +51,10 @@ models:
     columns:
       - name: charge_point_id
         description: "Charger identifier. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE)."
+        tests:
+          - not_null
+      - name: location_id
+        description: "Location identifier where the charge point is located"
         tests:
           - not_null
       - name: port_id
