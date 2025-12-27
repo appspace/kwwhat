@@ -41,6 +41,7 @@
 -- Get charge attempts with location information
 charge_attempts_with_location as (
     select
+        ca.charge_attempt_id,
         ca.charge_point_id,
         p.port_id,
         ca.connector_id,
@@ -93,51 +94,114 @@ previous_visits as (
 ),
 {% endif %}
 
--- Identify visit groups using window functions
--- Strategy 1: Group by location_id and idTag when idTag is not null within 30 minutes
--- Strategy 2: Group by location_id and charge_point_id when idTag is null within 2 minutes
-attempts_with_strategies as (
+-- Step 1: Group attempts within 2 min on the same charger if not different idTags
+anonymized_attempts_chaining as (
     select
         att.*,
-        -- Determine grouping key: use idTag if available, otherwise use charge_point_id
+        -- Find the previous attempt at the same charge point
+        lag(ingested_ts) over (
+            partition by charge_point_id
+            order by ingested_ts
+        ) as prev_attempt_ts,
+        lag(id_tag) over (
+            partition by charge_point_id
+            order by ingested_ts
+        ) as prev_id_tag,
+        -- Find the next attempt at the same charge point
+        lead(ingested_ts) over (
+            partition by charge_point_id
+            order by ingested_ts
+        ) as next_attempt_ts,
+        lead(id_tag) over (
+            partition by charge_point_id
+            order by ingested_ts
+        ) as next_id_tag
+    from charge_attempts_with_location att
+),
+
+anonymized_attempts_lag_lead as (
+    select
+        *,
+        case
+            -- Start of anonymized group: no previous attempt OR gap exceeds 2 minutes OR different idTags
+            when prev_attempt_ts is null 
+                or {{ dbt.datediff('prev_attempt_ts', 'ingested_ts', 'minute') }} > 2
+                or (id_tag is not null and prev_id_tag is not null and id_tag != prev_id_tag)
+            then True
+            else False
+        end as is_step1_group_start,
+        case
+            -- End of anonymized group: no next attempt OR gap exceeds 2 minutes OR different idTags
+            when next_attempt_ts is null
+                or {{ dbt.datediff('ingested_ts', 'next_attempt_ts', 'minute') }} > 2
+                or (id_tag is not null and next_id_tag is not null and id_tag != next_id_tag)
+            then True
+            else False
+        end as is_step1_group_end
+    from anonymized_attempts_chaining
+),
+
+step1_group_boundaries as (
+    select
+        charge_point_id,
+        ingested_ts as step1_group_start_ts,
+        lead(ingested_ts) over (
+            partition by charge_point_id
+            order by ingested_ts
+        ) as step1_group_end_ts
+    from anonymized_attempts_lag_lead
+    where is_step1_group_start = True
+),
+
+-- Assign attempts to anonymized groups and assign idTag if any attempt in group has one
+attempts_with_inferred_id_tags as (
+    select
+        att.*,
+        b.step1_group_start_ts,
+        -- Assign idTag to whole group if any attempt in the group has an idTag
+        max(att.id_tag) over (
+            partition by att.charge_point_id, b.step1_group_start_ts
+        ) as id_tag
+    from step1_group_boundaries b
+    inner join charge_attempts_with_location att
+        on att.charge_point_id = b.charge_point_id
+        and att.ingested_ts >= b.step1_group_start_ts
+        and (b.step1_group_end_ts is null or att.ingested_ts < b.step1_group_end_ts)
+),
+
+
+-- Step 2: Group attempts by location_id + idTag, 30 min apart (if idTag exists), or by charge_point_id, 2 min apart (if no idTag)
+attempts_with_grouping_strategies as (
+    select
+        att.*,
+        -- Create grouping key: location_id + idTag (if idTag exists), otherwise charge_point_id
         case 
-            when att.id_tag is not null then att.location_id || '_' || att.id_tag
+            when att.id_tag is not null 
+            then att.location_id || '_' || att.id_tag
             else att.charge_point_id
         end as grouping_key,
-        -- Determine time window: 30 minutes for idTag, 2 minutes for charge_point_id
+        -- Determine time window: 30 minutes for authenticated visits, 2 minutes for unauthenticated visits
         case 
             when att.id_tag is not null then 30
             else 2
         end as time_window_minutes
-    from charge_attempts_with_location att
+    from attempts_with_inferred_id_tags att
 ),
 
 attempts_chaining as (
     select
-        att.charge_point_id,
-        att.port_id,
-        att.connector_id,
-        att.ingested_ts,
-        att.charge_attempt_unique_id,
-        att.transaction_id,
-        att.location_id,
-        att.id_tag,
-        att.id_tag_statuses,
-        att.energy_transferred_kwh,
-        att.grouping_key,
-        att.time_window_minutes,
-        att.is_successful,
-        -- Find the previous attempt in the same group (using grouping_key for partitioning)
-        lag(ingested_ts) over (
-            partition by grouping_key
-            order by ingested_ts
+        att.*,
+        -- Find the previous attempt in the same group
+        lag(att.ingested_ts) over (
+            partition by att.grouping_key
+            order by att.ingested_ts
         ) as prev_attempt_ts,
         -- Find the next attempt in the same group
-        lead(ingested_ts) over (
-            partition by grouping_key
-            order by ingested_ts
+        lead(att.ingested_ts) over (
+            partition by att.grouping_key
+            order by att.ingested_ts
         ) as next_attempt_ts
-    from attempts_with_strategies att
+    from attempts_with_grouping_strategies att
 ),
 
 attempts_lag_lead as (
@@ -161,16 +225,17 @@ attempts_lag_lead as (
 ),
 
 visit_boundaries as (
-    select *
-    from (
-        select
-            grouping_key,
-            ingested_ts as visit_start_ts,
-            lead(ingested_ts) as visit_end_ts
-        from attempts_lag_lead
-        where is_visit_start = True or is_visit_end = True
-    )
-    where is_visit_start
+    select
+        grouping_key,
+        location_id,
+        id_tag,
+        ingested_ts as visit_start_ts,
+        lead(ingested_ts) over (
+            partition by grouping_key
+            order by ingested_ts
+        ) as visit_end_ts
+    from attempts_lag_lead
+    where is_visit_start = True
 ),
 
 attempts_grouping as (
@@ -185,29 +250,34 @@ attempts_grouping as (
         att.id_tag,
         att.id_tag_statuses,
         att.energy_transferred_kwh,
-        att.grouping_key,
         att.is_successful,
         b.visit_start_ts,
-        att.ingested_ts = b.visit_start_ts as is_visit_start,
-        att.ingested_ts = b.visit_end_ts as is_visit_end
-    from visit_boundaries b
-    inner join attempts_with_strategies att
-        on att.grouping_key = vb.grouping_key
-        and att.ingested_ts >= vb.visit_start_ts
-        and att.ingested_ts < vb.visit_end_ts
+        -- Mark if this is the last attempt in the visit
+        row_number() over (
+            partition by b.grouping_key, b.visit_start_ts
+            order by att.ingested_ts desc
+        ) = 1 as is_last_attempt
+    from attempts_with_grouping_strategies att
+    inner join visit_boundaries b
+        on att.grouping_key = b.grouping_key
+        and att.ingested_ts >= b.visit_start_ts
+        and (b.visit_end_ts is null or att.ingested_ts < b.visit_end_ts)
 ),
 
 -- Aggregate visits
 visits_aggregated as (
     select
-        visit_id,
+        -- Generate visit_id using surrogate key
+        {{ dbt_utils.generate_surrogate_key(['grouping_key', 'visit_start_ts']) }} as visit_id,
         location_id,
         id_tag,
         min(ingested_ts) as visit_start_ts,
         max(ingested_ts) as visit_end_ts,
         count(*) as charge_attempt_count,
+        array_distinct({{ fivetran_utils.array_agg(field_to_agg="charge_attempt_unique_id") }}) as charge_attempt_ids,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="charge_point_id") }}) as charge_point_ids,
         sum(coalesce(energy_transferred_kwh, 0)) as total_energy_transferred_kwh,
+        {{ dbt.datediff('min(ingested_ts)', 'max(ingested_ts)', 'minute') }} as visit_duration_minutes,
         max(case when is_last_attempt then is_successful else null end) as is_successful
     from attempts_grouping
     group by grouping_key, visit_start_ts
