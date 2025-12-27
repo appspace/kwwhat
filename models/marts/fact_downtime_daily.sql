@@ -132,6 +132,8 @@ final as (
 )
 
 select *,
+    -- Generate a deterministic unique ID from the composite key
+    {{ dbt_utils.generate_surrogate_key(['date_id', 'charge_point_id', 'port_id', 'type']) }} as downtime_id,
     (select incremental_ts from incremental) as incremental_ts
 from final
 
