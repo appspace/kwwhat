@@ -15,11 +15,12 @@ This project is powered by public OCPP log data and is designed for CSMS provide
 - Source modeling for raw OCPP logs (StatusNotification, Heartbeat, Start/StopTransaction)
 - Session and visit grouping logic
 - Core metrics like:
-  - Outages: from, to, type
-  - Port _uptime (% time chargers heartbeating and ports not faulted - a solid base for calculating uptime by adding maintenance and exclusion rules)
-  - Session-level and visit-level success
-  - First attempt success rate
-  - Troubled success rate
+  - [x] Outages: from, to, type
+  - [x] Port _uptime (% time chargers heartbeating and ports not faulted - a solid base for calculating uptime by adding maintenance and exclusion rules)
+  - [x] Attempt success
+  - [ ] Visit success
+  - [ ] First attempt success rate
+  - [ ] Troubled success rate
 - Public OCPP logs for realistic examples
 - Modular dbt structure to plug into your existing stack
 - Interval data for other reporting use cases that require energy delivery by 15-min time slices
