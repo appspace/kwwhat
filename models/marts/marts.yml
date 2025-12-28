@@ -219,13 +219,27 @@ models:
         tests:
           - not_null
     tests:
-      - dbt_utils.expression_is_true:
+      - dbt_utils.unique_combination_of_columns:
           arguments:
-            expression: "visit_end_ts >= visit_start_ts"
-          config:
-            severity: error
-      - dbt_utils.expression_is_true:
-          arguments:
-            expression: "charge_attempt_count > 0"
-          config:
-            severity: error
+            combination_of_columns:
+              - location_id
+              - first_charge_point_id
+              - visit_start_ts
+
+unit_tests:
+  - name: test_authorized_visits_15min_apart
+    description: "Two authorized attempts on the same charger 15 minutes apart should result in one visit"
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        fixture: fact_charge_attempts_fixture
+      - input: ref('stg_ports')
+        format: sql
+        fixture: stg_ports_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7}

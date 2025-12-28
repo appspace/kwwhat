@@ -221,7 +221,7 @@ visit_boundaries as (
         lead(ingested_ts) over (
             partition by grouping_key
             order by ingested_ts
-        ) as visit_end_ts
+        ) as next_visit_start_ts
     from attempts_lag_lead
     where is_visit_start = True
 ),
@@ -252,7 +252,7 @@ attempts_grouping as (
     inner join visit_boundaries b
         on att.grouping_key = b.grouping_key
         and att.ingested_ts >= b.visit_start_ts
-        and att.ingested_ts < b.visit_end_ts
+        and (b.next_visit_start_ts is null or att.ingested_ts < b.next_visit_start_ts)
 ),
 
 new_visits as (
@@ -374,6 +374,7 @@ select
     charge_attempt_count,
     charge_attempt_ids,
     total_energy_transferred_kwh,
+    first_charge_point_id,
     last_charge_point_id,
     is_successful,
     {{ dbt.datediff('visit_start_ts', 'visit_end_ts', 'minute') }} as visit_duration_minutes,
