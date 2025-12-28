@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["visit_id"], 
+    unique_key=["location_id", "first_charge_point_id", "visit_start_ts"], 
     incremental_strategy="merge",
     cluster_by="visit_start_ts"
   )
@@ -46,7 +46,6 @@ charge_attempts_with_location as (
         p.port_id,
         ca.connector_id,
         ca.ingested_ts,
-        ca.charge_attempt_unique_id,
         ca.transaction_id,
         ca.id_tags,
         ca.id_tag_statuses,
@@ -135,7 +134,17 @@ step1_group_boundaries as (
 -- Assign attempts to anonymized groups and assign idTag if any attempt in group has one
 attempts_with_inferred_id_tags as (
     select
-        att.*,
+        att.charge_attempt_id,
+        att.charge_point_id,
+        att.port_id,
+        att.connector_id,
+        att.ingested_ts,
+        att.transaction_id,
+        att.id_tags,
+        att.id_tag_statuses,
+        att.energy_transferred_kwh,
+        att.location_id,
+        att.is_successful,
         b.step1_group_start_ts,
         -- Assign idTag to whole group if any attempt in the group has an idTag
         max(att.id_tag) over (
@@ -219,11 +228,11 @@ visit_boundaries as (
 
 attempts_grouping as (
     select
+        att.charge_attempt_id,
         att.charge_point_id,
         att.port_id,
         att.connector_id,
         att.ingested_ts,
-        att.charge_attempt_unique_id,
         att.transaction_id,
         att.location_id,
         att.id_tag,
@@ -231,6 +240,7 @@ attempts_grouping as (
         att.energy_transferred_kwh,
         att.is_successful,
         b.visit_start_ts,
+        att.grouping_key,
         -- Mark if this is the first attempt in the visit
         visit_start_ts = ingested_ts as is_first_attempt,
         -- Mark if this is the last attempt in the visit
@@ -242,14 +252,15 @@ attempts_grouping as (
     inner join visit_boundaries b
         on att.grouping_key = b.grouping_key
         and att.ingested_ts >= b.visit_start_ts
-        and (b.visit_end_ts is null or att.ingested_ts < b.visit_end_ts)
+        and att.ingested_ts < b.visit_end_ts
 ),
 
 new_visits as (
     select
-        location_id,
-        id_tag,
-        min(ingested_ts) as visit_start_ts,
+        grouping_key, 
+        visit_start_ts, 
+        max(id_tag) as id_tag,
+        max(location_id) as location_id,
         max(ingested_ts) as visit_end_ts,
         count(*) as charge_attempt_count,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="charge_attempt_id") }}) as charge_attempt_ids,
@@ -261,7 +272,7 @@ new_visits as (
         max(case when is_last_attempt then charge_point_id else null end) as last_charge_point_id
     from attempts_grouping
     group by grouping_key, visit_start_ts
-)
+),
 
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
 
@@ -355,7 +366,6 @@ new_visits as (
 {% endif %}
 
 select
-    visit_id,
     location_id,
     charge_point_ids,
     id_tag,
