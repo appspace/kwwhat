@@ -72,7 +72,7 @@ incremental as (
     from charge_attempts_with_location
 ),
 
--- Step 1: Group attempts within 2 min on the same charger if not different idTags
+-- Step 1: Infer idTag for unauthorised attempts if there is authorised right after on the same charger
 anonymized_attempts_chaining as (
     select
         att.*,
@@ -101,7 +101,7 @@ anonymized_attempts_lag_lead as (
     select
         *,
         case
-            -- Start of anonymized group: no previous attempt OR gap exceeds 2 minutes OR different idTags
+            -- Start of new  group: no previous attempt OR gap exceeds 2 minutes OR different idTags
             when prev_attempt_ts is null 
                 or {{ dbt.datediff('prev_attempt_ts', 'ingested_ts', 'minute') }} > 2
                 or (id_tag is not null and prev_id_tag is not null and id_tag != prev_id_tag)
@@ -109,7 +109,7 @@ anonymized_attempts_lag_lead as (
             else False
         end as is_step1_group_start,
         case
-            -- End of anonymized group: no next attempt OR gap exceeds 2 minutes OR different idTags
+            -- End of new group: no next attempt OR gap exceeds 2 minutes OR different idTags
             when next_attempt_ts is null
                 or {{ dbt.datediff('ingested_ts', 'next_attempt_ts', 'minute') }} > 2
                 or (id_tag is not null and next_id_tag is not null and id_tag != next_id_tag)
