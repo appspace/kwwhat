@@ -31,12 +31,25 @@ Check Tableau dashboard [here](https://public.tableau.com/app/profile/daria.sukh
 
 ## Definitions
 
-Charger definitions aligned with National Electric Vehicle Infrastructure (NEVI) standards:
+#### Charger definitions aligned with National Electric Vehicle Infrastructure (NEVI) standards
   - *Charger* means a device with one or more charging ports and connectors for charging EVs. Also referred to as Electric Vehicle Supply Equipment (EVSE).
   - *Charging port* means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time.
   - *Connector* means the device that attaches an EV to a charging port in order to transfer electricity.
   
   Source: [23 CFR §680.104 — National Electric Vehicle Infrastructure Standards and Requirements](https://www.ecfr.gov/current/title-23/section-680.104)
+
+#### Success criteria
+Charge attempt is successful when:
+  - there is a transaction (energy transfer)
+  - next connector status is not ‘Faulted'
+  - transaction stop reason is 'Local’ or ‘Remote’ or ‘EVDisconnected'
+  - energy transferred is above 0.1 kWh
+  
+  partially borrowed from https://github.com/chargex-consortium/OCPP-2.0.1-Interim-KPI-Calculator
+
+Visits is successful when the last attempt of the visit is successful.
+
+  a modification of visit success when at least one charge attempt is successful here [Customer-Focused Key Performance Indicators (KPIs) for Electric Vehicle Charging](https://inl.gov/content/uploads/2024/05/chargex-Customer-Focused-KPIs-for-EV-Charging-6-24-24.pdf)
 
 ---
 
