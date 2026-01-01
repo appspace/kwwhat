@@ -13,14 +13,24 @@ models:
         tests:
           - not_null
       - name: charge_attempt_id
-        description: "Surrogate key for the charge attempt, generated from charge_point_id, connector_id, and ingested_ts."
+        description: "Surrogate key for the charge attempt, generated from charge_point_id, connector_id, and charge_attempt_start_ts."
         tests:
           - unique
           - not_null
-      - name: charge_attempt_unique_id
-        description: "Unique identifier for the charge attempt from status change"
-      - name: charge_attempt_ingested_ts
-        description: "Timestamp when the charge attempt was ingested"
+      - name: charge_attempt_start_ts
+        description: "Start timestamp of the charge attempt. Uses preparing_start_ts (coalesce of payload_ts and ingested_ts from StatusNotification) if available, otherwise transaction_start_ts."
+        tests:
+          - not_null
+      - name: charge_attempt_stop_ts
+        description: "Stop timestamp of the charge attempt. Uses transaction_stop_ts if transaction exists, otherwise preparing_stop_ts (coalesce of next_payload_ts and next_ingested_ts)."
+      - name: preparing_unique_id
+        description: "Unique identifier of the Status Notification OCPP message"
+      - name: preparing_ingested_ts
+        description: "Timestamp when the StatusNotification with status 'Preparing' was ingested"
+      - name: preparing_payload_ts
+        description: "Optional timestamp from the StatusNotification payload (when status is 'Preparing')"
+      - name: preparing_next_payload_ts
+        description: "Optional timestamp from the next StatusNotification payload after 'Preparing' status"
       - name: confirmation_ingested_ts
         description: "Timestamp when the status change confirmation was received"
       - name: previous_status
@@ -73,7 +83,7 @@ models:
             combination_of_columns:
               - charge_point_id
               - connector_id
-              - ingested_ts
+              - charge_attempt_start_ts
 
   - name: fact_interval_data
     description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
