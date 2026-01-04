@@ -191,16 +191,16 @@ attempts_and_transactions as (
 
             coalesce(n.preparing_unique_id, b.preparing_unique_id) as preparing_unique_id,
             coalesce(n.preparing_ingested_ts, b.preparing_ingested_ts) as preparing_ingested_ts,
-            -- once set, ingested_ts should not be changed as it is a unique identifier (used for clustering/partitioning/merging)
+            coalesce(n.preparing_payload_ts, b.preparing_payload_ts) as preparing_payload_ts,
+            coalesce(n.preparing_next_payload_ts, b.preparing_next_payload_ts) as preparing_next_payload_ts,
             coalesce(n.previous_status, b.previous_status) as previous_status,
             coalesce(n.status, b.status) as status,
             coalesce(n.next_status, b.next_status) as next_status,
-            coalesce(n.preparing_payload_ts, b.preparing_payload_ts) as preparing_payload_ts,
-            coalesce(n.preparing_next_payload_ts, b.preparing_next_payload_ts) as preparing_next_payload_ts,
+
             coalesce(n.transaction_id, b.transaction_id) as transaction_id,
+            coalesce(n.transaction_ingested_ts, b.transaction_ingested_ts) as transaction_ingested_ts,
             coalesce(n.transaction_start_ts, b.transaction_start_ts) as transaction_start_ts,
             coalesce(n.transaction_stop_ts, b.transaction_stop_ts) as transaction_stop_ts,
-            coalesce(n.transaction_ingested_ts, b.transaction_ingested_ts) as transaction_ingested_ts,
             coalesce(n.transaction_stop_reason, b.transaction_stop_reason) as transaction_stop_reason,
             coalesce(n.meter_start_wh, b.meter_start_wh) as meter_start_wh,
             coalesce(n.meter_stop_wh, b.meter_stop_wh) as meter_stop_wh,
