@@ -65,7 +65,8 @@
             payload,
             {{ payload_extract_connector_id('action', 'payload') }} as connector_id,
             {{ payload_extract_status('action', 'payload') }} as status,
-            {{ payload_extract_error_code('action', 'payload') }} as error_code
+            {{ payload_extract_error_code('action', 'payload') }} as error_code,
+            {{ payload_extract_timestamp('action', 'payload') }} as payload_ts
         from ocpp_logs
         where action = 'StatusNotification'
             and message_type_id = {{ var("message_type_ids").CALL }}
@@ -83,6 +84,7 @@
             req.status,
             req.error_code,
             req.payload,
+            req.payload_ts,
             
             -- Confirmation details
             conf.ingested_timestamp as confirmation_ingested_ts
@@ -111,22 +113,23 @@
             status,
             error_code,
             payload,
+            payload_ts,
             confirmation_ingested_ts,
             previous_status,
-            previous_ingested_ts
+            previous_ingested_ts,
+            previous_payload_ts
         from {{ this }}
         where (ingested_ts >= (select buffer_from_timestamp from incremental_date_range)
             and ingested_ts <= (select from_timestamp from incremental_date_range))
             and next_status is null
-            -- no new data don't bother
-            and (select incremental_ts from incremental) is not null
     ),
 
     statuses_with_buffer as (
         select 
             *,
             cast(null as {{ dbt.type_string() }}) as previous_status,
-            cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts
+            cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts,
+            cast(null as {{ dbt.type_timestamp() }}) as previous_payload_ts
         from status_with_confirmation
         
         union all
@@ -139,7 +142,8 @@
         select 
             *,
             cast(null as {{ dbt.type_string() }}) as previous_status,
-            cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts
+            cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts,
+            cast(null as {{ dbt.type_timestamp() }}) as previous_payload_ts
         from status_with_confirmation
     ),
 {% endif %}
@@ -156,6 +160,7 @@
             status,
             error_code,
             payload,
+            payload_ts,
             confirmation_ingested_ts,
 
             coalesce(
@@ -169,7 +174,13 @@
                 lag(ingested_ts) over (
                     partition by charge_point_id, connector_id order by ingested_ts
                 )
-            ) as previous_ingested_ts
+            ) as previous_ingested_ts,
+            coalesce(
+                previous_payload_ts,
+                lag(payload_ts) over (
+                    partition by charge_point_id, connector_id order by ingested_ts
+                )
+            ) as previous_payload_ts
         from statuses_with_buffer
     ),
 
@@ -188,28 +199,14 @@
             ) as next_status,
             lead(ingested_ts) over (
                 partition by charge_point_id, connector_id order by ingested_ts
-            ) as next_ingested_ts
+            ) as next_ingested_ts,
+            lead(payload_ts) over (
+                partition by charge_point_id, connector_id order by ingested_ts
+            ) as next_payload_ts
         from change_from_lag
-    ),
-
-    statuses as (
-         select *,
-            -- Calculate seconds to previous status
-            case 
-                when previous_ingested_ts is not null 
-                then {{ dbt.datediff('previous_ingested_ts', 'ingested_ts', 'second') }}
-                else null
-            end as seconds_to_previous_status,
-            -- Calculate seconds to next status
-            case 
-                when next_ingested_ts is not null 
-                then {{ dbt.datediff('ingested_ts', 'next_ingested_ts', 'second') }}
-                else null
-            end as seconds_to_next_status
-         from status_with_lead
     )
 
  select *,
     (select incremental_ts from incremental) as incremental_ts
- from statuses
+ from status_with_lead
  

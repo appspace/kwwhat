@@ -100,6 +100,14 @@
     end
 {% endmacro %}
 
+{% macro payload_extract_timestamp(action, payload) %}
+    case 
+        when {{ action }} in ('StatusNotification', 'StartTransaction', 'StopTransaction')
+            then cast({{ fivetran_utils.json_extract(string=payload, string_path="timestamp") }} as {{ dbt.type_timestamp() }})
+        else null
+    end
+{% endmacro %}
+
 {% macro payload_extract_meter_values(action, payload) %}
     case
         when {{ action }} = 'MeterValues'

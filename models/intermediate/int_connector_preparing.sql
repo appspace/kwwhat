@@ -50,11 +50,14 @@ status_changes_to_preparing as (
         connector_id,
         unique_id,
         ingested_ts,
+        payload_ts,
         status,
         previous_status,
         previous_ingested_ts,
+        previous_payload_ts,
         next_status,
         next_ingested_ts,
+        next_payload_ts,
         error_code,
         incremental_ts,
         
@@ -108,48 +111,52 @@ charge_attempt_events_conf as (
 
 ),
 
-charge_attempt_events_chaining as (
+preparing_events_chaining as (
     select
         -- Status change details
-        att.charge_point_id,
-        att.connector_id,
-        att.unique_id,
-        att.ingested_ts,
-        att.previous_status,
-        att.status,
-        att.next_status,
-        att.confirmation_ingested_ts,
-        att.previous_ingested_ts,
-        att.next_ingested_ts,
+        p.charge_point_id,
+        p.connector_id,
+        p.unique_id,
+        p.ingested_ts,
+        p.previous_status,
+        p.status,
+        p.next_status,
+        p.confirmation_ingested_ts,
+        p.previous_ingested_ts,
+        p.next_ingested_ts,
+        p.previous_payload_ts,
+        p.next_payload_ts,
+        p.payload_ts,
         
         -- Charge attempt event details
         e.action,
         e.payload,
         e.conf_payload
-    from status_changes_to_preparing att
-    left join charge_attempt_events_conf e on att.charge_point_id = e.charge_point_id
-        and att.connector_id = e.connector_id
-        and e.ingested_ts > coalesce(att.previous_ingested_ts, att.ingested_ts)
-        and e.ingested_ts <= coalesce(att.next_ingested_ts, att.ingested_ts)
+    from status_changes_to_preparing p
+    left join charge_attempt_events_conf e on p.charge_point_id = e.charge_point_id
+        and p.connector_id = e.connector_id
+        and e.ingested_ts > coalesce(p.previous_ingested_ts, p.ingested_ts)
+        and e.ingested_ts <= coalesce(p.next_ingested_ts, p.ingested_ts)
 
 ),
 
 -- Extract relevant details based on action type
-charge_attempt_details as (
+preparing_details as (
     select
-        -- Charge attempts details
-        att.charge_point_id,
-        att.connector_id,
-        att.unique_id,
-        att.ingested_ts,
-        att.previous_status,
-        att.status,
-        att.next_status,
-        att.confirmation_ingested_ts,
-        att.previous_ingested_ts,
-        att.next_ingested_ts,
+        p.charge_point_id,
+        p.connector_id,
+        p.unique_id,
+        p.ingested_ts,
+        p.previous_status,
+        p.status,
+        p.next_status,
+        p.confirmation_ingested_ts,
+        p.previous_ingested_ts,
+        p.next_ingested_ts,
+        p.previous_payload_ts,
+        p.next_payload_ts,
+        p.payload_ts,
         
-        -- Extract details based on action type using reusable macros
         {{ payload_extract_id_tag('action', 'payload', 'conf_payload') }} as id_tag,
         {{ payload_extract_id_tag_status('action', 'conf_payload') }} as id_tag_status,
         -- Transaction details
@@ -157,12 +164,12 @@ charge_attempt_details as (
 
         -- Error details
         {{ payload_extract_error_code('action', 'payload') }} as error_code
-    from charge_attempt_events_chaining att
+    from preparing_events_chaining p
 ),
 
 
 -- Group by status change details and aggregate into arrays
-charge_attempts as (
+preparing_agg as (
     select
         -- Status change details (grouping keys)
         charge_point_id,
@@ -175,35 +182,42 @@ charge_attempts as (
         confirmation_ingested_ts,
         previous_ingested_ts,
         next_ingested_ts,
+        previous_payload_ts,
+        next_payload_ts,
+        payload_ts,
         -- Aggregate extracted details into arrays
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag") }}) as id_tags,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag_status") }}) as id_tag_statuses,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_id") }}) as transaction_ids,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="error_code") }}) as error_codes
                 
-    from charge_attempt_details
+    from preparing_details
     group by 
         charge_point_id,
         connector_id,
         unique_id,
         ingested_ts,        
+        payload_ts,
         previous_status,
         status,
         next_status,
         confirmation_ingested_ts,
         previous_ingested_ts,
-        next_ingested_ts
-)
+        next_ingested_ts,
+        previous_payload_ts,
+        next_payload_ts
+    )
 
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
 ,
 
-combined_charge_attempts as (
+combined_preparing as (
     select
         n.charge_point_id,
         n.connector_id,
         n.unique_id,
         n.ingested_ts,
+        n.payload_ts,
 
         coalesce(n.previous_status, b.previous_status) as previous_status,
         coalesce(n.status, b.status) as status,
@@ -211,6 +225,8 @@ combined_charge_attempts as (
         coalesce(n.confirmation_ingested_ts, b.confirmation_ingested_ts) as confirmation_ingested_ts,
         coalesce(b.previous_ingested_ts, n.previous_ingested_ts) as previous_ingested_ts,
         coalesce(n.next_ingested_ts, b.next_ingested_ts) as next_ingested_ts,
+        coalesce(b.previous_payload_ts, n.previous_payload_ts) as previous_payload_ts,
+        coalesce(n.next_payload_ts, b.next_payload_ts) as next_payload_ts,
 
         array_distinct({{ array_concat('n.id_tags', 'b.id_tags') }}) as id_tags,
 
@@ -220,7 +236,7 @@ combined_charge_attempts as (
 
         array_distinct({{ array_concat('n.error_codes', 'b.error_codes') }}) as error_codes
 
-    from charge_attempts n
+    from preparing_agg n
     left join {{ this}} b
         on n.charge_point_id = b.charge_point_id
         and n.connector_id = b.connector_id
@@ -247,7 +263,7 @@ select *,
 
 from 
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
-    combined_charge_attempts
+    combined_preparing
 {% else %}
-    charge_attempts
+    preparing_agg
 {% endif %}

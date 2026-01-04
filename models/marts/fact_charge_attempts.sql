@@ -1,9 +1,9 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "connector_id", "ingested_ts"], 
+    unique_key=["charge_point_id", "connector_id", "charge_attempt_start_ts"], 
     incremental_strategy="merge",
-    cluster_by="ingested_ts"
+    cluster_by="charge_attempt_start_ts"
   )
 }}
 
@@ -42,22 +42,28 @@
     ),
 {% endif %}
 
-charge_attempts as (
+preparing as (
     select
         charge_point_id,
         connector_id,
-        unique_id as charge_attempt_unique_id,
-        ingested_ts as charge_attempt_ingested_ts,
+        unique_id as preparing_unique_id,
+        ingested_ts as preparing_ingested_ts,
         previous_ingested_ts,
         next_ingested_ts,
         previous_status,
         status,
         next_status,
+        payload_ts,
+        next_payload_ts,
         id_tags,
         id_tag_statuses,
         transaction_id,
         error_codes,
-        incremental_ts
+        incremental_ts,
+
+        -- Attempt start timestamp: use payload_ts if available, otherwise ingested_ts
+        coalesce(payload_ts, ingested_ts) as preparing_start_ts,
+        coalesce(next_payload_ts, next_ingested_ts) as preparing_stop_ts
     from {{ ref('int_connector_preparing') }}
     where ingested_ts > (select from_timestamp from incremental_date_range)
         and ingested_ts <= (select to_timestamp from incremental_date_range)
@@ -88,7 +94,7 @@ incremental as (
     select
         greatest(
             coalesce(
-                (select max(charge_attempt_ingested_ts) from charge_attempts), 
+                (select max(preparing_ingested_ts) from preparing), 
                 '1900-01-01'::timestamp
             ),
             coalesce(
@@ -101,21 +107,26 @@ incremental as (
 attempts_and_transactions as (
     select
         -- Charge attempt identifiers
-        coalesce(att.charge_point_id, t.charge_point_id) as charge_point_id,
-        coalesce(att.connector_id, t.connector_id) as connector_id,
-        coalesce(att.charge_attempt_ingested_ts, t.transaction_ingested_ts) as ingested_ts,
+        coalesce(p.charge_point_id, t.charge_point_id) as charge_point_id,
+        coalesce(p.connector_id, t.connector_id) as connector_id,
+
+        -- Attempt start and stop timestamps depending on what we know
+        coalesce(p.preparing_start_ts, t.transaction_start_ts) as charge_attempt_start_ts,
+        coalesce(t.transaction_stop_ts, p.preparing_stop_ts) as charge_attempt_stop_ts,
         
         -- Charge attempt details
-        att.charge_attempt_ingested_ts,
-        att.charge_attempt_unique_id,
-        att.previous_status,
-        att.status,
-        att.next_status,
-        array_distinct({{ array_concat('att.id_tags', 't.id_tags') }}) as id_tags,
-        array_distinct({{ array_concat('att.id_tag_statuses', 't.id_tag_statuses') }}) as id_tag_statuses,
+        p.preparing_ingested_ts,
+        p.preparing_unique_id,
+        p.previous_status,
+        p.status,
+        p.next_status,
+        p.payload_ts as preparing_payload_ts,
+        p.next_payload_ts as preparing_next_payload_ts,
+        array_distinct({{ array_concat('p.id_tags', 't.id_tags') }}) as id_tags,
+        array_distinct({{ array_concat('p.id_tag_statuses', 't.id_tag_statuses') }}) as id_tag_statuses,
 
         -- Transaction details
-        coalesce(att.transaction_id, t.transaction_id) as transaction_id,
+        coalesce(p.transaction_id, t.transaction_id) as transaction_id,
         t.transaction_start_ts,
         t.transaction_stop_ts,
         t.transaction_ingested_ts,
@@ -125,15 +136,15 @@ attempts_and_transactions as (
         t.energy_transferred_kwh,
         
         -- Error details - concatenate error codes from both sources
-        array_distinct({{ array_concat('att.error_codes', 't.error_codes') }}) as error_codes
+        array_distinct({{ array_concat('p.error_codes', 't.error_codes') }}) as error_codes
         
-    from charge_attempts att
+    from preparing p
     full outer join transactions t
-        on att.charge_point_id = t.charge_point_id
-        and att.connector_id = t.connector_id
-        and att.transaction_id = t.transaction_id
-        and t.transaction_ingested_ts > {{ dbt.dateadd("second", -var("authorize_time_threshold_seconds"), 'coalesce(att.previous_ingested_ts, att.charge_attempt_ingested_ts)') }}
-        and t.transaction_ingested_ts <= {{ dbt.dateadd("second", var("authorize_time_threshold_seconds"), 'coalesce(att.next_ingested_ts, att.charge_attempt_ingested_ts)') }}
+        on p.charge_point_id = t.charge_point_id
+        and p.connector_id = t.connector_id
+        and p.transaction_id = t.transaction_id
+        and t.transaction_ingested_ts > {{ dbt.dateadd("second", -var("authorize_time_threshold_seconds"), 'coalesce(p.previous_ingested_ts, p.preparing_ingested_ts)') }}
+        and t.transaction_ingested_ts <= {{ dbt.dateadd("second", var("authorize_time_threshold_seconds"), 'coalesce(p.next_ingested_ts, p.preparing_ingested_ts)') }}
         
 )
 
@@ -145,12 +156,15 @@ attempts_and_transactions as (
         select
             charge_point_id,
             connector_id,
-            ingested_ts,
-            charge_attempt_unique_id,
-            charge_attempt_ingested_ts,
+            charge_attempt_start_ts,
+            charge_attempt_stop_ts,
+            preparing_unique_id,
+            preparing_ingested_ts,
             previous_status,
             status,
             next_status,
+            preparing_payload_ts,
+            preparing_next_payload_ts,
             id_tags,
             id_tag_statuses,
             transaction_id,
@@ -164,26 +178,29 @@ attempts_and_transactions as (
             error_codes,
             incremental_ts
         from {{ this }}
-        where ingested_ts > (select buffer_from_timestamp from incremental_date_range)
-            and ingested_ts <= (select from_timestamp from incremental_date_range)
+        where charge_attempt_start_ts > (select buffer_from_timestamp from incremental_date_range)
     ),
 
     merged_attempts_and_transactions as (
         select
             n.charge_point_id,
             n.connector_id,
-            coalesce(b.ingested_ts, n.ingested_ts) as ingested_ts,
 
-            coalesce(n.charge_attempt_unique_id, b.charge_attempt_unique_id) as charge_attempt_unique_id,
-            coalesce(n.charge_attempt_ingested_ts, b.charge_attempt_ingested_ts) as charge_attempt_ingested_ts,
-            -- once set, ingested_ts should not be changed as it is a unique identifier (used for clustering/partitioning/merging)
+            coalesce(b.charge_attempt_start_ts, n.charge_attempt_start_ts) as charge_attempt_start_ts,
+            coalesce(n.charge_attempt_stop_ts, b.charge_attempt_stop_ts) as charge_attempt_stop_ts,
+
+            coalesce(n.preparing_unique_id, b.preparing_unique_id) as preparing_unique_id,
+            coalesce(n.preparing_ingested_ts, b.preparing_ingested_ts) as preparing_ingested_ts,
+            coalesce(n.preparing_payload_ts, b.preparing_payload_ts) as preparing_payload_ts,
+            coalesce(n.preparing_next_payload_ts, b.preparing_next_payload_ts) as preparing_next_payload_ts,
             coalesce(n.previous_status, b.previous_status) as previous_status,
             coalesce(n.status, b.status) as status,
             coalesce(n.next_status, b.next_status) as next_status,
+
             coalesce(n.transaction_id, b.transaction_id) as transaction_id,
+            coalesce(n.transaction_ingested_ts, b.transaction_ingested_ts) as transaction_ingested_ts,
             coalesce(n.transaction_start_ts, b.transaction_start_ts) as transaction_start_ts,
             coalesce(n.transaction_stop_ts, b.transaction_stop_ts) as transaction_stop_ts,
-            coalesce(n.transaction_ingested_ts, b.transaction_ingested_ts) as transaction_ingested_ts,
             coalesce(n.transaction_stop_reason, b.transaction_stop_reason) as transaction_stop_reason,
             coalesce(n.meter_start_wh, b.meter_start_wh) as meter_start_wh,
             coalesce(n.meter_stop_wh, b.meter_stop_wh) as meter_stop_wh,
@@ -203,7 +220,7 @@ attempts_and_transactions as (
 
 select *,
     -- Generate a deterministic unique ID from the composite key
-    {{ dbt_utils.generate_surrogate_key(['charge_point_id', 'connector_id', 'ingested_ts']) }} as charge_attempt_id,
+    {{ dbt_utils.generate_surrogate_key(['charge_point_id', 'connector_id', 'charge_attempt_start_ts']) }} as charge_attempt_id,
     case
         when transaction_id is not null
             and (next_status is null or next_status != 'Faulted')
