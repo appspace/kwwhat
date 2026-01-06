@@ -564,8 +564,8 @@ unit_tests:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
 
-  - name: test_unauth_auth_auth_visit
-    description: "Should infer idTag from the second authorized attempt if gap < 2 minutes and join to other attempts in the visit"
+  - name: test_unauth_unauth_auth_auth_visit
+    description: "Should infer idTag from the authorized attempt if gap < 2 minutes and join to other attempts in the visit"
     model: fact_visits
     overrides:
       macros:
@@ -575,6 +575,33 @@ unit_tests:
         format: sql
         rows: |
           select 
+              'CH-001' || '1' || '2025-10-02 10:59:00' as charge_attempt_id,
+              'CH-001' as charge_point_id,
+              '1' as connector_id,
+              cast('2025-10-02 10:59:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 10:59:30' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 10:59:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              [] as id_tags,
+              [] as id_tag_statuses,
+              'TXN-003' as transaction_id,
+              cast(null as timestamp) as transaction_start_ts,
+              cast(null as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              3.0 as energy_transferred_kwh,
+              cast(null as array) as error_codes,
+              false as is_successful,
+              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+          union all        
+          select           
               'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
               'CH-001' as charge_point_id,
               '1' as connector_id,
@@ -659,4 +686,4 @@ unit_tests:
         fixture: stg_ports_fixture
     expect:
       rows:
-        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 3}
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 4}
