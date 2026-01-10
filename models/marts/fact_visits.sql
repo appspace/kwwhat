@@ -1,13 +1,13 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["location_id", "first_charge_point_id", "visit_start_ts"], 
+    unique_key=["location_id", "first_charge_point_id", "first_port_id", "visit_start_ts"], 
     incremental_strategy="merge",
     cluster_by="visit_start_ts"
   )
 }}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
     with incremental_date_range as (
         select
             from_timestamp,
@@ -73,30 +73,30 @@ incremental as (
     from charge_attempts_with_location
 ),
 
--- Step 1: Infer idTag for unauthorised attempts if there is authorised right after on the same charger
+-- Step 1: Infer idTag for unauthorised attempts if there is authorised right after on the same port
 unauthorised_attempts_chaining as (
     select
         att.*,
-        -- Find the previous attempt at the same charge point
+        -- Find the previous attempt at the same charge point and port
         lag(charge_attempt_stop_ts) over (
-            partition by charge_point_id
+            partition by charge_point_id, port_id
             order by charge_attempt_start_ts
         ) as prev_attempt_stop_ts,
         lag(charge_attempt_start_ts) over (
-            partition by charge_point_id
+            partition by charge_point_id, port_id
             order by charge_attempt_start_ts
         ) as prev_attempt_start_ts,
         lag(id_tag) over (
-            partition by charge_point_id
+            partition by charge_point_id, port_id
             order by charge_attempt_start_ts
         ) as prev_id_tag,
-        -- Find the next attempt at the same charge point
+        -- Find the next attempt at the same charge point and port
         lead(charge_attempt_start_ts) over (
-            partition by charge_point_id
+            partition by charge_point_id, port_id
             order by charge_attempt_start_ts
         ) as next_attempt_start_ts,
         lead(id_tag) over (
-            partition by charge_point_id
+            partition by charge_point_id, port_id
             order by charge_attempt_start_ts
         ) as next_id_tag
     from charge_attempts_with_location att
@@ -127,9 +127,10 @@ unauthorised_attempts_lag_lead as (
 step1_group_boundaries as (
     select
         charge_point_id,
+        port_id,
         charge_attempt_start_ts as step1_group_start_ts,
         lead(charge_attempt_start_ts) over (
-            partition by charge_point_id
+            partition by charge_point_id, port_id
             order by charge_attempt_start_ts
         ) as step1_group_end_ts
     from unauthorised_attempts_lag_lead
@@ -153,25 +154,26 @@ attempts_with_inferred_id_tags as (
         b.step1_group_start_ts,
         -- Assign idTag to whole group if any attempt in the group has an idTag
         max(att.id_tag) over (
-            partition by att.charge_point_id, b.step1_group_start_ts
+            partition by att.charge_point_id, att.port_id, b.step1_group_start_ts
         ) as id_tag
     from step1_group_boundaries b
     inner join charge_attempts_with_location att
         on att.charge_point_id = b.charge_point_id
+        and att.port_id = b.port_id
         and att.charge_attempt_start_ts >= b.step1_group_start_ts
         and (b.step1_group_end_ts is null or att.charge_attempt_start_ts < b.step1_group_end_ts)
 ),
 
 
--- Step 2: Group attempts by location_id + idTag, 30 min apart (if idTag exists), or by charge_point_id, 2 min apart (if no idTag)
+-- Step 2: Group attempts by location_id + idTag, 30 min apart (if idTag exists), or by location_id + charge_point_id + port_id, 2 min apart (if no idTag)
 attempts_with_grouping_strategies as (
     select
         att.*,
-        -- Create grouping key: location_id + idTag (if idTag exists), otherwise charge_point_id
+        -- Create grouping key: location_id + idTag (if idTag exists), otherwise location_id + charge_point_id + port_id
         case 
             when att.id_tag is not null 
             then att.location_id || '_' || att.id_tag
-            else att.charge_point_id
+            else att.location_id || '_' || att.charge_point_id || '_' || att.port_id
         end as grouping_key,
         -- Determine time window: 30 minutes for authenticated visits, 2 minutes for unauthenticated visits
         case 
@@ -276,13 +278,17 @@ new_visits as (
         sum(coalesce(energy_transferred_kwh, 0)) as total_energy_transferred_kwh,
         {{ dbt.datediff('min(charge_attempt_start_ts)', 'max(charge_attempt_stop_ts)', 'minute') }} as visit_duration_minutes,
         max(case when is_last_attempt then is_successful else null end) as is_successful,
+        min(case when is_first_attempt then charge_attempt_id else null end) as first_charge_attempt_id,
+        max(case when is_last_attempt then charge_attempt_id else null end) as last_charge_attempt_id,
         min(case when is_first_attempt then charge_point_id else null end) as first_charge_point_id,
-        max(case when is_last_attempt then charge_point_id else null end) as last_charge_point_id
+        max(case when is_last_attempt then charge_point_id else null end) as last_charge_point_id,
+        min(case when is_first_attempt then port_id else null end) as first_port_id,
+        max(case when is_last_attempt then port_id else null end) as last_port_id
     from attempts_grouping
     group by grouping_key, time_window_minutes, visit_start_ts
 ),
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
 
     visits_buffer as (
         select
@@ -296,8 +302,12 @@ new_visits as (
             charge_attempt_ids,
             total_energy_transferred_kwh,
             visit_duration_minutes,
+            first_charge_attempt_id,
             first_charge_point_id,
+            first_port_id,
+            last_charge_attempt_id,
             last_charge_point_id,
+            last_port_id,
             is_successful,
             grouping_key
         from {{ this }}
@@ -316,14 +326,19 @@ new_visits as (
             b.charge_attempt_ids,
             b.total_energy_transferred_kwh,
             b.visit_duration_minutes,
+            b.first_charge_attempt_id,
+            b.last_charge_attempt_id,
             b.first_charge_point_id,
             b.last_charge_point_id,
+            b.first_port_id,
+            b.last_port_id,
             b.is_successful
         from visits_buffer b
         left join new_visits auth on b.id_tag is null  -- Only for unauthorized visits
             and auth.id_tag is not null
-            -- Check if last charge_point_id from buffer matches first from new visit
+            -- Check if last charge_point_id and port_id from buffer match first from new visit
             and b.last_charge_point_id = auth.first_charge_point_id
+            and b.last_port_id = auth.first_port_id
             and b.visit_end_ts < auth.visit_start_ts  -- New visit starts after old one ends
             and auth.visit_start_ts <= {{ dbt.dateadd("minute", 2, "b.visit_end_ts") }}  -- Within 2 minutes
     ),
@@ -333,7 +348,7 @@ new_visits as (
         case 
             when id_tag is not null 
                 then location_id || '_' || id_tag
-            else last_charge_point_id
+            else location_id || '_' || last_charge_point_id || '_' || last_port_id
         end as grouping_key
         from visits_buffer_with_inferred_id_tags
     ),
@@ -341,7 +356,7 @@ new_visits as (
     -- Merge with previous visits that might need extension
     -- If a new visit starts within the time window of a previous visit's end, merge them
     -- For idTag-based visits: match by location_id and idTag
-    -- For charge_point_id-based visits: match by location_id and check if charge_point_id is in previous visit's charge_point_ids array
+    -- For unauthorized visits: match by location_id, charge_point_id, and port_id
     merged_visits as (
         select
             coalesce(b.location_id, nv.location_id) as location_id,
@@ -353,13 +368,16 @@ new_visits as (
             array_distinct({{ array_concat('b.charge_point_ids', 'nv.charge_point_ids') }}) as charge_point_ids,
             coalesce(b.total_energy_transferred_kwh, 0) + nv.total_energy_transferred_kwh as total_energy_transferred_kwh,
             nv.is_successful,
+            coalesce(b.first_charge_attempt_id, nv.first_charge_attempt_id) as first_charge_attempt_id,
+            nv.last_charge_attempt_id,
             coalesce(b.first_charge_point_id, nv.first_charge_point_id) as first_charge_point_id,
             nv.last_charge_point_id,
+            coalesce(b.first_port_id, nv.first_port_id) as first_port_id,
+            nv.last_port_id,
             nv.grouping_key
         from new_visits nv
         left join visits_buffer_with_grouping_strategies b
-            on b.location_id = nv.location_id
-            and b.grouping_key = nv.grouping_key
+            on b.grouping_key = nv.grouping_key
             and b.visit_end_ts < nv.visit_start_ts
             and nv.visit_start_ts <= {{ dbt.dateadd("minute", "nv.time_window_minutes", "b.visit_end_ts") }}
     ),
@@ -385,12 +403,16 @@ select
     charge_attempt_count,
     charge_attempt_ids,
     total_energy_transferred_kwh,
+    first_charge_attempt_id,
+    last_charge_attempt_id,
     first_charge_point_id,
     last_charge_point_id,
+    first_port_id,
+    last_port_id,
     is_successful,
     grouping_key,
     {{ dbt.datediff('visit_start_ts', 'visit_end_ts', 'minute') }} as visit_duration_minutes,
-    {{ dbt_utils.generate_surrogate_key(['location_id', 'first_charge_point_id', 'visit_start_ts']) }} as visit_id,
+    {{ dbt_utils.generate_surrogate_key(['location_id', 'first_charge_point_id', "first_port_id", 'visit_start_ts']) }} as visit_id,
     (select incremental_ts from incremental) as incremental_ts
 from visits
 
