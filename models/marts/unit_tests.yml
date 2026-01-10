@@ -575,12 +575,12 @@ unit_tests:
         format: sql
         rows: |
           select 
-              'CH-001' || '1' || '2025-10-02 10:59:00' as charge_attempt_id,
+              'CH-001' || '1' || '2025-10-02 10:58:00' as charge_attempt_id,
               'CH-001' as charge_point_id,
               '1' as connector_id,
-              cast('2025-10-02 10:59:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:59:30' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:59:00' as timestamp) as preparing_ingested_ts,
+              cast('2025-10-02 10:58:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 10:58:30' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 10:58:00' as timestamp) as preparing_ingested_ts,
               cast(null as string) as preparing_unique_id,
               cast(null as string) as previous_status,
               cast(null as string) as status,
