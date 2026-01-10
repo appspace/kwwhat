@@ -213,8 +213,8 @@ unit_tests:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
 
-  - name: test_unauthorized_visits_15min_apart_same_charger
-    description: "Two unauthorized attempts on the same charger 15 minutes apart should result in two separate visits (unauthorized visits group by charge_point_id within 2 minutes)"
+  - name: test_unauthorized_visits_15min_apart_same_port
+    description: "Two unauthorized attempts on the same port 15 minutes apart should result in two separate visits (unauthorized visits group by charge_point_id within 2 minutes)"
     model: fact_visits
     overrides:
       macros:
@@ -253,7 +253,7 @@ unit_tests:
           select 
               'CH-001' || '1' || '2025-10-02 11:25:00' as charge_attempt_id,
               'CH-001' as charge_point_id,
-              '1' as connector_id,
+              '2' as connector_id,
               cast('2025-10-02 11:25:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:35:00' as timestamp) as charge_attempt_stop_ts,
               cast('2025-10-02 11:25:00' as timestamp) as preparing_ingested_ts,

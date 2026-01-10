@@ -74,7 +74,7 @@ incremental as (
 ),
 
 -- Step 1: Infer idTag for unauthorised attempts if there is authorised right after on the same charger
-anonymized_attempts_chaining as (
+unauthorised_attempts_chaining as (
     select
         att.*,
         -- Find the previous attempt at the same charge point
@@ -102,7 +102,7 @@ anonymized_attempts_chaining as (
     from charge_attempts_with_location att
 ),
 
-anonymized_attempts_lag_lead as (
+unauthorised_attempts_lag_lead as (
     select
         *,
         case
@@ -121,7 +121,7 @@ anonymized_attempts_lag_lead as (
             then True
             else False
         end as is_step1_group_end
-    from anonymized_attempts_chaining
+    from unauthorised_attempts_chaining
 ),
 
 step1_group_boundaries as (
@@ -132,11 +132,11 @@ step1_group_boundaries as (
             partition by charge_point_id
             order by charge_attempt_start_ts
         ) as step1_group_end_ts
-    from anonymized_attempts_lag_lead
+    from unauthorised_attempts_lag_lead
     where is_step1_group_start = True
 ),
 
--- Assign attempts to anonymized groups and assign idTag if any attempt in group has one
+-- Assign attempts to unauthorised groups and assign idTag if any attempt in group has one
 attempts_with_inferred_id_tags as (
     select
         att.charge_attempt_id,
