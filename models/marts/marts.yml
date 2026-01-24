@@ -71,8 +71,6 @@ models:
         description: "Total energy transferred in kWh"
       - name: error_codes
         description: "Array of error codes from both charge attempt events and StatusNotification events during the transaction"
-      - name: is_successful
-        description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, next status is not 'Faulted', transaction stop reason is 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.01 kWh."
       - name: incremental_ts
         description: "Latest incremental processing timestamp from both source models for incremental processing tracking"
         tests:
@@ -241,3 +239,30 @@ models:
               - location_id
               - first_charge_point_id
               - visit_start_ts
+
+  - name: dim_dates
+    description: "Date dimension table for semantic models and date-based joins. Used as MetricFlow time spine."
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: "Date at day granularity; used as time spine standard granularity column"
+        granularity: day
+
+  - name: dim_ports
+    description: "Port/connector dimension. Full refresh from stg_ports. Charger means a device with one or more charging ports and connectors for charging EVs (EVSE)."
+    columns:
+      - name: charge_point_id
+        description: "Charger identifier"
+      - name: location_id
+        description: "Location identifier where the charger is located"
+      - name: port_id
+        description: "Port identifier within the charger"
+      - name: connector_id
+        description: "Connector identifier within the port"
+      - name: connector_type
+        description: "Type of connector (e.g., CCS, NACS)"
+      - name: commissioned_ts
+        description: "Timestamp when the charger was commissioned (null if not commissioned yet)"
+      - name: decommissioned_ts
+        description: "Timestamp when the charger was decommissioned (null if still active)"
