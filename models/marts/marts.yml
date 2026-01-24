@@ -185,3 +185,59 @@ models:
               - charge_point_id
               - port_id
               - type
+
+  - name: fact_visits
+    description: "Incremental marts model that groups charge attempts into visits. A visit is a sequence of charge attempts by the same driver (same idTag) on co-located chargers close in time. Uses two-step grouping: Step 1 groups attempts by charge_point_id within 2 minutes (inferring idTag if any attempt in the group has one). Step 2 groups these groups by location_id and idTag within 30 minutes (if idTag exists) or by charge_point_id within 2 minutes (if no idTag). Time gaps are measured from charge_attempt_stop_ts of one attempt to charge_attempt_start_ts of the next attempt."
+    columns:
+      - name: visit_id
+        description: "Unique identifier for the visit, generated from location_id, first_charge_point_id, and visit_start_ts"
+        tests:
+          - not_null
+          - unique
+      - name: location_id
+        description: "Location identifier where the visit occurred"
+        tests:
+          - not_null
+      - name: id_tag
+        description: "Driver identifier (RFID tag). Null for visits where authorization failed. May be inferred from subsequent authorized attempts within 2 minutes on the same charger."
+      - name: visit_start_ts
+        description: "Start timestamp of the first charge attempt in the visit (charge_attempt_start_ts)"
+        tests:
+          - not_null
+      - name: visit_end_ts
+        description: "Stop timestamp of the last charge attempt in the visit (charge_attempt_stop_ts)"
+        tests:
+          - not_null
+      - name: charge_attempt_count
+        description: "Number of charge attempts in this visit"
+        tests:
+          - not_null
+      - name: charge_point_ids
+        description: "Array of charge point IDs used during this visit"
+      - name: connector_ids
+        description: "Array of connector IDs used during this visit"
+      - name: transaction_ids
+        description: "Array of transaction IDs associated with this visit"
+      - name: total_energy_transferred_kwh
+        description: "Total energy transferred across all charge attempts in this visit (kWh)"
+      - name: visit_duration_minutes
+        description: "Duration of the visit in minutes (from first charge_attempt_start_ts to last charge_attempt_stop_ts)"
+        tests:
+          - not_null
+      - name: first_charge_point_id
+        description: "Charge point ID where the visit started"
+      - name: last_charge_point_id
+        description: "Charge point ID where the visit ended"
+      - name: is_successful
+        description: "Success status of the last charge attempt in the visit"
+      - name: incremental_ts
+        description: "Latest incremental processing timestamp for incremental processing tracking"
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - location_id
+              - first_charge_point_id
+              - visit_start_ts

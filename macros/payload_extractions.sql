@@ -2,6 +2,12 @@
     case 
         when {{ action }} in ('StartTransaction', 'RemoteStartTransaction') 
             then cast({{ fivetran_utils.json_extract(string=payload, string_path="idTag") }} as {{ dbt.type_string() }})
+        else null
+    end
+{% endmacro %}
+
+{% macro payload_extract_parent_id_tag(action, payload, conf_payload) %}
+    case 
         when {{ action }} = 'Authorize'
             then cast({{ fivetran_utils.json_extract(string=conf_payload, string_path="idTagInfo.idTag") }} as {{ dbt.type_string() }})
         else null
