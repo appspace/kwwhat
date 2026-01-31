@@ -248,3 +248,21 @@ models:
       - name: date_day
         description: "Date at day granularity; used as time spine standard granularity column"
         granularity: day
+
+  - name: dim_ports
+    description: "Port/connector dimension. Full refresh from stg_ports. Charger means a device with one or more charging ports and connectors for charging EVs (EVSE)."
+    columns:
+      - name: charge_point_id
+        description: "Charger identifier"
+      - name: location_id
+        description: "Location identifier where the charger is located"
+      - name: port_id
+        description: "Port identifier within the charger"
+      - name: connector_id
+        description: "Connector identifier within the port"
+      - name: connector_type
+        description: "Type of connector (e.g., CCS, NACS)"
+      - name: commissioned_ts
+        description: "Timestamp when the charger was commissioned (null if not commissioned yet)"
+      - name: decommissioned_ts
+        description: "Timestamp when the charger was decommissioned (null if still active)"
