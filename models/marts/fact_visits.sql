@@ -51,7 +51,6 @@ charge_attempts_with_location as (
         att.id_tags,
         att.id_tag_statuses,
         att.energy_transferred_kwh,
-        att.is_successful,
         att.preparing_ingested_ts,
         -- Extract first idTag from array (or null if empty)
         case 
@@ -150,7 +149,6 @@ attempts_with_inferred_id_tags as (
         att.id_tag_statuses,
         att.energy_transferred_kwh,
         att.location_id,
-        att.is_successful,
         b.step1_group_start_ts,
         -- Assign idTag to whole group if any attempt in the group has an idTag
         max(att.id_tag) over (
@@ -246,7 +244,6 @@ attempts_grouping as (
         att.id_tag,
         att.id_tag_statuses,
         att.energy_transferred_kwh,
-        att.is_successful,
         b.visit_start_ts,
         att.grouping_key,
         att.time_window_minutes,
