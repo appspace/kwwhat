@@ -7,10 +7,12 @@ semantic_models:
     defaults:
       agg_time_dimension: visit_start_ts
     entities:
+      - name: visit
+        type: primary
+        expr: visit_id
       - name: charge_attempt
         type: foreign
         expr: last_charge_attempt_id
-        description: "Join to last attempt; is_successful is resolved from charge_attempts via this entity"
     dimensions:
       - name: visit_start_ts
         type: time
