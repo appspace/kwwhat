@@ -7,6 +7,8 @@
   )
 }}
 
+{% set VALID_STOP_REASONS = ['Local', 'Remote', 'EVDisconnected'] %}
+
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
     with incremental_date_range as (
         select
@@ -219,6 +221,14 @@ attempts_and_transactions as (
 select *,
     -- Generate a deterministic unique ID from the composite key
     {{ dbt_utils.generate_surrogate_key(['charge_point_id', 'connector_id', 'charge_attempt_start_ts']) }} as charge_attempt_id,
+    case
+        when transaction_id is not null
+            and (next_status is null or next_status != 'Faulted')
+            and transaction_stop_reason in ({{ "'" + "', '".join(VALID_STOP_REASONS) + "'" }})
+            and energy_transferred_kwh is not null and energy_transferred_kwh > 0.1
+        then true
+        else false
+    end as is_successful,
     (select incremental_ts from incremental) as incremental_ts
 from 
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}

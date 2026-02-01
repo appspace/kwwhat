@@ -51,6 +51,7 @@ charge_attempts_with_location as (
         att.id_tags,
         att.id_tag_statuses,
         att.energy_transferred_kwh,
+        att.is_successful,
         att.preparing_ingested_ts,
         -- Extract first idTag from array (or null if empty)
         case 
@@ -149,6 +150,7 @@ attempts_with_inferred_id_tags as (
         att.id_tag_statuses,
         att.energy_transferred_kwh,
         att.location_id,
+        att.is_successful,
         b.step1_group_start_ts,
         -- Assign idTag to whole group if any attempt in the group has an idTag
         max(att.id_tag) over (
@@ -244,6 +246,7 @@ attempts_grouping as (
         att.id_tag,
         att.id_tag_statuses,
         att.energy_transferred_kwh,
+        att.is_successful,
         b.visit_start_ts,
         att.grouping_key,
         att.time_window_minutes,
@@ -274,6 +277,7 @@ new_visits as (
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="charge_point_id") }}) as charge_point_ids,
         sum(coalesce(energy_transferred_kwh, 0)) as total_energy_transferred_kwh,
         {{ dbt.datediff('min(charge_attempt_start_ts)', 'max(charge_attempt_stop_ts)', 'minute') }} as visit_duration_minutes,
+        max(case when is_last_attempt then is_successful else null end) as is_successful,
         min(case when is_first_attempt then charge_attempt_id else null end) as first_charge_attempt_id,
         max(case when is_last_attempt then charge_attempt_id else null end) as last_charge_attempt_id,
         min(case when is_first_attempt then charge_point_id else null end) as first_charge_point_id,
@@ -304,6 +308,7 @@ new_visits as (
             last_charge_attempt_id,
             last_charge_point_id,
             last_port_id,
+            is_successful,
             grouping_key
         from {{ this }}
         where visit_end_ts >= (select buffer_from_timestamp from incremental_date_range)
@@ -326,7 +331,8 @@ new_visits as (
             b.first_charge_point_id,
             b.last_charge_point_id,
             b.first_port_id,
-            b.last_port_id
+            b.last_port_id,
+            b.is_successful
         from visits_buffer b
         left join new_visits auth on b.id_tag is null  -- Only for unauthorized visits
             and auth.id_tag is not null
@@ -361,6 +367,7 @@ new_visits as (
             array_distinct({{ array_concat('b.charge_attempt_ids', 'nv.charge_attempt_ids') }}) as charge_attempt_ids,
             array_distinct({{ array_concat('b.charge_point_ids', 'nv.charge_point_ids') }}) as charge_point_ids,
             coalesce(b.total_energy_transferred_kwh, 0) + nv.total_energy_transferred_kwh as total_energy_transferred_kwh,
+            nv.is_successful,
             coalesce(b.first_charge_attempt_id, nv.first_charge_attempt_id) as first_charge_attempt_id,
             nv.last_charge_attempt_id,
             coalesce(b.first_charge_point_id, nv.first_charge_point_id) as first_charge_point_id,
@@ -402,6 +409,7 @@ select
     last_charge_point_id,
     first_port_id,
     last_port_id,
+    is_successful,
     grouping_key,
     {{ dbt.datediff('visit_start_ts', 'visit_end_ts', 'minute') }} as visit_duration_minutes,
     {{ dbt_utils.generate_surrogate_key(['location_id', 'first_charge_point_id', "first_port_id", 'visit_start_ts']) }} as visit_id,
