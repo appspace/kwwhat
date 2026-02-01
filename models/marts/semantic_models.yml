@@ -30,6 +30,9 @@ semantic_models:
         type: categorical
         description: "True when the visit succeeded but required more than one attempt"
         expr: "is_successful and charge_attempt_count > 1"
+      - name: is_successful
+        type: categorical
+        description: "True when last charge attempt was successful"
       - name: is_failed
         type: categorical
         description: "True when the visit did not end in a successful charge"
