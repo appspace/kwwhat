@@ -242,6 +242,15 @@ models:
               - first_charge_point_id
               - visit_start_ts
 
+  - name: dim_dates
+    description: "Date dimension table for semantic models and date-based joins. Used as MetricFlow time spine."
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: "Date at day granularity; used as time spine standard granularity column"
+        granularity: day
+  
   - name: dim_ports
     description: "Port/connector dimension. Full refresh from stg_ports. Charger means a device with one or more charging ports and connectors for charging EVs (EVSE)."
     columns:
