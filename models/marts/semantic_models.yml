@@ -25,32 +25,28 @@ semantic_models:
       - name: is_first_attempt_success
         type: categorical
         description: "True when the visit was successful with only one attempt"
-        expr: "is_successful and charge_attempt_count = 1"
+        expr: CASE WHEN is_successful and charge_attempt_count = 1 THEN True ELSE False END
       - name: is_troubled_success
         type: categorical
         description: "True when the visit succeeded but required more than one attempt"
-        expr: "is_successful and charge_attempt_count > 1"
+        expr: CASE WHEN is_successful and charge_attempt_count > 1 THEN True ELSE False END
       - name: is_successful
         type: categorical
-        description: "True when last charge attempt was successful"
+        description: True when last charge attempt was successful"
       - name: is_failed
         type: categorical
         description: "True when the visit did not end in a successful charge"
-        expr: "not is_successful"
+        expr: not is_successful
     measures:
       - name: visits_count
         description: "Total number of charging visits"
         agg: count
         expr: visit_id
-      - name: energy_transferred_kwh_sum
-        description: "Total energy transferred across all visits (kWh)"
-        agg: sum
-        expr: total_energy_transferred_kwh
       - name: energy_per_visit_average
         description: "Average energy transferred per visit (kWh)"
         agg: average
         expr: total_energy_transferred_kwh
-      - name: charge_attempts_sum
+      - name: charge_attempts_count
         description: "Total number of charge attempts across all visits"
         agg: sum
         expr: charge_attempt_count
@@ -73,11 +69,11 @@ semantic_models:
       - name: troubled_success_visits_count
         description: "Number of visits that had multiple attempts but ultimately succeeded (troubled success)"
         agg: count
-        expr: case when is_troubled_success then visit_id end
+        expr: case when is_successful and charge_attempt_count > 1 then visit_id end
       - name: troubled_success_count
         description: "Percentage of successful visits that required multiple attempts"
         agg: sum_boolean
-        expr: is_troubled_success
+        expr: case when is_successful and charge_attempt_count > 1 then True else False end
       - name: charge_attempt_success_count
         description: "Percentage of successful visits"
         agg: sum_boolean
@@ -85,11 +81,11 @@ semantic_models:
       - name: first_attempt_success_visits_count
         description: "Number of visits where the first attempt was successful"
         agg: count
-        expr: case when is_first_attempt_success then visit_id end
+        expr: case when is_successful and charge_attempt_count = 1 then visit_id end
       - name: first_attempt_success_count
         description: "Percentage of visits where the first attempt succeeded"
         agg: sum_boolean
-        expr: is_first_attempt_success
+        expr: case when is_successful and charge_attempt_count = 1 then true else false end
       - name: troubled_first_attempt_visits_count
         description: "Visits that succeeded overall but failed on first attempt (needed multiple tries)"
         agg: count
@@ -97,7 +93,7 @@ semantic_models:
       - name: failed_visits_count
         description: "Number of visits that failed (did not end in successful charge)"
         agg: count
-        expr: case when is_failed then visit_id end
+        expr: case when not is_successful then visit_id end
 
   - name: charge_attempts
     description: "Semantic model for analyzing individual charge attempts and success metrics"
@@ -170,25 +166,25 @@ semantic_models:
         expr: case when transaction_id is not null then cast(is_successful as integer) else null end
 
 metrics:
-  - name: visits_count_metric
+  - name: visits
     description: "Total number of charging visits"
     label: "Visits count"
     type: simple
     type_params:
       measure: visits_count
-  - name: first_attempt_success_count_metric
+  - name: first_attempt_success
     description: "Count of visits where the first attempt succeeded"
     label: "First attempt success count"
     type: simple
     type_params:
       measure: first_attempt_success_count
-  - name: troubled_success_count_metric
+  - name: troubled_success
     description: "Count of visits that were troubled success (succeeded with multiple attempts)"
     label: "Troubled success count"
     type: simple
     type_params:
       measure: troubled_success_count
-  - name: failed_visits_count_metric
+  - name: failed_visits
     description: "Count of visits that failed"
     label: "Failed visits count"
     type: simple
@@ -199,19 +195,19 @@ metrics:
     label: "First attempt success rate"
     type: ratio
     type_params:
-      numerator: first_attempt_success_count_metric
-      denominator: visits_count_metric
+      numerator: first_attempt_success
+      denominator: visits
   - name: troubled_success_rate
     description: "Proportion of visits that were troubled success (succeeded with multiple attempts)"
     label: "Troubled success rate"
     type: ratio
     type_params:
-      numerator: troubled_success_count_metric
-      denominator: visits_count_metric
+      numerator: troubled_success
+      denominator: visits
   - name: failed_rate
     description: "Proportion of visits that failed"
     label: "Failed rate"
     type: ratio
     type_params:
-      numerator: failed_visits_count_metric
-      denominator: visits_count_metric
+      numerator: failed_visits
+      denominator: visits
