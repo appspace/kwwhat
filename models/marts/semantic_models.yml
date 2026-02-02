@@ -166,7 +166,7 @@ semantic_models:
         expr: case when transaction_id is not null then cast(is_successful as integer) else null end
 
 metrics:
-  - name: visits
+  - name: total_visits
     description: "Total number of charging visits"
     label: "Visits count"
     type: simple
@@ -196,18 +196,18 @@ metrics:
     type: ratio
     type_params:
       numerator: first_attempt_success
-      denominator: visits
+      denominator: total_visits
   - name: troubled_success_rate
     description: "Proportion of visits that were troubled success (succeeded with multiple attempts)"
     label: "Troubled success rate"
     type: ratio
     type_params:
       numerator: troubled_success
-      denominator: visits
+      denominator: total_visits
   - name: failed_rate
     description: "Proportion of visits that failed"
     label: "Failed rate"
     type: ratio
     type_params:
       numerator: failed_visits
-      denominator: visits
+      denominator: total_visits
