@@ -34,8 +34,19 @@ Semantic models reference marts only.
 
 Steep — [Steep](https://steep.app/) is a modern analytics platform powered by metrics. Connect the dbt Semantic Layer so metrics defined here are available in Steep. See [Steep: dbt Cloud integration](https://help.steep.app/integrations/dbt-cloud).
 
+<img width="1376" height="658" alt="steep" src="https://github.com/user-attachments/assets/d1870b3a-06c3-4f49-9c59-921420413cda" />
+
+
 Google Sheets — Use the dbt Semantic Layer add-on for Google Sheets to query metrics and dimensions from a sheet. See [dbt Semantic Layer: Google Sheets](https://docs.getdbt.com/docs/cloud-integrations/semantic-layer/gsheets).
 
+<img width="1004" height="620" alt="google sheets" src="https://github.com/user-attachments/assets/4bb65624-09d8-46c9-97d0-6a1f14cc1578" />
+
+
+
 Snowflake — The Snowflake semantic view (snowflake_semantic_view.yml) is for Cortex Analyst and is created in Snowflake from the YAML spec; it is separate from the dbt Semantic Layer. See [Snowflake semantic views overview](https://docs.snowflake.com/en/user-guide/views-semantic/overview) and the [YAML specification](https://docs.snowflake.com/en/user-guide/views-semantic/semantic-view-yaml-spec).
+
+<img width="1296" height="760" alt="snowflake intelligence" src="https://github.com/user-attachments/assets/b9735ef5-524c-442a-98c4-d68528c57732" />
+
+
 
 MCP server and in-house text-to-SQL — Enable the [dbt MCP server](https://docs.getdbt.com/docs/dbt-ai/about-mcp) to expose dbt models, metrics, and lineage to MCP clients (e.g. Cursor, Claude Desktop). Use it to implement in-house text-to-SQL or agents that query the Semantic Layer with governed metric definitions instead of raw tables.
