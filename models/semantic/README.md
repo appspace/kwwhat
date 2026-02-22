@@ -8,7 +8,7 @@ This folder holds the dbt **semantic layer** definitions used for metrics and BI
   - **visits** — Visit-level semantic model (backed by `fact_visits`): dimensions, measures, and metrics for charging visits, success/failure, first-attempt vs troubled success.
   - **charge_attempts** — Charge-attempt-level semantic model (backed by `fact_charge_attempts`): dimensions and measures for individual charge attempts and success rates.
 
-- **`snowflake_semantic_view.yml`** — Snowflake semantic view spec for Cortex Analyst; unlike the dbt semantic layer above, this is Snowflake’s native schema-level format (YAML consumed by Snowflake to create a semantic view in your database). See the [Snowflake semantic view YAML specification](https://docs.snowflake.com/en/user-guide/views-semantic/semantic-view-yaml-spec).
+- **Snowflake semantic view** — Spec lives in `snowflake/semantic_view.yml` (outside `models/` so dbt does not parse it). Snowflake’s native schema-level format for Cortex Analyst; YAML is consumed by Snowflake to create a semantic view in your database. See the [Snowflake semantic view YAML specification](https://docs.snowflake.com/en/user-guide/views-semantic/semantic-view-yaml-spec).
 
 ## Upstream models
 
@@ -43,7 +43,7 @@ Google Sheets — Use the dbt Semantic Layer add-on for Google Sheets to query m
 
 
 
-Snowflake — The Snowflake semantic view (snowflake_semantic_view.yml) is for Cortex Analyst and is created in Snowflake from the YAML spec; it is separate from the dbt Semantic Layer. See [Snowflake semantic views overview](https://docs.snowflake.com/en/user-guide/views-semantic/overview) and the [YAML specification](https://docs.snowflake.com/en/user-guide/views-semantic/semantic-view-yaml-spec).
+Snowflake — The Snowflake semantic view (`snowflake/semantic_view.yml`) is for Cortex Analyst and is created in Snowflake from that YAML spec; it is separate from the dbt Semantic Layer. See [Snowflake semantic views overview](https://docs.snowflake.com/en/user-guide/views-semantic/overview) and the [YAML specification](https://docs.snowflake.com/en/user-guide/views-semantic/semantic-view-yaml-spec).
 
 <img width="1296" height="760" alt="snowflake intelligence" src="https://github.com/user-attachments/assets/b9735ef5-524c-442a-98c4-d68528c57732" />
 
