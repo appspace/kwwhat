@@ -43,7 +43,7 @@ Google Sheets — Use the dbt Semantic Layer add-on for Google Sheets to query m
 
 
 
-Snowflake — The Snowflake semantic view (`snowflake/semantic_view.yml`) is for Cortex Analyst and is created in Snowflake from that YAML spec; it is separate from the dbt Semantic Layer. See [Snowflake semantic views overview](https://docs.snowflake.com/en/user-guide/views-semantic/overview) and the [YAML specification](https://docs.snowflake.com/en/user-guide/views-semantic/semantic-view-yaml-spec).
+Snowflake — The Snowflake semantic view (`snowflake/README.md`) is for Cortex Analyst and is created in Snowflake from that YAML spec; it is separate from the dbt Semantic Layer. See [Snowflake semantic views overview](https://docs.snowflake.com/en/user-guide/views-semantic/overview) and the [YAML specification](https://docs.snowflake.com/en/user-guide/views-semantic/semantic-view-yaml-spec).
 
 <img width="1296" height="760" alt="snowflake intelligence" src="https://github.com/user-attachments/assets/b9735ef5-524c-442a-98c4-d68528c57732" />
 
