@@ -5,7 +5,7 @@ tables:
     description: Visit-level analytics (grouped charging behavior across attempts).
     base_table:
       database: ANALYTICS
-      schema: DBT_STAGING
+      schema: DBT_PROD
       table: FACT_VISITS
     dimensions:
       - name: first_charge_point_id
@@ -93,7 +93,7 @@ tables:
     description: Attempt-level analytics and attempt success definition.
     base_table:
       database: ANALYTICS
-      schema: DBT_STAGING
+      schema: DBT_PROD
       table: FACT_CHARGE_ATTEMPTS
     dimensions:
       - name: charge_attempt_id
