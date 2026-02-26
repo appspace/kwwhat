@@ -268,3 +268,13 @@ models:
         description: "Timestamp when the charger was commissioned (null if not commissioned yet)"
       - name: decommissioned_ts
         description: "Timestamp when the charger was decommissioned (null if still active)"
+
+  - name: charge_point_span_daily
+    description: "One row per charge point per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."
+    columns:
+      - name: charge_point_id
+        description: "Charger identifier"
+      - name: date_id
+        description: "Calendar day (date)"
+      - name: minutes
+        description: "Minutes the charger was commissioned on this day (partial on first/last day of commission range)"
