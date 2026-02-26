@@ -278,3 +278,15 @@ models:
         description: "Calendar day (date)"
       - name: minutes
         description: "Minutes the charger was commissioned on this day (partial on first/last day of commission range)"
+
+  - name: fact_uptime
+    description: "One row per charge point, port, and day. Uptime = (minutes commissioned that day minus total outage minutes) / minutes commissioned that day."
+    columns:
+      - name: charge_point_id
+        description: "Charger identifier"
+      - name: port_id
+        description: "Port identifier within the charger"
+      - name: date_id
+        description: "Calendar day (date)"
+      - name: uptime
+        description: "Fraction of commissioned minutes that were not outage; 1 = fully up, 0 = fully down"

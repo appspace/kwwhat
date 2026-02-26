@@ -62,3 +62,4 @@ select
     date_id,
     minutes
 from per_day_minutes
+where minutes > 0
