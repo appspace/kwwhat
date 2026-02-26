@@ -1,0 +1,194 @@
+name: kwwhat_semantic
+description: Semantic view generated from dbt semantic models (visits + charge_attempts).
+tables:
+  - name: visits
+    description: Visit-level analytics (grouped charging behavior across attempts).
+    base_table:
+      database: ANALYTICS
+      schema: DBT_PROD
+      table: FACT_VISITS
+    dimensions:
+      - name: first_charge_point_id
+        expr: first_charge_point_id
+        data_type: VARCHAR
+      - name: is_failed
+        description: True when the visit did not end in a successful charge.
+        expr: NOT is_successful
+        data_type: BOOLEAN
+      - name: is_first_attempt_success
+        description: True when the visit was successful with only one attempt.
+        expr: IFF(is_successful AND charge_attempt_count = 1, TRUE, FALSE)
+        data_type: BOOLEAN
+      - name: is_successful
+        description: True when last charge attempt was successful.
+        expr: is_successful
+        data_type: BOOLEAN
+      - name: is_troubled_success
+        description: True when the visit succeeded but required more than one attempt.
+        expr: IFF(is_successful AND charge_attempt_count > 1, TRUE, FALSE)
+        data_type: BOOLEAN
+      - name: last_charge_point_id
+        expr: last_charge_point_id
+        data_type: VARCHAR
+      - name: visit_id
+        description: Primary identifier for a visit.
+        expr: visit_id
+        data_type: VARCHAR
+        unique: true
+    time_dimensions:
+      - name: visit_start_ts
+        description: Visit start timestamp.
+        expr: visit_start_ts
+        data_type: TIMESTAMP_NTZ
+    facts:
+      - name: charge_attempt_count
+        expr: charge_attempt_count
+        data_type: NUMBER
+      - name: last_charge_attempt_id
+        description: FK to the charge_attempts table.
+        expr: last_charge_attempt_id
+        data_type: VARCHAR
+      - name: total_energy_transferred_kwh
+        expr: total_energy_transferred_kwh
+        data_type: FLOAT
+      - name: visit_duration_minutes
+        expr: visit_duration_minutes
+        data_type: FLOAT
+    metrics:
+      - name: charge_attempts_count
+        description: Total number of charge attempts across all visits.
+        expr: SUM(charge_attempt_count)
+      - name: energy_per_visit_average
+        description: Average energy transferred per visit (kWh).
+        expr: AVG(total_energy_transferred_kwh)
+      - name: failed_visits_count
+        description: Number of visits that failed.
+        expr: COUNT(IFF(NOT is_successful, visit_id, NULL))
+      - name: first_attempt_success_rate
+        description: Proportion of visits where the first attempt succeeded.
+        expr: AVG(IFF(is_successful AND charge_attempt_count = 1, 1, 0))
+      - name: first_attempt_success_visits_count
+        description: Visits where the first attempt was successful.
+        expr: COUNT(IFF(is_successful AND charge_attempt_count = 1, visit_id, NULL))
+      - name: successful_visits_count
+        description: Number of successful visits.
+        expr: COUNT(IFF(is_successful, visit_id, NULL))
+      - name: troubled_success_rate
+        description: Proportion of visits that were troubled success.
+        expr: AVG(IFF(is_successful AND charge_attempt_count > 1, 1, 0))
+      - name: troubled_success_visits_count
+        description: Visits with multiple attempts but ultimately succeeded.
+        expr: COUNT(IFF(is_successful AND charge_attempt_count > 1, visit_id, NULL))
+      - name: visit_duration_minutes_average
+        description: Average duration of visits in minutes.
+        expr: AVG(visit_duration_minutes)
+      - name: visit_success_rate
+        description: Proportion of visits that were successful.
+        expr: AVG(IFF(is_successful, 1, 0))
+      - name: visits_count
+        description: Total number of charging visits.
+        expr: COUNT(visit_id)
+  - name: charge_attempts
+    synonyms: []
+    description: Attempt-level analytics and attempt success definition.
+    base_table:
+      database: ANALYTICS
+      schema: DBT_PROD
+      table: FACT_CHARGE_ATTEMPTS
+    dimensions:
+      - name: charge_attempt_id
+        description: Primary identifier for a charge attempt.
+        expr: charge_attempt_id
+        data_type: VARCHAR
+        unique: true
+      - name: charge_point_id
+        expr: charge_point_id
+        data_type: VARCHAR
+      - name: connector_id
+        expr: connector_id
+        data_type: NUMBER
+      - name: is_successful
+        description: transaction exists, not faulted, valid stop reason, and energy > 0.1 kWh
+        expr: |
+          transaction_id IS NOT NULL AND (next_status IS NULL OR next_status != 'Faulted') AND transaction_stop_reason IN ('Local','Remote','EVDisconnected') AND energy_transferred_kwh IS NOT NULL AND energy_transferred_kwh > 0.1
+        data_type: BOOLEAN
+      - name: next_status
+        expr: next_status
+        data_type: VARCHAR
+      - name: status
+        expr: status
+        data_type: VARCHAR
+      - name: transaction_id
+        expr: transaction_id
+        data_type: VARCHAR
+      - name: transaction_stop_reason
+        expr: transaction_stop_reason
+        data_type: VARCHAR
+    time_dimensions:
+      - name: charge_attempt_start_ts
+        expr: charge_attempt_start_ts
+        data_type: TIMESTAMP_NTZ
+      - name: charge_attempt_stop_ts
+        expr: charge_attempt_stop_ts
+        data_type: TIMESTAMP_NTZ
+    facts:
+      - name: energy_transferred_kwh
+        expr: energy_transferred_kwh
+        data_type: FLOAT
+    metrics:
+      - name: attempt_success_rate
+        description: Proportion of charge attempts that were successful.
+        expr: AVG(IFF(is_successful, 1, 0))
+      - name: attempts_count
+        description: Total number of charge attempts.
+        expr: COUNT(charge_attempt_id)
+      - name: attempts_with_transaction_count
+        description: Number of attempts with an associated transaction.
+        expr: COUNT(IFF(transaction_id IS NOT NULL, charge_attempt_id, NULL))
+      - name: average_energy_per_attempt
+        description: Average energy transferred per charge attempt (kWh).
+        expr: AVG(energy_transferred_kwh)
+      - name: average_energy_per_successful_attempt
+        description: Average energy per successful attempt (kWh).
+        expr: AVG(IFF(is_successful, energy_transferred_kwh, NULL))
+      - name: energy_transferred_kwh_sum
+        description: Total energy transferred across all charge attempts (kWh).
+        expr: SUM(energy_transferred_kwh)
+      - name: failed_attempts_count
+        description: Number of failed charge attempts.
+        expr: COUNT(IFF(NOT is_successful, charge_attempt_id, NULL))
+      - name: successful_attempts_count
+        description: Number of successful charge attempts.
+        expr: COUNT(IFF(is_successful, charge_attempt_id, NULL))
+      - name: transaction_success_rate
+        description: Success rate among attempts with a transaction.
+        expr: AVG(IFF(transaction_id IS NOT NULL, IFF(is_successful, 1, 0), NULL))
+    primary_key:
+      columns:
+        - CHARGE_ATTEMPT_ID
+metrics:
+  - name: average_attempts_per_visit
+    description: Average attempts per visit (total_charge_attempts / total_visits).
+    expr: total_charge_attempts / NULLIF(total_visits, 0)
+  - name: failed_rate
+    description: Proportion of visits that failed.
+    expr: visits.failed_visits_count / NULLIF(visits.visits_count, 0)
+  - name: first_attempt_success_rate
+    description: Proportion of visits where the first attempt succeeded.
+    expr: visits.first_attempt_success_rate
+  - name: total_charge_attempts
+    description: Total number of charge attempts across all visits.
+    expr: visits.charge_attempts_count
+  - name: total_visits
+    description: Total number of charging visits.
+    expr: visits.visits_count
+  - name: troubled_success_rate
+    description: Proportion of visits that were troubled success.
+    expr: visits.troubled_success_rate
+relationships:
+  - name: visits_to_charge_attempts
+    left_table: visits
+    right_table: charge_attempts
+    relationship_columns:
+      - left_column: last_charge_attempt_id
+        right_column: CHARGE_ATTEMPT_ID
