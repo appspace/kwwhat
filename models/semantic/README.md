@@ -49,4 +49,4 @@ Snowflake — The Snowflake semantic view (`snowflake/README.md`) is for Cortex 
 
 
 
-MCP server and in-house text-to-SQL — Enable the [dbt MCP server](https://docs.getdbt.com/docs/dbt-ai/about-mcp) to expose dbt models, metrics, and lineage to MCP clients (e.g. Cursor, Claude Desktop). Use it to implement in-house text-to-SQL or agents that query the Semantic Layer with governed metric definitions instead of raw tables.
+MCP server and in-house text-to-SQL — Enable the [dbt MCP server](https://docs.getdbt.com/docs/dbt-ai/about-mcp) to expose dbt models, metrics, and lineage to MCP clients (e.g. Cursor, Claude Desktop). Use it to implement in-house text-to-SQL or agents that query the Semantic Layer with governed metric definitions instead of raw tables. Check these [5 steps to deploy an analytics agent on dbt MCP to your whole company](https://thenewaiorder.substack.com/p/5-steps-to-deploy-an-analytics-agent) to learn how.
