@@ -7,6 +7,7 @@ This folder holds the dbt **semantic layer** definitions used for metrics and BI
 - **`semantic_models.yml`** — dbt semantic models and metrics:
   - **visits** — Visit-level semantic model (backed by `fact_visits`): dimensions, measures, and metrics for charging visits, success/failure, first-attempt vs troubled success.
   - **charge_attempts** — Charge-attempt-level semantic model (backed by `fact_charge_attempts`): dimensions and measures for individual charge attempts and success rates.
+  - **uptime** — Port-level daily uptime (backed by `fact_uptime`): dimensions charge_point_id, port_id, date_id; measure uptime_average (average fraction of commissioned time that was up).
 
 - **Snowflake semantic view** — Spec lives in `snowflake/semantic_view.yml` (outside `models/` so dbt does not parse it). Snowflake’s native schema-level format for Cortex Analyst; YAML is consumed by Snowflake to create a semantic view in your database. See the [Snowflake semantic view YAML specification](https://docs.snowflake.com/en/user-guide/views-semantic/semantic-view-yaml-spec).
 
@@ -29,6 +30,7 @@ Semantic models reference marts only.
 | first_attempt_success_rate | Share of first attempt success |
 | troubled_success_rate | Share of troubled success |
 | failed_rate | Share of failed visits |
+| uptime_average | Average port uptime (fraction of commissioned time that was up) |
 
 ## Usage
 
