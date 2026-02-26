@@ -161,6 +161,30 @@ semantic_models:
         agg: average
         expr: case when transaction_id is not null then cast(is_successful as integer) else null end
 
+  - name: uptime
+    description: "Port-level daily uptime: fraction of commissioned minutes not lost to outages"
+    model: ref('fact_uptime')
+    defaults:
+      agg_time_dimension: date_id
+    entities:
+      - name: uptime_record
+        type: primary
+        expr: uptime_id
+    dimensions:
+      - name: date_id
+        type: time
+        type_params:
+          time_granularity: day
+      - name: charge_point_id
+        type: categorical
+      - name: port_id
+        type: categorical
+    measures:
+      - name: uptime_average
+        description: "Average uptime (fraction of commissioned time that was up)"
+        agg: average
+        expr: uptime
+
 metrics:
   - name: total_visits
     description: "Total number of charging visits"
@@ -220,3 +244,9 @@ metrics:
     type_params:
       numerator: failed_visits
       denominator: total_visits
+  - name: uptime
+    description: "Average port uptime (fraction of commissioned time that was up, not in outage)"
+    label: "Average uptime"
+    type: simple
+    type_params:
+      measure: uptime_average

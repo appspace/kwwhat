@@ -45,8 +45,10 @@ with_downtime as (
 )
 
 select
+    {{ dbt_utils.generate_surrogate_key(['charge_point_id', 'port_id', 'date_id']) }} as uptime_id,
     charge_point_id,
     port_id,
     date_id,
     (minutes_commissioned - total_downtime_minutes) / minutes_commissioned as uptime
 from with_downtime
+where minutes_commissioned > 0

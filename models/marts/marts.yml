@@ -282,6 +282,8 @@ models:
   - name: fact_uptime
     description: "One row per charge point, port, and day. Uptime = (minutes commissioned that day minus total outage minutes) / minutes commissioned that day."
     columns:
+      - name: uptime_id
+        description: "Surrogate key for the row (charge_point_id, port_id, date_id)"
       - name: charge_point_id
         description: "Charger identifier"
       - name: port_id

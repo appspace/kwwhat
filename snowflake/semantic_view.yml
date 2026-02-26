@@ -166,6 +166,33 @@ tables:
     primary_key:
       columns:
         - CHARGE_ATTEMPT_ID
+  - name: uptime
+    description: Port-level daily uptime; fraction of commissioned minutes not lost to outages.
+    base_table:
+      database: ANALYTICS
+      schema: DBT_PROD
+      table: FACT_UPTIME
+    dimensions:
+      - name: charge_point_id
+        expr: charge_point_id
+        data_type: VARCHAR
+      - name: port_id
+        expr: port_id
+        data_type: VARCHAR
+    time_dimensions:
+      - name: date_id
+        description: Calendar day.
+        expr: date_id
+        data_type: DATE
+    facts:
+      - name: uptime
+        description: Fraction of commissioned minutes that were up (1 = fully up, 0 = fully down).
+        expr: uptime
+        data_type: FLOAT
+    metrics:
+      - name: uptime_average
+        description: Average port uptime (fraction of commissioned time that was up).
+        expr: AVG(uptime)
 metrics:
   - name: average_attempts_per_visit
     description: Average attempts per visit (total_charge_attempts / total_visits).
@@ -185,6 +212,9 @@ metrics:
   - name: troubled_success_rate
     description: Proportion of visits that were troubled success.
     expr: visits.troubled_success_rate
+  - name: uptime_average
+    description: Average port uptime (fraction of commissioned time that was up).
+    expr: uptime.uptime_average
 relationships:
   - name: visits_to_charge_attempts
     left_table: visits
