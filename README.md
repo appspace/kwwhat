@@ -1,3 +1,9 @@
+<img
+  src="https://github.com/user-attachments/assets/b1bdd878-ef1d-49fa-9722-86146a398415"
+  alt="kwwhat banner"
+  style="width: 100%; height: auto;"
+/>
+
 # ⚡ kwwhat: open-source dbt models for EV charger analytics
 dbt models for OCPP logs [here](https://github.com/appspace/kwwhat)
 
