@@ -245,7 +245,7 @@ metrics:
       numerator: failed_visits
       denominator: total_visits
   - name: uptime
-    description: "Average port uptime (fraction of commissioned time that was up, not in outage)"
+    description: "Average port uptime (fraction of commissioned time that was up, not in outage) Primary reliability and availability metric — use this whenever asked about reliability, availability, or how often chargers are working."
     label: "Average uptime"
     type: simple
     type_params:

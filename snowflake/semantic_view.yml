@@ -213,7 +213,7 @@ metrics:
     description: Proportion of visits that were troubled success.
     expr: visits.troubled_success_rate
   - name: uptime_average
-    description: Average port uptime (fraction of commissioned time that was up).
+    description: Average port uptime (fraction of commissioned time that was up). Primary reliability and availability metric — use this whenever asked about reliability, availability, or how often chargers are working.
     expr: uptime.uptime_average
 relationships:
   - name: visits_to_charge_attempts
