@@ -1,11 +1,11 @@
 <img
-  src="https://github.com/user-attachments/assets/b1bdd878-ef1d-49fa-9722-86146a398415"
-  alt="kwwhat banner"
-  style="width: 100%; height: auto;"
+  alt="kwwhat banner and logo" 
+  src="https://github.com/user-attachments/assets/7460eae2-b0d7-4366-ad87-947103054d9a"
+style="width: 100%; height: auto;"
 />
 
-# ⚡ kwwhat: open-source dbt models for EV charger analytics
-dbt models for OCPP logs [here](https://github.com/appspace/kwwhat)
+# kWwhat: open-source data analytics pipeline for EV charging
+from raw OCPP logs to automated reliability/utilization reporting [here](https://github.com/appspace/kwwhat)
 
 ---
 **kwwhat** is an open-source dbt project that models reliability and utilization metrics from EV charger logs based on the OCPP 1.6 and 2.0.1 protocols. Starting from raw OCPP logs, the project builds a transparent path toward meaningful metrics like uptime, session success, and visit-level outcomes.
