@@ -99,19 +99,36 @@ If grain is unclear → stop and ask.
 
 Every new model must include:
 
-### Schema tests
-- `unique`
-- `not_null`
-- `relationships` where applicable
-
 ### Data tests (when relevant)
 - non-negative measures
 - accepted values for statuses
 - business invariants
+- enforcement of primary key rules from **Keys**:
+  - if a model has a natural key, test it with `not_null` + `unique`
+  - if a model does not have a natural key, create a surrogate key with `dbt_utils.generate_surrogate_key` and test it
+  - mart models must always have a primary key test to be production-ready
+- staging models are the building blocks of the project: test them thoroughly
+- if a column keeps the same meaning across layers (staging → intermediate → mart), test it in staging and usually skip re-testing downstream
+- marts may re-test only the most critical business fields
+- columns that should never be null must have a `not_null` test (upstream providers can change constraints unexpectedly)
+- columns that should be unique must have a `unique` test
+- boolean columns should have an `accepted_values` test on `true` and `false`; if they should never be null, add `not_null` as well
+- categorical/status/state columns should always have an `accepted_values` test
+- CASE-derived categorical columns should have both `accepted_values` and `not_null` tests unless nulls are explicitly expected
+- complex CASE logic should be covered by unit tests
+- relationship tests can be expensive (full scans): prefer them in staging and only where referential integrity matters for downstream metrics
+- on very large tables, scope tests with a `where` clause when possible to control cost, without changing the model’s behavior
+- prefer `dbt_utils` tests instead of reimplementing logic:
+  - `expression_is_true` to assert expressions like `net_amount + tax_amount = gross_amount`
+  - `not_empty_string` to ensure strings are not empty
+  - `accepted_range` to enforce numeric ranges
+  - `recency` to validate data freshness
+  - `not_null_proportion` when some level of nulls is acceptable
 
 ### Unit tests
 - business logic
 - incremental merge logic
+- use custom (singular) tests for specific business rules, but prefer package tests where available
 
 ---
 
@@ -195,7 +212,7 @@ Before modifying existing models:
 
 After changes:
 
-- run `dbt build` for affected nodes
+- run `dbt test` for affected nodes
 - ensure tests pass
 
 ---
