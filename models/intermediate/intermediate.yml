@@ -120,7 +120,7 @@ models:
               - ingested_ts
 
   - name: int_transactions
-    description: "Intermediate model that processes transaction-related OCPP events (StartTransaction, StopTransaction, RemoteStartTransaction, RemoteStopTransaction, MeterValues) and groups them by transaction ID. Each row represents a unique transaction with aggregated details."
+    description: "Intermediate model that processes transaction-related OCPP events (StartTransaction, StopTransaction, RemoteStartTransaction, RemoteStopTransaction, MeterValues) and groups them by transaction ID. Each row represents a unique transaction with aggregated details. Grain: one row per charge_point_id + connector_id + ingested_ts."
     columns:
       - name: transaction_id
         description: "Unique identifier for the transaction from OCPP StartTransaction/StopTransaction messages"

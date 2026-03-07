@@ -256,39 +256,75 @@ models:
     columns:
       - name: charge_point_id
         description: "Charger identifier"
+        tests:
+          - not_null
       - name: location_id
         description: "Location identifier where the charger is located"
       - name: port_id
         description: "Port identifier within the charger"
+        tests:
+          - not_null
       - name: connector_id
         description: "Connector identifier within the port"
+        tests:
+          - not_null
       - name: connector_type
         description: "Type of connector (e.g., CCS, NACS)"
       - name: commissioned_ts
         description: "Timestamp when the charger was commissioned (null if not commissioned yet)"
       - name: decommissioned_ts
         description: "Timestamp when the charger was decommissioned (null if still active)"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - port_id
+              - connector_id
 
   - name: charge_point_span_daily
     description: "One row per charge point per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."
     columns:
       - name: charge_point_id
         description: "Charger identifier"
+        tests:
+          - not_null
       - name: date_id
         description: "Calendar day (date)"
+        tests:
+          - not_null
       - name: minutes
         description: "Minutes the charger was commissioned on this day (partial on first/last day of commission range)"
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - date_id
 
   - name: fact_uptime
     description: "One row per charge point, port, and day. Uptime = (minutes commissioned that day minus total outage minutes) / minutes commissioned that day."
     columns:
       - name: uptime_id
         description: "Surrogate key for the row (charge_point_id, port_id, date_id)"
+        tests:
+          - unique
+          - not_null
       - name: charge_point_id
         description: "Charger identifier"
+        tests:
+          - not_null
       - name: port_id
         description: "Port identifier within the charger"
+        tests:
+          - not_null
       - name: date_id
         description: "Calendar day (date)"
+        tests:
+          - not_null
       - name: uptime
         description: "Fraction of commissioned minutes that were not outage; 1 = fully up, 0 = fully down"
+        tests:
+          - not_null
