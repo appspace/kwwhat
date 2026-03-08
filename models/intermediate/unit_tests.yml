@@ -1,0 +1,351 @@
+version: 2
+
+unit_tests:
+
+  # ── int_status_changes ──────────────────────────────────────────────────────
+
+  - name: test_status_changes_deduplicates_consecutive_same_status
+    description: >
+      Two consecutive StatusNotifications with the same status for the same
+      connector should produce only one row. The second is collapsed by the
+      change_from_lag filter (previous_status == status).
+    model: int_status_changes
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'StatusNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload
+          union all
+          select cast('2025-10-01 10:30:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+    expect:
+      format: sql
+      rows: |
+        select 'CH-001' as charge_point_id, '1' as connector_id, 'Available' as status, cast(null as string) as previous_status, cast(null as string) as next_status
+
+  - name: test_status_changes_lag_lead_populated_correctly
+    description: >
+      Three status transitions (Available → Preparing → Charging) should produce
+      three rows with correct previous_status and next_status on each row.
+    model: int_status_changes
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'StatusNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload
+          union all
+          select cast('2025-10-01 10:05:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'
+          union all
+          select cast('2025-10-01 10:10:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-003', '{"connectorId": 1, "errorCode": "NoError", "status": "Charging"}'
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+    expect:
+      format: sql
+      rows: |
+        select 'Available'  as status, cast(null as string) as previous_status, 'Preparing' as next_status
+        union all
+        select 'Preparing', 'Available', 'Charging'
+        union all
+        select 'Charging',  'Preparing', cast(null as string)
+
+  - name: test_status_changes_incremental_buffer_restores_previous_status
+    description: >
+      In incremental mode, rows from the buffer window (previous run, next_status=null)
+      are pulled back so that the new run can compute previous_status for events
+      that arrive right after the run boundary.
+    model: int_status_changes
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        format: sql
+        rows: |
+          select
+            'CH-001'                                    as charge_point_id,
+            '1'                                         as connector_id,
+            'PORT-001'                                  as port_id,
+            cast('2025-10-01 09:45:00' as timestamp)   as ingested_ts,
+            'UID-000'                                   as unique_id,
+            'Available'                                 as status,
+            'NoError'                                   as error_code,
+            '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload,
+            cast(null as timestamp)                     as payload_ts,
+            cast(null as timestamp)                     as confirmation_ingested_ts,
+            cast(null as string)                        as previous_status,
+            cast(null as timestamp)                     as previous_ingested_ts,
+            cast(null as timestamp)                     as previous_payload_ts,
+            cast(null as string)                        as next_status,
+            cast(null as timestamp)                     as next_ingested_ts,
+            cast(null as timestamp)                     as next_payload_ts,
+            cast('2025-10-01 10:00:00' as timestamp)   as incremental_ts
+      - input: ref('stg_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'StatusNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}' as payload
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+    expect:
+      format: sql
+      rows: |
+        select 'Preparing' as status, 'Available' as previous_status, cast('2025-10-01 10:05:00' as timestamp) as ingested_ts
+
+  # ── int_faulted_outages ─────────────────────────────────────────────────────
+
+  - name: test_faulted_outages_partial_fault_produces_no_outage
+    description: >
+      When only one of two connectors on a port is faulted, the port should NOT
+      be considered in a faulted outage. All connectors must be faulted.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_status_changes')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted'   as status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
+          union all
+          select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Available', cast(null as timestamp), cast('2025-10-01 12:00:00' as timestamp)
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+          union all
+          select 'CH-001', 'LOC-001', 'PORT-001', '2', 'CCS', cast('2025-01-01' as timestamp), cast(null as timestamp)
+    expect:
+      format: sql
+      rows: |
+        select cast(null as string) as charge_point_id where false
+
+  - name: test_faulted_outages_all_connectors_faulted_produces_outage
+    description: >
+      When all connectors on a port are simultaneously faulted, a faulted outage
+      row should be emitted covering the overlapping fault window.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_status_changes')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
+          union all
+          select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Faulted', cast('2025-10-01 11:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+          union all
+          select 'CH-001', 'LOC-001', 'PORT-001', '2', 'CCS', cast('2025-01-01' as timestamp), cast(null as timestamp)
+    expect:
+      format: sql
+      rows: |
+        select 'CH-001' as charge_point_id, 'PORT-001' as port_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 11:00:00' as timestamp) as to_ts
+
+  - name: test_faulted_outages_adjacent_periods_merged
+    description: >
+      Two adjacent all-connector-faulted intervals (where to_ts of first equals
+      from_ts of second) should be merged into a single outage row.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_status_changes')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
+          union all
+          select 'CH-001', 'PORT-001', '1', cast('2025-10-01 11:00:00' as timestamp), 'Faulted', cast('2025-10-01 12:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+    expect:
+      format: sql
+      rows: |
+        select 'CH-001' as charge_point_id, 'PORT-001' as port_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 12:00:00' as timestamp) as to_ts
+
+  # ── int_offline_outages ─────────────────────────────────────────────────────
+
+  - name: test_offline_outages_gap_above_threshold_produces_outage
+    description: >
+      A 90-minute silence between two CALL messages exceeds the 300-second
+      heartbeat threshold and should produce one offline outage row.
+    model: int_offline_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-001' as unique_id, '{}' as payload
+          union all
+          select cast('2025-10-01 11:30:00' as timestamp), 'CH-001', 'Heartbeat', '2', 'UID-002', '{}'
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 09:59:00' as timestamp) as commissioned_ts, cast('2025-10-01 11:30:00' as timestamp) as decommissioned_ts
+    expect:
+      format: sql
+      rows: |
+        select 'CH-001' as charge_point_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 11:30:00' as timestamp) as to_ts, 90 as duration_minutes
+
+  - name: test_offline_outages_gap_below_threshold_produces_no_outage
+    description: >
+      A 4-minute gap between messages (240 s < 300 s threshold) should not
+      produce any outage row.
+    model: int_offline_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-001' as unique_id, '{}' as payload
+          union all
+          select cast('2025-10-01 10:04:00' as timestamp), 'CH-001', 'Heartbeat', '2', 'UID-002', '{}'
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 09:59:00' as timestamp) as commissioned_ts, cast('2025-10-01 10:04:00' as timestamp) as decommissioned_ts
+    expect:
+      format: sql
+      rows: |
+        select cast(null as string) as charge_point_id where false
+
+  - name: test_offline_outages_charger_with_no_messages_is_fully_offline
+    description: >
+      A commissioned charger that sends no messages during its monitoring window
+      should produce a single outage covering the full window.
+    model: int_offline_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-002' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-999' as unique_id, '{}' as payload
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 10:00:00' as timestamp) as commissioned_ts, cast('2025-10-01 12:00:00' as timestamp) as decommissioned_ts
+    expect:
+      format: sql
+      rows: |
+        select 'CH-001' as charge_point_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 12:00:00' as timestamp) as to_ts, 120 as duration_minutes
+
+  - name: test_offline_outages_incremental_merge_extends_boundary_outage
+    description: >
+      An outage that ended at exactly the previous run boundary (to_ts = from_timestamp)
+      should be merged with a new outage that starts at the same point, producing
+      a single extended outage row.
+    model: int_offline_outages
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            cast('2025-10-01 09:00:00' as timestamp)  as from_ts,
+            cast('2025-10-01 10:00:00' as timestamp)  as to_ts,
+            60                                         as duration_minutes,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts
+      - input: ref('stg_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:30:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-001' as unique_id, '{}' as payload
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 09:00:00' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+    expect:
+      format: sql
+      rows: |
+        select 'CH-001' as charge_point_id, cast('2025-10-01 09:00:00' as timestamp) as from_ts, cast('2025-10-01 10:30:00' as timestamp) as to_ts, 90 as duration_minutes
+
+  # ── int_connector_preparing ─────────────────────────────────────────────────
+
+  - name: test_connector_preparing_incremental_merge_updates_next_status
+    description: >
+      In incremental mode, a buffered Preparing row whose next_status is null
+      should be updated when the new run's int_status_changes now contains the
+      subsequent status transition.
+    model: int_connector_preparing
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            'UID-001'                                  as unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast(null as timestamp)                    as next_ingested_ts,
+            cast(null as timestamp)                    as previous_payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            []                                         as parent_id_tags,
+            []                                         as transaction_ids,
+            []                                         as error_codes,
+            cast(null as string)                       as transaction_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_status_changes')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            'UID-001'                                  as unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            'Charging'                                 as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:10:00' as timestamp)  as next_ingested_ts,
+            cast(null as timestamp)                    as previous_payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            'NoError'                                  as error_code,
+            cast('2025-10-01 10:10:00' as timestamp)  as incremental_ts
+      - input: ref('stg_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:10:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, cast(null as string) as action, '2' as message_type_id, 'UID-999' as unique_id, '{}' as payload
+    expect:
+      format: sql
+      rows: |
+        select 'CH-001' as charge_point_id, '1' as connector_id, 'Preparing' as status, 'Charging' as next_status, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts

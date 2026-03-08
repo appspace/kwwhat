@@ -890,3 +890,419 @@ unit_tests:
     expect:
       rows:
         - {id_tag: 'TAG-001', charge_attempt_count: 2}
+
+  # ── fact_charge_attempts ────────────────────────────────────────────────────
+
+  - name: test_charge_attempt_is_successful_when_all_conditions_met
+    description: >
+      A charge attempt is successful when: transaction exists, next_status is not
+      Faulted, stop reason is Local/Remote/EVDisconnected, and energy > 0.1 kWh.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_connector_preparing')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            'UID-001'                                  as preparing_unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            ['TAG-001']                                as id_tags,
+            ['Accepted']                               as id_tag_statuses,
+            'TXN-001'                                  as transaction_id,
+            []                                         as error_codes,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_transactions')
+        format: sql
+        rows: |
+          select
+            'TXN-001'                                  as transaction_id,
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
+            cast('2025-10-01 10:29:00' as timestamp)  as transaction_stop_ts,
+            'EVDisconnected'                           as transaction_stop_reason,
+            ['TAG-001']                                as id_tags,
+            ['Accepted']                               as id_tag_statuses,
+            1000                                       as meter_start_wh,
+            6000                                       as meter_stop_wh,
+            cast(5.0 as numeric)                       as energy_transferred_kwh,
+            []                                         as error_codes,
+            cast('2025-10-01 10:29:00' as timestamp)  as incremental_ts,
+            1                                          as _unique_connectors_count
+    expect:
+      format: sql
+      rows: |
+        select true as is_successful
+
+  - name: test_charge_attempt_not_successful_when_energy_too_low
+    description: >
+      A charge attempt with energy ≤ 0.1 kWh is not successful even when all
+      other conditions (transaction, stop reason, next_status) are met.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_connector_preparing')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            'UID-001'                                  as preparing_unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:05:00' as timestamp)  as next_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            'TXN-001'                                  as transaction_id,
+            []                                         as error_codes,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_transactions')
+        format: sql
+        rows: |
+          select
+            'TXN-001'                                  as transaction_id,
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
+            cast('2025-10-01 10:04:00' as timestamp)  as transaction_stop_ts,
+            'EVDisconnected'                           as transaction_stop_reason,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            1000                                       as meter_start_wh,
+            1050                                       as meter_stop_wh,
+            cast(0.05 as numeric)                      as energy_transferred_kwh,
+            []                                         as error_codes,
+            cast('2025-10-01 10:04:00' as timestamp)  as incremental_ts,
+            1                                          as _unique_connectors_count
+    expect:
+      format: sql
+      rows: |
+        select false as is_successful
+
+  - name: test_charge_attempt_not_successful_when_no_transaction
+    description: >
+      A charge attempt with no matching transaction is always unsuccessful.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_connector_preparing')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            'UID-001'                                  as preparing_unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:05:00' as timestamp)  as next_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            cast(null as string)                       as transaction_id,
+            []                                         as error_codes,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_transactions')
+        format: sql
+        rows: |
+          select cast(null as string) as transaction_id where false
+    expect:
+      format: sql
+      rows: |
+        select false as is_successful
+
+  - name: test_charge_attempt_not_successful_when_next_status_faulted
+    description: >
+      A charge attempt where next_status is Faulted is not successful, even if a
+      transaction with valid stop reason and energy > 0.1 kWh exists.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_connector_preparing')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            'UID-001'                                  as preparing_unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:10:00' as timestamp)  as next_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            'Faulted'                                  as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            'TXN-001'                                  as transaction_id,
+            []                                         as error_codes,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_transactions')
+        format: sql
+        rows: |
+          select
+            'TXN-001'                                  as transaction_id,
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
+            cast('2025-10-01 10:09:00' as timestamp)  as transaction_stop_ts,
+            'EVDisconnected'                           as transaction_stop_reason,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            1000                                       as meter_start_wh,
+            6000                                       as meter_stop_wh,
+            cast(5.0 as numeric)                       as energy_transferred_kwh,
+            []                                         as error_codes,
+            cast('2025-10-01 10:09:00' as timestamp)  as incremental_ts,
+            1                                          as _unique_connectors_count
+    expect:
+      format: sql
+      rows: |
+        select false as is_successful
+
+  - name: test_charge_attempt_not_successful_when_invalid_stop_reason
+    description: >
+      A stop reason that is not Local, Remote, or EVDisconnected (e.g. HardReset)
+      means the attempt is not successful.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_connector_preparing')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            'UID-001'                                  as preparing_unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:10:00' as timestamp)  as next_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            'TXN-001'                                  as transaction_id,
+            []                                         as error_codes,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_transactions')
+        format: sql
+        rows: |
+          select
+            'TXN-001'                                  as transaction_id,
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
+            cast('2025-10-01 10:09:00' as timestamp)  as transaction_stop_ts,
+            'HardReset'                                as transaction_stop_reason,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            1000                                       as meter_start_wh,
+            6000                                       as meter_stop_wh,
+            cast(5.0 as numeric)                       as energy_transferred_kwh,
+            []                                         as error_codes,
+            cast('2025-10-01 10:09:00' as timestamp)  as incremental_ts,
+            1                                          as _unique_connectors_count
+    expect:
+      format: sql
+      rows: |
+        select false as is_successful
+
+  - name: test_charge_attempt_incremental_merge_fills_stop_data
+    description: >
+      In incremental mode, a buffered charge attempt that lacked stop data should
+      be merged with a new run that now has the StopTransaction details, yielding
+      is_successful=true on the merged record.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as charge_attempt_start_ts,
+            cast(null as timestamp)                    as charge_attempt_stop_ts,
+            'UID-001'                                  as preparing_unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as preparing_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as preparing_payload_ts,
+            cast(null as timestamp)                    as preparing_next_payload_ts,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            'TXN-001'                                  as transaction_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as transaction_ingested_ts,
+            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
+            cast(null as timestamp)                    as transaction_stop_ts,
+            cast(null as string)                       as transaction_stop_reason,
+            cast(null as numeric)                      as meter_start_wh,
+            cast(null as numeric)                      as meter_stop_wh,
+            cast(null as numeric)                      as energy_transferred_kwh,
+            []                                         as error_codes,
+            false                                      as is_successful,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts
+      - input: ref('int_connector_preparing')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            'UID-001'                                  as preparing_unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            'TXN-001'                                  as transaction_id,
+            []                                         as error_codes,
+            cast('2025-10-01 10:30:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_transactions')
+        format: sql
+        rows: |
+          select
+            'TXN-001'                                  as transaction_id,
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
+            cast('2025-10-01 10:29:00' as timestamp)  as transaction_stop_ts,
+            'Local'                                    as transaction_stop_reason,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            1000                                       as meter_start_wh,
+            6000                                       as meter_stop_wh,
+            cast(5.0 as numeric)                       as energy_transferred_kwh,
+            []                                         as error_codes,
+            cast('2025-10-01 10:29:00' as timestamp)  as incremental_ts,
+            1                                          as _unique_connectors_count
+    expect:
+      format: sql
+      rows: |
+        select
+          true                                        as is_successful,
+          cast('2025-10-01 10:29:00' as timestamp)   as transaction_stop_ts,
+          'Local'                                     as transaction_stop_reason,
+          cast(5.0 as numeric)                        as energy_transferred_kwh
+
+  # ── fact_downtime_daily ─────────────────────────────────────────────────────
+
+  - name: test_downtime_daily_offline_excluded_during_faulted_outage
+    description: >
+      An offline outage whose from_ts falls inside an active faulted outage window
+      should be excluded. Only the faulted outage row should appear in the output.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 12:00:00' as timestamp) as to_ts, 120 as duration_minutes, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
+      - input: ref('int_offline_outages')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, cast('2025-10-01 10:30:00' as timestamp) as from_ts, cast('2025-10-01 12:30:00' as timestamp) as to_ts, 120 as duration_minutes, cast('2025-10-01 12:30:00' as timestamp) as incremental_ts
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+      - input: ref('dim_dates')
+        format: sql
+        rows: |
+          select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
+    expect:
+      format: sql
+      rows: |
+        select 'CH-001' as charge_point_id, 'PORT-001' as port_id, 'FAULTED' as type, 120 as duration_minutes
+
+  - name: test_downtime_daily_multi_day_outage_split_across_days
+    description: >
+      An outage spanning midnight (22:00 day 1 to 04:00 day 2) must produce two
+      rows: 120 minutes on day 1 and 240 minutes on day 2.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        format: sql
+        rows: |
+          select cast(null as string) as charge_point_id where false
+      - input: ref('int_offline_outages')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, cast('2025-10-01 22:00:00' as timestamp) as from_ts, cast('2025-10-02 04:00:00' as timestamp) as to_ts, 360 as duration_minutes, cast('2025-10-02 12:00:00' as timestamp) as incremental_ts
+      - input: ref('stg_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+      - input: ref('dim_dates')
+        format: sql
+        rows: |
+          select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
+          union all
+          select cast('2025-10-02' as date), cast('2025-10-02' as date)
+    expect:
+      format: sql
+      rows: |
+        select cast('2025-10-01' as date) as date_id, 'OFFLINE' as type, 120 as duration_minutes
+        union all
+        select cast('2025-10-02' as date), 'OFFLINE', 240
