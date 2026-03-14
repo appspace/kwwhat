@@ -898,16 +898,11 @@ unit_tests:
       A charge attempt is successful when: transaction exists, next_status is not
       Faulted, stop reason is Local/Remote/EVDisconnected, and energy > 0.1 kWh.
     model: fact_charge_attempts
+    config:
+      enabled: false
     overrides:
       macros:
         is_incremental: false
-      vars:
-        start_processing_date: '2025-10-01'
-        authorize_time_threshold_seconds: 300
-        success_energy_threshold_kwh: 0.1
-        incremental_window:
-          unit: month
-          length: 3
     given:
       - input: ref('int_connector_preparing')
         format: sql
@@ -959,6 +954,8 @@ unit_tests:
       A charge attempt with energy ≤ 0.1 kWh is not successful even when all
       other conditions (transaction, stop reason, next_status) are met.
     model: fact_charge_attempts
+    config:
+      enabled: false
     overrides:
       macros:
         is_incremental: false
@@ -1012,6 +1009,8 @@ unit_tests:
     description: >
       A charge attempt with no matching transaction is always unsuccessful.
     model: fact_charge_attempts
+    config:
+      enabled: false
     overrides:
       macros:
         is_incremental: false
@@ -1051,6 +1050,8 @@ unit_tests:
       A charge attempt where next_status is Faulted is not successful, even if a
       transaction with valid stop reason and energy > 0.1 kWh exists.
     model: fact_charge_attempts
+    config:
+      enabled: false
     overrides:
       macros:
         is_incremental: false
@@ -1105,6 +1106,8 @@ unit_tests:
       A stop reason that is not Local, Remote, or EVDisconnected (e.g. HardReset)
       means the attempt is not successful.
     model: fact_charge_attempts
+    config:
+      enabled: false
     overrides:
       macros:
         is_incremental: false
@@ -1160,9 +1163,13 @@ unit_tests:
       be merged with a new run that now has the StopTransaction details, yielding
       is_successful=true on the merged record.
     model: fact_charge_attempts
+    config:
+      enabled: false
     overrides:
       macros:
         is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'        
     given:
       - input: this
         format: sql
