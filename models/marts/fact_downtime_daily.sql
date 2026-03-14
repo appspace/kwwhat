@@ -7,27 +7,15 @@
   )
 }}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.date_trunc('day', 'from_timestamp') }} as buffer_from_timestamp,
-            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
-        from (
-            select (select max(incremental_ts) from {{ this }}) as from_timestamp
-        )
-    ),
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.date_trunc('day', 'from_timestamp') }} as buffer_from_timestamp,
-            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
-        from (
-            select cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
-        )
-    ),
-{% endif %}
+{%- if is_incremental() -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
+{%- endif -%}
+
+with incremental_date_range as (
+    {{ incremental_date_range(from_timestamp_caps=from_ts_caps, buffer_minutes=1440) }}
+),
 
 ports as (
     select

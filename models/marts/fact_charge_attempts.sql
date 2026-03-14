@@ -9,38 +9,22 @@
 
 {% set VALID_STOP_REASONS = ['Local', 'Remote', 'EVDisconnected'] %}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            least(
-                {{ dbt.dateadd("month", 3, "from_timestamp") }},
-                (select max(incremental_ts) from {{ ref("int_connector_preparing") }}),
-                (select max(incremental_ts) from {{ ref("int_transactions") }})
-            ) as to_timestamp
-        from
-            (
-                select max(incremental_ts) as from_timestamp from {{ this }}
-            )
-    ),
+{%- if is_incremental() -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
+{%- endif -%}
 
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            least(
-                {{ dbt.dateadd("month", 3, "from_timestamp") }},
-                (select max(incremental_ts) from {{ ref("int_connector_preparing") }}),
-                (select max(incremental_ts) from {{ ref("int_transactions") }})
-            ) as to_timestamp
-        from
-            (
-                select cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
-            )
-    ),
-{% endif %}
+with incremental_date_range as (
+    {{ incremental_date_range(
+        from_timestamp_caps=from_ts_caps,
+        buffer_minutes=30,
+        to_timestamp_caps=[
+            "(select max(incremental_ts) from " ~ ref("int_connector_preparing") ~ ")",
+            "(select max(incremental_ts) from " ~ ref("int_transactions") ~ ")"
+        ]
+    ) }}
+),
 
 preparing as (
     select
