@@ -133,8 +133,22 @@
         from status_with_confirmation
         
         union all
-        
-        select * from statuses_buffer
+
+        select
+            charge_point_id,
+            connector_id,
+            port_id,
+            ingested_ts,
+            unique_id,
+            status,
+            error_code,
+            payload,
+            payload_ts,
+            confirmation_ingested_ts,
+            previous_status,
+            previous_ingested_ts,
+            previous_payload_ts
+        from statuses_buffer
     ),
 
 {% else %}
@@ -206,7 +220,23 @@
         from change_from_lag
     )
 
- select *,
+select
+    charge_point_id,
+    connector_id,
+    port_id,
+    ingested_ts,
+    unique_id,
+    status,
+    error_code,
+    payload,
+    payload_ts,
+    confirmation_ingested_ts,
+    previous_status,
+    previous_ingested_ts,
+    previous_payload_ts,
+    next_status,
+    next_ingested_ts,
+    next_payload_ts,
     (select incremental_ts from incremental) as incremental_ts
- from status_with_lead
+from status_with_lead
  

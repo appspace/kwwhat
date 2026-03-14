@@ -79,9 +79,9 @@ offline_outages as (
 ),
 
 outages as (
-    select * from offline_outages
+    select charge_point_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, type from offline_outages
     union all
-    select * from faulted_outages
+    select charge_point_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, type from faulted_outages
 ),
 
 filtered_outages as (
@@ -131,7 +131,12 @@ final as (
     group by 1, 2, 3, 4
 )
 
-select *,
+select
+    date_id,
+    charge_point_id,
+    port_id,
+    type,
+    duration_minutes,
     -- Generate a deterministic unique ID from the composite key
     {{ dbt_utils.generate_surrogate_key(['date_id', 'charge_point_id', 'port_id', 'type']) }} as downtime_id,
     (select incremental_ts from incremental) as incremental_ts

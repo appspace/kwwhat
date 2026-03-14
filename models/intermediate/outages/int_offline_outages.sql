@@ -136,9 +136,9 @@ chargers_with_no_messages as (
 ),
 
 new_outages as (
-    select * from outages_from_gaps
+    select charge_point_id, from_ts, to_ts from outages_from_gaps
     union all
-    select * from chargers_with_no_messages
+    select charge_point_id, from_ts, to_ts from chargers_with_no_messages
 ),
 
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
@@ -162,7 +162,10 @@ merged_outages as (
 ),
 
 all_outages as (
-    select *,
+    select
+        charge_point_id,
+        from_ts,
+        to_ts,
         {{ dbt.datediff('from_ts', 'to_ts', 'seconds') }} as duration_seconds
     from merged_outages
 )
@@ -170,7 +173,10 @@ all_outages as (
 {% else %}
 
 all_outages as (
-    select *,
+    select
+        charge_point_id,
+        from_ts,
+        to_ts,
         {{ dbt.datediff('from_ts', 'to_ts', 'seconds') }} as duration_seconds
     from new_outages
 )

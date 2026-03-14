@@ -92,7 +92,13 @@ incremental as (
 
 -- Filter for charge attempt actions first
 charge_attempt_events as (
-    select *
+    select
+        charge_point_id,
+        action,
+        ingested_ts,
+        message_type_id,
+        payload,
+        unique_id
     from ocpp_logs
     where action in ({{ "'" + "', '".join(charge_attempt_actions) + "'" }})
         and message_type_id = {{ var("message_type_ids").CALL }}
@@ -250,22 +256,38 @@ combined_preparing as (
 )
 {% endif %}
 
-select *,
-    case 
-        when transaction_ids is not null  and {{ array_size('transaction_ids') }} > 0
+select
+    charge_point_id,
+    connector_id,
+    unique_id,
+    ingested_ts,
+    payload_ts,
+    previous_status,
+    status,
+    next_status,
+    confirmation_ingested_ts,
+    previous_ingested_ts,
+    next_ingested_ts,
+    previous_payload_ts,
+    next_payload_ts,
+    id_tags,
+    id_tag_statuses,
+    parent_id_tags,
+    transaction_ids,
+    error_codes,
+    case
+        when transaction_ids is not null and {{ array_size('transaction_ids') }} > 0
             then transaction_ids[0]
         else null
     end as transaction_id,
     (select incremental_ts from incremental) as incremental_ts,
-
     -- Count aggregations for testing
-    case 
-        when transaction_ids is not null 
+    case
+        when transaction_ids is not null
             then {{ array_size('transaction_ids') }}
         else 0
     end as _unique_transaction_count
-
-from 
+from
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
     combined_preparing
 {% else %}

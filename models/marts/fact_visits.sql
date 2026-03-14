@@ -344,12 +344,29 @@ new_visits as (
     ),
 
     visits_buffer_with_grouping_strategies as (
-        select *,
-        case 
-            when id_tag is not null 
-                then location_id || '_' || id_tag
-            else location_id || '_' || last_charge_point_id || '_' || last_port_id
-        end as grouping_key
+        select
+            visit_id,
+            location_id,
+            charge_point_ids,
+            id_tag,
+            visit_start_ts,
+            visit_end_ts,
+            charge_attempt_count,
+            charge_attempt_ids,
+            total_energy_transferred_kwh,
+            visit_duration_minutes,
+            first_charge_attempt_id,
+            last_charge_attempt_id,
+            first_charge_point_id,
+            last_charge_point_id,
+            first_port_id,
+            last_port_id,
+            is_successful,
+            case
+                when id_tag is not null
+                    then location_id || '_' || id_tag
+                else location_id || '_' || last_charge_point_id || '_' || last_port_id
+            end as grouping_key
         from visits_buffer_with_inferred_id_tags
     ),
 
@@ -383,13 +400,47 @@ new_visits as (
     ),
 
     visits as (
-        select * from merged_visits
+        select
+            location_id,
+            id_tag,
+            visit_start_ts,
+            visit_end_ts,
+            charge_attempt_count,
+            charge_attempt_ids,
+            charge_point_ids,
+            total_energy_transferred_kwh,
+            is_successful,
+            first_charge_attempt_id,
+            last_charge_attempt_id,
+            first_charge_point_id,
+            last_charge_point_id,
+            first_port_id,
+            last_port_id,
+            grouping_key
+        from merged_visits
     )
 
 {% else %}
 
     visits as (
-        select * from new_visits
+        select
+            location_id,
+            id_tag,
+            visit_start_ts,
+            visit_end_ts,
+            charge_attempt_count,
+            charge_attempt_ids,
+            charge_point_ids,
+            total_energy_transferred_kwh,
+            is_successful,
+            first_charge_attempt_id,
+            last_charge_attempt_id,
+            first_charge_point_id,
+            last_charge_point_id,
+            first_port_id,
+            last_port_id,
+            grouping_key
+        from new_visits
     )
 
 {% endif %}

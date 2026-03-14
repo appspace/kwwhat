@@ -218,7 +218,29 @@ attempts_and_transactions as (
     )
 {% endif %}
 
-select *,
+select
+    charge_point_id,
+    connector_id,
+    charge_attempt_start_ts,
+    charge_attempt_stop_ts,
+    preparing_unique_id,
+    preparing_ingested_ts,
+    preparing_payload_ts,
+    preparing_next_payload_ts,
+    previous_status,
+    status,
+    next_status,
+    id_tags,
+    id_tag_statuses,
+    transaction_id,
+    transaction_ingested_ts,
+    transaction_start_ts,
+    transaction_stop_ts,
+    transaction_stop_reason,
+    meter_start_wh,
+    meter_stop_wh,
+    energy_transferred_kwh,
+    error_codes,
     -- Generate a deterministic unique ID from the composite key
     {{ dbt_utils.generate_surrogate_key(['charge_point_id', 'connector_id', 'charge_attempt_start_ts']) }} as charge_attempt_id,
     case
@@ -230,7 +252,7 @@ select *,
         else false
     end as is_successful,
     (select incremental_ts from incremental) as incremental_ts
-from 
+from
 {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
     merged_attempts_and_transactions
 {% else %}
