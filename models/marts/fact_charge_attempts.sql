@@ -225,7 +225,7 @@ select *,
         when transaction_id is not null
             and (next_status is null or next_status != 'Faulted')
             and transaction_stop_reason in ({{ "'" + "', '".join(VALID_STOP_REASONS) + "'" }})
-            and energy_transferred_kwh is not null and energy_transferred_kwh > 0.1
+            and energy_transferred_kwh is not null and energy_transferred_kwh > {{ var('success_energy_threshold_kwh') }}
         then true
         else false
     end as is_successful,
