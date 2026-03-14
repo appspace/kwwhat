@@ -85,6 +85,11 @@ models:
               - charge_point_id
               - connector_id
               - charge_attempt_start_ts
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "charge_attempt_stop_ts is null or charge_attempt_stop_ts >= charge_attempt_start_ts"
+          config:
+            severity: error
 
   - name: fact_interval_data
     description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
@@ -221,10 +226,16 @@ models:
                 min_value: 1
       - name: charge_point_ids
         description: "Array of charge point IDs used during this visit"
-      - name: connector_ids
-        description: "Array of connector IDs used during this visit"
-      - name: transaction_ids
-        description: "Array of transaction IDs associated with this visit"
+      - name: charge_attempt_ids
+        description: "Array of charge attempt IDs included in this visit"
+      - name: first_charge_attempt_id
+        description: "Charge attempt ID that started the visit"
+      - name: last_charge_attempt_id
+        description: "Charge attempt ID that ended the visit"
+      - name: first_port_id
+        description: "Port ID where the visit started"
+      - name: last_port_id
+        description: "Port ID where the visit ended"
       - name: total_energy_transferred_kwh
         description: "Total energy transferred across all charge attempts in this visit (kWh)"
       - name: visit_duration_minutes
@@ -255,7 +266,13 @@ models:
             combination_of_columns:
               - location_id
               - first_charge_point_id
+              - first_port_id
               - visit_start_ts
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "visit_end_ts >= visit_start_ts"
+          config:
+            severity: error
 
   - name: dim_dates
     description: "Date dimension table for semantic models and date-based joins. Used as MetricFlow time spine."

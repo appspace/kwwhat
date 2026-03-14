@@ -103,3 +103,8 @@ models:
               - charge_point_id
               - port_id
               - connector_id
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "commissioned_ts is null or decommissioned_ts is null or commissioned_ts <= decommissioned_ts"
+          config:
+            severity: error
