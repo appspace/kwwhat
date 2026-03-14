@@ -166,6 +166,9 @@ models:
         description: "Total downtime minutes for the date/charge_point/port combination"
         tests:
           - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
       - name: type
         description: "Downtime type. Currently always 'OFFLINE'."
         tests:
@@ -213,6 +216,9 @@ models:
         description: "Number of charge attempts in this visit"
         tests:
           - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
       - name: charge_point_ids
         description: "Array of charge point IDs used during this visit"
       - name: connector_ids
@@ -225,6 +231,9 @@ models:
         description: "Duration of the visit in minutes (from first charge_attempt_start_ts to last charge_attempt_stop_ts)"
         tests:
           - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
       - name: first_charge_point_id
         description: "Charge point ID where the visit started"
       - name: last_charge_point_id
@@ -334,3 +343,7 @@ models:
         description: "Fraction of commissioned minutes that were not outage; 1 = fully up, 0 = fully down"
         tests:
           - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1

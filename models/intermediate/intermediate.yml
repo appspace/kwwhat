@@ -231,3 +231,8 @@ models:
               - measurand
               - unit
               - phase
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "min_value <= avg_value and avg_value <= max_value"
+          config:
+            severity: error
