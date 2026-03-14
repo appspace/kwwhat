@@ -1,7 +1,7 @@
 {{
     config(
         materialized="incremental",
-        unique_key=["charge_point_id", "transaction_id", "ingested_ts", "connector_id", "measurand", "unit", "phase"],
+        unique_key=["charge_point_id", "transaction_id", "ingested_ts", "connector_id", "measurand", "unit", "phase", "meter_15min_interval_start"],
         incremental_strategy="merge",
         cluster_by="ingested_ts"
     )
