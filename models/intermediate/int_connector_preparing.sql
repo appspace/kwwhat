@@ -200,7 +200,7 @@ preparing_agg as (
         next_payload_ts
     )
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
 ,
 
 combined_preparing as (
@@ -272,7 +272,7 @@ select
         else 0
     end as _unique_transaction_count
 from
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
     combined_preparing
 {% else %}
     preparing_agg

@@ -125,8 +125,8 @@ new_outages as (
     select charge_point_id, from_ts, to_ts from chargers_with_no_messages
 ),
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
--- Read buffer of previous outages that might continue intocurrent period
+{% if is_incremental() %}
+-- Read buffer of previous outages that might continue into current period
 previous_outages as (
     select
         charge_point_id,

@@ -84,7 +84,7 @@ with incremental_date_range as (
             and conf.ingested_timestamp <= {{ dbt.dateadd("second", 15, "req.ingested_timestamp") }}
     ),
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
     
     -- Get previous statuses from the existing table to extend lag window
     statuses_buffer as (

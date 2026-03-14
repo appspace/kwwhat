@@ -132,9 +132,9 @@ attempts_and_transactions as (
         
 )
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
    ,
-   
+
     -- Read previously stored charge attempts within buffer window
     charge_attempts_buffer as (
         select
@@ -237,7 +237,7 @@ select
     end as is_successful,
     (select incremental_ts from incremental) as incremental_ts
 from
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
     merged_attempts_and_transactions
 {% else %}
     attempts_and_transactions

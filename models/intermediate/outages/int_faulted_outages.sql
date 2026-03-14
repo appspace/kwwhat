@@ -7,7 +7,7 @@
   )
 }}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
     with incremental_date_range as (
         select
             from_timestamp,
@@ -181,9 +181,9 @@ faulted_outages as (
     group by 1, 2, group_id
 )
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
 
--- We do not have to read a buffer of ongoing faults and update as we probably just re-read status changes for those faults 
+-- We do not have to read a buffer of ongoing faults and update as we probably just re-read status changes for those faults
 -- and merge strategy will take care of the rest
 
 {% else %}
