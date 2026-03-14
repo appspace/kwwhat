@@ -17,7 +17,9 @@ unit_tests:
       - input: ref('stg_ocpp_logs')
         format: sql
         rows: |
-          select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'StatusNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload
+          select cast('2025-10-01 09:59:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-000' as unique_id, '{}' as payload
+          union all
+          select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
           union all
           select cast('2025-10-01 10:30:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
       - input: ref('stg_ports')
@@ -25,9 +27,8 @@ unit_tests:
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
     expect:
-      format: sql
-      rows: |
-        select 'CH-001' as charge_point_id, '1' as connector_id, 'Available' as status, cast(null as string) as previous_status, cast(null as string) as next_status
+      rows:
+        - {charge_point_id: 'CH-001', connector_id: '1', status: 'Available', previous_status: null, next_status: null}
 
   - name: test_status_changes_lag_lead_populated_correctly
     description: >
@@ -41,7 +42,9 @@ unit_tests:
       - input: ref('stg_ocpp_logs')
         format: sql
         rows: |
-          select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'StatusNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload
+          select cast('2025-10-01 09:59:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-000' as unique_id, '{}' as payload
+          union all
+          select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
           union all
           select cast('2025-10-01 10:05:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'
           union all
@@ -51,13 +54,10 @@ unit_tests:
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
     expect:
-      format: sql
-      rows: |
-        select 'Available'  as status, cast(null as string) as previous_status, 'Preparing' as next_status
-        union all
-        select 'Preparing', 'Available', 'Charging'
-        union all
-        select 'Charging',  'Preparing', cast(null as string)
+      rows:
+        - {status: 'Available',  previous_status: null,        next_status: 'Preparing'}
+        - {status: 'Preparing',  previous_status: 'Available', next_status: 'Charging'}
+        - {status: 'Charging',   previous_status: 'Preparing', next_status: null}
 
   - name: test_status_changes_incremental_buffer_restores_previous_status
     description: >
@@ -99,9 +99,9 @@ unit_tests:
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
     expect:
-      format: sql
-      rows: |
-        select 'Preparing' as status, 'Available' as previous_status, cast('2025-10-01 10:05:00' as timestamp) as ingested_ts
+      rows:
+        - {status: 'Available', previous_status: null,        next_status: 'Preparing'}
+        - {status: 'Preparing', previous_status: 'Available', next_status: null}
 
   # ── int_faulted_outages ─────────────────────────────────────────────────────
 
@@ -117,9 +117,9 @@ unit_tests:
       - input: ref('int_status_changes')
         format: sql
         rows: |
-          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted'   as status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
+          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted'   as status, cast(null as string) as next_status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
           union all
-          select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Available', cast(null as timestamp), cast('2025-10-01 12:00:00' as timestamp)
+          select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Available', cast(null as string), cast(null as timestamp), cast('2025-10-01 12:00:00' as timestamp)
       - input: ref('stg_ports')
         format: sql
         rows: |
@@ -127,9 +127,7 @@ unit_tests:
           union all
           select 'CH-001', 'LOC-001', 'PORT-001', '2', 'CCS', cast('2025-01-01' as timestamp), cast(null as timestamp)
     expect:
-      format: sql
-      rows: |
-        select cast(null as string) as charge_point_id where false
+      rows: []
 
   - name: test_faulted_outages_all_connectors_faulted_produces_outage
     description: >
@@ -143,9 +141,9 @@ unit_tests:
       - input: ref('int_status_changes')
         format: sql
         rows: |
-          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
+          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, cast(null as string) as next_status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
           union all
-          select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Faulted', cast('2025-10-01 11:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
+          select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Faulted', cast(null as string), cast('2025-10-01 11:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
       - input: ref('stg_ports')
         format: sql
         rows: |
@@ -153,9 +151,8 @@ unit_tests:
           union all
           select 'CH-001', 'LOC-001', 'PORT-001', '2', 'CCS', cast('2025-01-01' as timestamp), cast(null as timestamp)
     expect:
-      format: sql
-      rows: |
-        select 'CH-001' as charge_point_id, 'PORT-001' as port_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 11:00:00' as timestamp) as to_ts
+      rows:
+        - {charge_point_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:00:00', duration_minutes: 60}
 
   - name: test_faulted_outages_adjacent_periods_merged
     description: >
@@ -169,17 +166,16 @@ unit_tests:
       - input: ref('int_status_changes')
         format: sql
         rows: |
-          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
+          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, cast(null as string) as next_status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
           union all
-          select 'CH-001', 'PORT-001', '1', cast('2025-10-01 11:00:00' as timestamp), 'Faulted', cast('2025-10-01 12:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
+          select 'CH-001', 'PORT-001', '1', cast('2025-10-01 11:00:00' as timestamp), 'Faulted', cast(null as string), cast('2025-10-01 12:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
       - input: ref('stg_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
     expect:
-      format: sql
-      rows: |
-        select 'CH-001' as charge_point_id, 'PORT-001' as port_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 12:00:00' as timestamp) as to_ts
+      rows:
+        - {charge_point_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00', duration_minutes: 120}
 
   # ── int_offline_outages ─────────────────────────────────────────────────────
 
@@ -203,9 +199,8 @@ unit_tests:
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 09:59:00' as timestamp) as commissioned_ts, cast('2025-10-01 11:30:00' as timestamp) as decommissioned_ts
     expect:
-      format: sql
-      rows: |
-        select 'CH-001' as charge_point_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 11:30:00' as timestamp) as to_ts, 90 as duration_minutes
+      rows:
+        - {charge_point_id: 'CH-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:30:00'}
 
   - name: test_offline_outages_gap_below_threshold_produces_no_outage
     description: >
@@ -227,9 +222,7 @@ unit_tests:
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 09:59:00' as timestamp) as commissioned_ts, cast('2025-10-01 10:04:00' as timestamp) as decommissioned_ts
     expect:
-      format: sql
-      rows: |
-        select cast(null as string) as charge_point_id where false
+      rows: []
 
   - name: test_offline_outages_charger_with_no_messages_is_fully_offline
     description: >
@@ -243,15 +236,14 @@ unit_tests:
       - input: ref('stg_ocpp_logs')
         format: sql
         rows: |
-          select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-002' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-999' as unique_id, '{}' as payload
+          select cast('2025-10-01 13:00:00' as timestamp) as ingested_timestamp, 'CH-002' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-999' as unique_id, '{}' as payload
       - input: ref('stg_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 10:00:00' as timestamp) as commissioned_ts, cast('2025-10-01 12:00:00' as timestamp) as decommissioned_ts
     expect:
-      format: sql
-      rows: |
-        select 'CH-001' as charge_point_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 12:00:00' as timestamp) as to_ts, 120 as duration_minutes
+      rows:
+        - {charge_point_id: 'CH-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00'}
 
   - name: test_offline_outages_incremental_merge_extends_boundary_outage
     description: >
@@ -281,9 +273,8 @@ unit_tests:
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 09:00:00' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
     expect:
-      format: sql
-      rows: |
-        select 'CH-001' as charge_point_id, cast('2025-10-01 09:00:00' as timestamp) as from_ts, cast('2025-10-01 10:30:00' as timestamp) as to_ts, 90 as duration_minutes
+      rows:
+        - {charge_point_id: 'CH-001', from_ts: '2025-10-01 09:00:00', to_ts: '2025-10-01 10:30:00'}
 
   # ── int_connector_preparing ─────────────────────────────────────────────────
 
@@ -346,6 +337,5 @@ unit_tests:
         rows: |
           select cast('2025-10-01 10:10:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, cast(null as string) as action, '2' as message_type_id, 'UID-999' as unique_id, '{}' as payload
     expect:
-      format: sql
-      rows: |
-        select 'CH-001' as charge_point_id, '1' as connector_id, 'Preparing' as status, 'Charging' as next_status, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts
+      rows:
+        - {charge_point_id: 'CH-001', connector_id: '1', status: 'Preparing', next_status: 'Charging'}

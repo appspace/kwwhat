@@ -129,6 +129,7 @@ Every new model must include:
 - business logic
 - incremental merge logic
 - use custom (singular) tests for specific business rules, but prefer package tests where available
+- use dict format in `expect` statements: define mock data only for the columns relevant to the test. This keeps unit tests succinct and specific.
 
 ---
 

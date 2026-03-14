@@ -901,6 +901,13 @@ unit_tests:
     overrides:
       macros:
         is_incremental: false
+      vars:
+        start_processing_date: '2025-10-01'
+        authorize_time_threshold_seconds: 300
+        success_energy_threshold_kwh: 0.1
+        incremental_window:
+          unit: month
+          length: 3
     given:
       - input: ref('int_connector_preparing')
         format: sql
@@ -944,9 +951,8 @@ unit_tests:
             cast('2025-10-01 10:29:00' as timestamp)  as incremental_ts,
             1                                          as _unique_connectors_count
     expect:
-      format: sql
-      rows: |
-        select true as is_successful
+      rows:
+        - {is_successful: true}
 
   - name: test_charge_attempt_not_successful_when_energy_too_low
     description: >
@@ -999,9 +1005,8 @@ unit_tests:
             cast('2025-10-01 10:04:00' as timestamp)  as incremental_ts,
             1                                          as _unique_connectors_count
     expect:
-      format: sql
-      rows: |
-        select false as is_successful
+      rows:
+        - {is_successful: false}
 
   - name: test_charge_attempt_not_successful_when_no_transaction
     description: >
@@ -1038,9 +1043,8 @@ unit_tests:
         rows: |
           select cast(null as string) as transaction_id where false
     expect:
-      format: sql
-      rows: |
-        select false as is_successful
+      rows:
+        - {is_successful: false}
 
   - name: test_charge_attempt_not_successful_when_next_status_faulted
     description: >
@@ -1093,9 +1097,8 @@ unit_tests:
             cast('2025-10-01 10:09:00' as timestamp)  as incremental_ts,
             1                                          as _unique_connectors_count
     expect:
-      format: sql
-      rows: |
-        select false as is_successful
+      rows:
+        - {is_successful: false}
 
   - name: test_charge_attempt_not_successful_when_invalid_stop_reason
     description: >
@@ -1135,9 +1138,9 @@ unit_tests:
             'TXN-001'                                  as transaction_id,
             'CH-001'                                   as charge_point_id,
             '1'                                        as connector_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
-            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
-            cast('2025-10-01 10:09:00' as timestamp)  as transaction_stop_ts,
+            cast('2025-10-01 10:00:00' as timestamp)   as ingested_ts,
+            cast('2025-10-01 10:01:00' as timestamp)   as transaction_start_ts,
+            cast('2025-10-01 10:09:00' as timestamp)   as transaction_stop_ts,
             'HardReset'                                as transaction_stop_reason,
             []                                         as id_tags,
             []                                         as id_tag_statuses,
@@ -1148,9 +1151,8 @@ unit_tests:
             cast('2025-10-01 10:09:00' as timestamp)  as incremental_ts,
             1                                          as _unique_connectors_count
     expect:
-      format: sql
-      rows: |
-        select false as is_successful
+      rows:
+        - {is_successful: false}
 
   - name: test_charge_attempt_incremental_merge_fills_stop_data
     description: >
@@ -1233,13 +1235,8 @@ unit_tests:
             cast('2025-10-01 10:29:00' as timestamp)  as incremental_ts,
             1                                          as _unique_connectors_count
     expect:
-      format: sql
-      rows: |
-        select
-          true                                        as is_successful,
-          cast('2025-10-01 10:29:00' as timestamp)   as transaction_stop_ts,
-          'Local'                                     as transaction_stop_reason,
-          cast(5.0 as numeric)                        as energy_transferred_kwh
+      rows:
+        - {is_successful: true, transaction_stop_reason: 'Local', energy_transferred_kwh: 5.0}
 
   # ── fact_downtime_daily ─────────────────────────────────────────────────────
 
@@ -1269,9 +1266,8 @@ unit_tests:
         rows: |
           select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
     expect:
-      format: sql
-      rows: |
-        select 'CH-001' as charge_point_id, 'PORT-001' as port_id, 'FAULTED' as type, 120 as duration_minutes
+      rows:
+        - {charge_point_id: 'CH-001', port_id: 'PORT-001', type: 'FAULTED', duration_minutes: 120}
 
   - name: test_downtime_daily_multi_day_outage_split_across_days
     description: >
@@ -1285,7 +1281,7 @@ unit_tests:
       - input: ref('int_faulted_outages')
         format: sql
         rows: |
-          select cast(null as string) as charge_point_id where false
+          select cast(null as string) as charge_point_id, cast(null as string) as port_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as timestamp) as incremental_ts where false
       - input: ref('int_offline_outages')
         format: sql
         rows: |
@@ -1301,8 +1297,6 @@ unit_tests:
           union all
           select cast('2025-10-02' as date), cast('2025-10-02' as date)
     expect:
-      format: sql
-      rows: |
-        select cast('2025-10-01' as date) as date_id, 'OFFLINE' as type, 120 as duration_minutes
-        union all
-        select cast('2025-10-02' as date), 'OFFLINE', 240
+      rows:
+        - {charge_point_id: 'CH-001', port_id: 'PORT-001', type: 'OFFLINE', duration_minutes: 120}
+        - {charge_point_id: 'CH-001', port_id: 'PORT-001', type: 'OFFLINE', duration_minutes: 240}
