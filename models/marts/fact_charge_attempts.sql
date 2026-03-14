@@ -8,7 +8,6 @@
 }}
 
 {% set VALID_STOP_REASONS = ['Local', 'Remote', 'EVDisconnected'] %}
-{%- set _authorize_threshold = var("authorize_time_threshold_seconds") -%}
 
 {%- if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
@@ -128,8 +127,8 @@ attempts_and_transactions as (
         on p.charge_point_id = t.charge_point_id
         and p.connector_id = t.connector_id
         and p.transaction_id = t.transaction_id
-        and t.transaction_ingested_ts > {{ dbt.dateadd("second", -_authorize_threshold, 'coalesce(p.previous_ingested_ts, p.preparing_ingested_ts)') }}
-        and t.transaction_ingested_ts <= {{ dbt.dateadd("second", _authorize_threshold, 'coalesce(p.next_ingested_ts, p.preparing_ingested_ts)') }}
+        and t.transaction_ingested_ts > {{ dbt.dateadd("second", -var("authorize_time_threshold_seconds"), 'coalesce(p.previous_ingested_ts, p.preparing_ingested_ts)') }}
+        and t.transaction_ingested_ts <= {{ dbt.dateadd("second", var("authorize_time_threshold_seconds"), 'coalesce(p.next_ingested_ts, p.preparing_ingested_ts)') }}
         
 )
 
