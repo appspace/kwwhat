@@ -44,9 +44,9 @@ models:
       - name: next_status
         description: "Next status after 'Preparing' (e.g., 'Charging', 'Available', 'Faulted')"
       - name: id_tags
-        description: "Array of RFID tags or user identifiers from charge attempt events"
+        description: "Array of RFID tags or user identifiers merged from charge attempt and transaction events"
       - name: id_tag_statuses
-        description: "Array of authorization statuses from charge attempt events"
+        description: "Array of authorization statuses merged from charge attempt and transaction events"
       - name: transaction_id
         description: "Transaction ID (from charge attempt or transaction data)"
         tests:
@@ -59,10 +59,6 @@ models:
         description: "Timestamp when the transaction stopped"
       - name: transaction_stop_reason
         description: "Reason for stopping the transaction"
-      - name: transaction_id_tags
-        description: "Array of RFID tags or user identifiers from transaction events"
-      - name: transaction_id_tag_statuses
-        description: "Array of authorization statuses from transaction events"
       - name: meter_start_wh
         description: "Meter reading at transaction start (Wh)"
       - name: meter_stop_wh
