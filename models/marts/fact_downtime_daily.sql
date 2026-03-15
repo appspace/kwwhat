@@ -7,27 +7,15 @@
   )
 }}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.date_trunc('day', 'from_timestamp') }} as buffer_from_timestamp,
-            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
-        from (
-            select (select max(incremental_ts) from {{ this }}) as from_timestamp
-        )
-    ),
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.date_trunc('day', 'from_timestamp') }} as buffer_from_timestamp,
-            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
-        from (
-            select cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
-        )
-    ),
-{% endif %}
+{%- if is_incremental() -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
+{%- endif -%}
+
+with incremental_date_range as (
+    {{ incremental_date_range(from_timestamp_caps=from_ts_caps, buffer_minutes=1440) }}
+),
 
 ports as (
     select
@@ -79,9 +67,9 @@ offline_outages as (
 ),
 
 outages as (
-    select * from offline_outages
+    select charge_point_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, type from offline_outages
     union all
-    select * from faulted_outages
+    select charge_point_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, type from faulted_outages
 ),
 
 filtered_outages as (
@@ -131,7 +119,12 @@ final as (
     group by 1, 2, 3, 4
 )
 
-select *,
+select
+    date_id,
+    charge_point_id,
+    port_id,
+    type,
+    duration_minutes,
     -- Generate a deterministic unique ID from the composite key
     {{ dbt_utils.generate_surrogate_key(['date_id', 'charge_point_id', 'port_id', 'type']) }} as downtime_id,
     (select incremental_ts from incremental) as incremental_ts

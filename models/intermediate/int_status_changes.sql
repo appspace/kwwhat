@@ -7,34 +7,18 @@
     ) 
 }}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
-        from
-            (
-                select (select max(incremental_ts) from {{ this }}) as from_timestamp
-            )
-    ),
+{%- if is_incremental() -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {%- set from_ts_caps = [
+        "cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")",
+        "(select min(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"
+    ] -%}
+{%- endif -%}
 
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
-        from
-            (
-                select
-                    greatest(
-                        cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}),
-                        (select min(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
-                    ) as from_timestamp
-            )
-    ),
-{% endif %}
+with incremental_date_range as (
+    {{ incremental_date_range(from_timestamp_caps=from_ts_caps, buffer_minutes=30) }}
+),
 
     ocpp_logs as (
         select
@@ -100,7 +84,7 @@
             and conf.ingested_timestamp <= {{ dbt.dateadd("second", 15, "req.ingested_timestamp") }}
     ),
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
     
     -- Get previous statuses from the existing table to extend lag window
     statuses_buffer as (
@@ -133,8 +117,22 @@
         from status_with_confirmation
         
         union all
-        
-        select * from statuses_buffer
+
+        select
+            charge_point_id,
+            connector_id,
+            port_id,
+            ingested_ts,
+            unique_id,
+            status,
+            error_code,
+            payload,
+            payload_ts,
+            confirmation_ingested_ts,
+            previous_status,
+            previous_ingested_ts,
+            previous_payload_ts
+        from statuses_buffer
     ),
 
 {% else %}
@@ -206,7 +204,23 @@
         from change_from_lag
     )
 
- select *,
+select
+    charge_point_id,
+    connector_id,
+    port_id,
+    ingested_ts,
+    unique_id,
+    status,
+    error_code,
+    payload,
+    payload_ts,
+    confirmation_ingested_ts,
+    previous_status,
+    previous_ingested_ts,
+    previous_payload_ts,
+    next_status,
+    next_ingested_ts,
+    next_payload_ts,
     (select incremental_ts from incremental) as incremental_ts
- from status_with_lead
+from status_with_lead
  

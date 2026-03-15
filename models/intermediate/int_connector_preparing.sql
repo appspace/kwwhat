@@ -9,38 +9,22 @@
 
 {% set charge_attempt_actions = ['Authorize', 'StartTransaction', 'StopTransaction', 'StatusNotification', 'RemoteStartTransaction', 'RemoteStopTransaction'] %}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            least(
-                {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
-                (select max(incremental_ts) from {{ ref("int_status_changes") }}),
-                (select max(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
-            ) as to_timestamp
-        from
-            (
-                select (select max(incremental_ts) from {{ this }}) as from_timestamp
-            )
-    ),
+{%- if is_incremental() -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
+{%- endif -%}
 
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            least(
-                {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
-                (select max(incremental_ts) from {{ ref("int_status_changes") }}),
-                (select max(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
-            ) as to_timestamp
-        from
-            (
-                select cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
-            )
-    ),
-{% endif %}
+with incremental_date_range as (
+    {{ incremental_date_range(
+        from_timestamp_caps=from_ts_caps,
+        buffer_minutes=30,
+        to_timestamp_caps=[
+            "(select max(incremental_ts) from " ~ ref("int_status_changes") ~ ")",
+            "(select max(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"
+        ]
+    ) }}
+),
 
 -- Get status changes from the dedicated status changes model
 status_changes_to_preparing as (
@@ -92,7 +76,13 @@ incremental as (
 
 -- Filter for charge attempt actions first
 charge_attempt_events as (
-    select *
+    select
+        charge_point_id,
+        action,
+        ingested_ts,
+        message_type_id,
+        payload,
+        unique_id
     from ocpp_logs
     where action in ({{ "'" + "', '".join(charge_attempt_actions) + "'" }})
         and message_type_id = {{ var("message_type_ids").CALL }}
@@ -210,7 +200,7 @@ preparing_agg as (
         next_payload_ts
     )
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
 ,
 
 combined_preparing as (
@@ -250,23 +240,39 @@ combined_preparing as (
 )
 {% endif %}
 
-select *,
-    case 
-        when transaction_ids is not null  and {{ array_size('transaction_ids') }} > 0
+select
+    charge_point_id,
+    connector_id,
+    unique_id,
+    ingested_ts,
+    payload_ts,
+    previous_status,
+    status,
+    next_status,
+    confirmation_ingested_ts,
+    previous_ingested_ts,
+    next_ingested_ts,
+    previous_payload_ts,
+    next_payload_ts,
+    id_tags,
+    id_tag_statuses,
+    parent_id_tags,
+    transaction_ids,
+    error_codes,
+    case
+        when transaction_ids is not null and {{ array_size('transaction_ids') }} > 0
             then transaction_ids[0]
         else null
     end as transaction_id,
     (select incremental_ts from incremental) as incremental_ts,
-
     -- Count aggregations for testing
-    case 
-        when transaction_ids is not null 
+    case
+        when transaction_ids is not null
             then {{ array_size('transaction_ids') }}
         else 0
     end as _unique_transaction_count
-
-from 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+from
+{% if is_incremental() %}
     combined_preparing
 {% else %}
     preparing_agg

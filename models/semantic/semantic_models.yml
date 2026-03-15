@@ -5,7 +5,7 @@ semantic_models:
     description: ""
     model: ref('fact_visits')
     defaults:
-      agg_time_dimension: visit_start_ts
+      agg_time_dimension: visit_end_ts
     entities:
       - name: visit
         type: primary
@@ -14,6 +14,10 @@ semantic_models:
         type: foreign
         expr: last_charge_attempt_id
     dimensions:
+      - name: visit_end_ts
+        type: time
+        type_params:
+          time_granularity: day
       - name: visit_start_ts
         type: time
         type_params:

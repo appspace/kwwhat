@@ -7,36 +7,19 @@
   )
 }}
 
-{% if is_incremental() %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            least(
-                {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
-                (select max(incremental_ts) from {{ ref("fact_charge_attempts") }})
-            ) as to_timestamp
-        from
-            (
-                select max(incremental_ts) as from_timestamp from {{ this }}
-            )
-    ),
+{%- if is_incremental() -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
+{%- endif -%}
 
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            least(
-                {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
-                (select max(incremental_ts) from {{ ref("fact_charge_attempts") }})
-            ) as to_timestamp
-        from
-            (
-                select cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
-            )
-    ),
-{% endif %}
+with incremental_date_range as (
+    {{ incremental_date_range(
+        from_timestamp_caps=from_ts_caps,
+        buffer_minutes=30,
+        to_timestamp_caps=["(select max(incremental_ts) from " ~ ref("fact_charge_attempts") ~ ")"]
+    ) }}
+),
 
 -- Get charge attempts with location information
 charge_attempts_with_location as (
@@ -344,12 +327,29 @@ new_visits as (
     ),
 
     visits_buffer_with_grouping_strategies as (
-        select *,
-        case 
-            when id_tag is not null 
-                then location_id || '_' || id_tag
-            else location_id || '_' || last_charge_point_id || '_' || last_port_id
-        end as grouping_key
+        select
+            visit_id,
+            location_id,
+            charge_point_ids,
+            id_tag,
+            visit_start_ts,
+            visit_end_ts,
+            charge_attempt_count,
+            charge_attempt_ids,
+            total_energy_transferred_kwh,
+            visit_duration_minutes,
+            first_charge_attempt_id,
+            last_charge_attempt_id,
+            first_charge_point_id,
+            last_charge_point_id,
+            first_port_id,
+            last_port_id,
+            is_successful,
+            case
+                when id_tag is not null
+                    then location_id || '_' || id_tag
+                else location_id || '_' || last_charge_point_id || '_' || last_port_id
+            end as grouping_key
         from visits_buffer_with_inferred_id_tags
     ),
 
@@ -383,13 +383,47 @@ new_visits as (
     ),
 
     visits as (
-        select * from merged_visits
+        select
+            location_id,
+            id_tag,
+            visit_start_ts,
+            visit_end_ts,
+            charge_attempt_count,
+            charge_attempt_ids,
+            charge_point_ids,
+            total_energy_transferred_kwh,
+            is_successful,
+            first_charge_attempt_id,
+            last_charge_attempt_id,
+            first_charge_point_id,
+            last_charge_point_id,
+            first_port_id,
+            last_port_id,
+            grouping_key
+        from merged_visits
     )
 
 {% else %}
 
     visits as (
-        select * from new_visits
+        select
+            location_id,
+            id_tag,
+            visit_start_ts,
+            visit_end_ts,
+            charge_attempt_count,
+            charge_attempt_ids,
+            charge_point_ids,
+            total_energy_transferred_kwh,
+            is_successful,
+            first_charge_attempt_id,
+            last_charge_attempt_id,
+            first_charge_point_id,
+            last_charge_point_id,
+            first_port_id,
+            last_port_id,
+            grouping_key
+        from new_visits
     )
 
 {% endif %}

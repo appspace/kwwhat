@@ -46,6 +46,26 @@ sources:
             description: "Timestamp when the charger was decommissioned (null if still active)"
 
 models:
+  - name: stg_ocpp_logs
+    description: "Staging model for raw OCPP logs. Each row is one OCPP message (CALL or CALLRESULT). Grain: one row per charge_point_id + message_type_id + unique_id."
+    columns:
+      - name: charge_point_id
+        description: "Charge point identifier"
+        tests:
+          - not_null
+      - name: message_type_id
+        description: "OCPP message type: 2 = CALL (request), 3 = CALLRESULT (response)"
+        tests:
+          - not_null
+      - name: unique_id
+        description: "OCPP message identifier, unique per charge point per direction"
+        tests:
+          - not_null
+      - name: ingested_timestamp
+        description: "Timestamp when the message was received"
+        tests:
+          - not_null
+
   - name: stg_ports
     description: "Staging model for ports/connectors data. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE). Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time."
     columns:
@@ -83,3 +103,8 @@ models:
               - charge_point_id
               - port_id
               - connector_id
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "commissioned_ts is null or decommissioned_ts is null or commissioned_ts <= decommissioned_ts"
+          config:
+            severity: error

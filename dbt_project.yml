@@ -53,6 +53,7 @@ vars:
     unit: "month"
     length: 3
 
+  success_energy_threshold_kwh: 0.1
   authorize_time_threshold_seconds: 300
   heartbeat_interval_seconds: 300
   transaction_message_retry_interval: 45

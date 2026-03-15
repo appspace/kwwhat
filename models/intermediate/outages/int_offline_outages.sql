@@ -9,34 +9,18 @@
 
 {% set charge_point_initiated_actions = ['Authorize', 'BootNotification', 'DataTransfer', 'DiagnosticStatusNotification', 'FirmwareStatusNotification', 'Heartbeat', 'MeterValues', 'StartTransaction', 'StatusNotification', 'StopTransaction'] %}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            least(
-                {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
-                (select max(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
-            ) as to_timestamp
-        from
-            (
-                select (select max(incremental_ts) from {{ this }}) as from_timestamp
-            )
-    ),
+{%- if is_incremental() -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
+{%- endif -%}
 
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            least(
-                {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
-                (select max(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
-            ) as to_timestamp
-        from
-            (
-                select cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
-            )
-    ),
-{% endif %}
+with incremental_date_range as (
+    {{ incremental_date_range(
+        from_timestamp_caps=from_ts_caps,
+        to_timestamp_caps=["(select max(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"]
+    ) }}
+),
 
 -- charger context: time window per charger that should have events within boundaries of this incremental run
 charger_context as (
@@ -136,13 +120,13 @@ chargers_with_no_messages as (
 ),
 
 new_outages as (
-    select * from outages_from_gaps
+    select charge_point_id, from_ts, to_ts from outages_from_gaps
     union all
-    select * from chargers_with_no_messages
+    select charge_point_id, from_ts, to_ts from chargers_with_no_messages
 ),
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
--- Read buffer of previous outages that might continue intocurrent period
+{% if is_incremental() %}
+-- Read buffer of previous outages that might continue into current period
 previous_outages as (
     select
         charge_point_id,
@@ -162,7 +146,10 @@ merged_outages as (
 ),
 
 all_outages as (
-    select *,
+    select
+        charge_point_id,
+        from_ts,
+        to_ts,
         {{ dbt.datediff('from_ts', 'to_ts', 'seconds') }} as duration_seconds
     from merged_outages
 )
@@ -170,7 +157,10 @@ all_outages as (
 {% else %}
 
 all_outages as (
-    select *,
+    select
+        charge_point_id,
+        from_ts,
+        to_ts,
         {{ dbt.datediff('from_ts', 'to_ts', 'seconds') }} as duration_seconds
     from new_outages
 )

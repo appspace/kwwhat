@@ -8,39 +8,24 @@
 }}
 
 {% set VALID_STOP_REASONS = ['Local', 'Remote', 'EVDisconnected'] %}
+{%- set _authorize_threshold = var("authorize_time_threshold_seconds") -%}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            least(
-                {{ dbt.dateadd("month", 3, "from_timestamp") }},
-                (select max(incremental_ts) from {{ ref("int_connector_preparing") }}),
-                (select max(incremental_ts) from {{ ref("int_transactions") }})
-            ) as to_timestamp
-        from
-            (
-                select max(incremental_ts) as from_timestamp from {{ this }}
-            )
-    ),
+{%- if is_incremental() -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
+{%- endif -%}
 
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            least(
-                {{ dbt.dateadd("month", 3, "from_timestamp") }},
-                (select max(incremental_ts) from {{ ref("int_connector_preparing") }}),
-                (select max(incremental_ts) from {{ ref("int_transactions") }})
-            ) as to_timestamp
-        from
-            (
-                select cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
-            )
-    ),
-{% endif %}
+with incremental_date_range as (
+    {{ incremental_date_range(
+        from_timestamp_caps=from_ts_caps,
+        buffer_minutes=30,
+        to_timestamp_caps=[
+            "(select max(incremental_ts) from " ~ ref("int_connector_preparing") ~ ")",
+            "(select max(incremental_ts) from " ~ ref("int_transactions") ~ ")"
+        ]
+    ) }}
+),
 
 preparing as (
     select
@@ -143,14 +128,14 @@ attempts_and_transactions as (
         on p.charge_point_id = t.charge_point_id
         and p.connector_id = t.connector_id
         and p.transaction_id = t.transaction_id
-        and t.transaction_ingested_ts > {{ dbt.dateadd("second", -var("authorize_time_threshold_seconds"), 'coalesce(p.previous_ingested_ts, p.preparing_ingested_ts)') }}
-        and t.transaction_ingested_ts <= {{ dbt.dateadd("second", var("authorize_time_threshold_seconds"), 'coalesce(p.next_ingested_ts, p.preparing_ingested_ts)') }}
+        and t.transaction_ingested_ts > {{ dbt.dateadd("second", -_authorize_threshold, 'coalesce(p.previous_ingested_ts, p.preparing_ingested_ts)') }}
+        and t.transaction_ingested_ts <= {{ dbt.dateadd("second", _authorize_threshold, 'coalesce(p.next_ingested_ts, p.preparing_ingested_ts)') }}
         
 )
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
    ,
-   
+
     -- Read previously stored charge attempts within buffer window
     charge_attempts_buffer as (
         select
@@ -218,20 +203,42 @@ attempts_and_transactions as (
     )
 {% endif %}
 
-select *,
+select
+    charge_point_id,
+    connector_id,
+    charge_attempt_start_ts,
+    charge_attempt_stop_ts,
+    preparing_unique_id,
+    preparing_ingested_ts,
+    preparing_payload_ts,
+    preparing_next_payload_ts,
+    previous_status,
+    status,
+    next_status,
+    id_tags,
+    id_tag_statuses,
+    transaction_id,
+    transaction_ingested_ts,
+    transaction_start_ts,
+    transaction_stop_ts,
+    transaction_stop_reason,
+    meter_start_wh,
+    meter_stop_wh,
+    energy_transferred_kwh,
+    error_codes,
     -- Generate a deterministic unique ID from the composite key
     {{ dbt_utils.generate_surrogate_key(['charge_point_id', 'connector_id', 'charge_attempt_start_ts']) }} as charge_attempt_id,
     case
         when transaction_id is not null
             and (next_status is null or next_status != 'Faulted')
             and transaction_stop_reason in ({{ "'" + "', '".join(VALID_STOP_REASONS) + "'" }})
-            and energy_transferred_kwh is not null and energy_transferred_kwh > 0.1
+            and energy_transferred_kwh is not null and energy_transferred_kwh > {{ var('success_energy_threshold_kwh') }}
         then true
         else false
     end as is_successful,
     (select incremental_ts from incremental) as incremental_ts
-from 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+from
+{% if is_incremental() %}
     merged_attempts_and_transactions
 {% else %}
     attempts_and_transactions
