@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "dbt-mcp": {
+      "url": "http://dbt:8080/sse"
+    }
+  }
+}

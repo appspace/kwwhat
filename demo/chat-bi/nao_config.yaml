@@ -1,0 +1,16 @@
+project_name: kwwhat-demo
+
+databases:
+  - name: duckdb_analytics
+    type: duckdb
+    path: /data/analytics.duckdb
+    schema_name: ANALYTICS
+    include:
+      - fact_*
+      - dim_*
+    accessors:
+      - columns
+      - description
+      - preview
+
+repos: []
