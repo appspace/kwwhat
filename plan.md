@@ -19,6 +19,7 @@
 
   Create /demo inside kwwhat with the following layout:
 
+```
   demo/
   ├── docker-compose.yml
   ├── .env.example
@@ -35,7 +36,7 @@
       ├── nao_config.yaml
       ├── mcp.json
       └── entrypoint.sh
-
+```
   ---
   Phase 2 — Service 1: duckdb-init (init container)
 
@@ -128,7 +129,7 @@
 
   ---
   Open Questions to Resolve During Build
-
+```
   ┌─────┬───────────────────────────────────┬────────────────────┬───────────────────────────────────────┐
   │  #  │             Question              │       Impact       │                 Plan                  │
   ├─────┼───────────────────────────────────┼────────────────────┼───────────────────────────────────────┤
@@ -144,7 +145,7 @@
   │ 3   │ (no dbt Cloud, no Semantic        │ functionality      │ via a thin HTTP wrapper               │
   │     │ Layer)?                           │                    │                                       │
   └─────┴───────────────────────────────────┴────────────────────┴───────────────────────────────────────┘
-
+```
   ---
   Files NOT changing
 
