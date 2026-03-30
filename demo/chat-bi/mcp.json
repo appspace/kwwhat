@@ -1,7 +1,18 @@
 {
   "mcpServers": {
     "dbt-mcp": {
-      "url": "http://dbt:8080/sse"
+      "command": "dbt-mcp",
+      "args": [],
+      "env": {
+        "DBT_PROJECT_DIR": "/kwwhat",
+        "DBT_PROFILES_DIR": "/profiles",
+        "DBT_TARGET": "duckdb",
+        "DISABLE_REMOTE": "true",
+        "DISABLE_SEMANTIC_LAYER": "false",
+        "DISABLE_DISCOVERY": "true",
+        "DISABLE_SQL": "true",
+        "DISABLE_ADMIN_API": "true"
+      }
     }
   }
 }

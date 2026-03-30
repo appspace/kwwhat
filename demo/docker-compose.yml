@@ -11,7 +11,7 @@ services:
 
   # ── Service 2 ──────────────────────────────────────────────────────────────
   # Runs dbt build: staging → intermediate → marts written to analytics.duckdb.
-  # Then serves the dbt MCP server on port 8080 for the chat-bi service.
+  # Exits when done — chat-bi waits for completion before starting.
   dbt:
     build: ./dbt
     depends_on:
@@ -19,26 +19,19 @@ services:
         condition: service_completed_successfully
     volumes:
       - duckdb-data:/data
-      - ../:/kwwhat:ro         # mount the kwwhat dbt project read-only
-    ports:
-      - "8080:8080"
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8080"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 120s       # dbt build can take a while on first run
+      - ../:/kwwhat            # mount the kwwhat dbt project
 
   # ── Service 3 ──────────────────────────────────────────────────────────────
-  # Interactive chat interface. Waits for dbt to finish, then opens nao chat.
+  # Interactive chat interface with dbt-mcp running as a local subprocess.
   # Run with: docker compose run --rm chat-bi
   chat-bi:
     build: ./chat-bi
-    depends_on:
-      dbt:
-        condition: service_healthy
     volumes:
       - duckdb-data:/data      # read analytics.duckdb
+      - ../:/kwwhat:ro         # dbt-mcp needs the project for CLI tools
+    ports:
+      - "5005:5005"            # nao chat server
+      - "8005:8005"            # nao FastAPI server
     stdin_open: true
     tty: true
     environment:

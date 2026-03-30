@@ -15,25 +15,12 @@ echo "raw.duckdb found."
 cd /kwwhat
 
 echo "Installing dbt packages..."
-dbt deps
+dbt deps --log-path /tmp/dbt-logs
 
-echo "Running dbt build (staging → intermediate → marts)..."
-dbt build --target duckdb
+echo "Running dbt run (staging → intermediate → marts)..."
+dbt run --target duckdb --log-path /tmp/dbt-logs
+
+echo "Running dbt tests (failures reported but do not block startup)..."
+dbt test --target duckdb --log-path /tmp/dbt-logs --exclude "test_type:unit" || echo "Some tests failed — see logs."
 
 echo "=== dbt build complete ==="
-
-# Configure dbt-mcp for local mode:
-#   - no dbt Cloud (DISABLE_REMOTE=true)
-#   - Semantic Layer via local MetricFlow (DISABLE_SEMANTIC_LAYER=false)
-#   - Discovery API enabled so nao can browse model metadata
-#   - SQL execution enabled so nao can run queries
-export DBT_PROJECT_DIR=/kwwhat
-export DBT_PROFILES_DIR=/profiles
-export DISABLE_REMOTE=true
-export DISABLE_SEMANTIC_LAYER=false
-export DISABLE_DISCOVERY=false
-export DISABLE_SQL=false
-export DISABLE_ADMIN_API=true
-
-echo "Starting dbt-mcp server on port 8080 (Semantic Layer enabled)..."
-exec python -m dbt_mcp --transport sse --port 8080

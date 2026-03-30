@@ -39,7 +39,7 @@ charge_attempts_with_location as (
         -- Extract first idTag from array (or null if empty)
         case 
             when att.id_tags is not null and {{ array_size('att.id_tags') }} > 0
-            then att.id_tags[0]
+            then {{ array_first('att.id_tags') }}
             else null
         end as id_tag
     from {{ ref("fact_charge_attempts") }} att
