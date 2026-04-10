@@ -65,6 +65,13 @@ models:
         description: "Timestamp when the message was received"
         tests:
           - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - message_type_id
+              - unique_id
 
   - name: stg_ports
     description: "Staging model for ports/connectors data. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE). Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time."
