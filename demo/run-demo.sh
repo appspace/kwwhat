@@ -43,10 +43,6 @@ echo ""
 echo "Step 2/3: Running dbt build (staging → intermediate → marts)..."
 echo "          This transforms raw OCPP logs into analytics tables."
 echo "          (This can take 1-2 minutes)"
-docker compose up -d dbt
-
-echo ""
-echo "Waiting for dbt to finish and start the MCP server..."
 docker compose up dbt --wait 2>/dev/null || true
 
 # ── Launch chat BI ───────────────────────────────────────────────────────────

@@ -6,8 +6,8 @@ databases:
     path: /data/analytics.duckdb
     schema_name: ANALYTICS
     include:
-      - ANALYTICS.fact_*
-      - ANALYTICS.dim_*
+      - analytics.ANALYTICS.fact_*
+      - analytics.ANALYTICS.dim_*
     accessors:
       - columns
       - description
