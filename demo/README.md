@@ -30,7 +30,7 @@ cp .env.example .env
 ./run-demo.sh
 ```
 
-That's it. The script will build the images, load the data, run the pipeline, and drop you into the chat interface.
+That's it. The script will build the images, load the data, run the pipeline, and open the chat interface at **http://localhost:5005**.
 
 ---
 
@@ -83,11 +83,11 @@ docker compose build
 # Load seed data (runs once and exits)
 docker compose up duckdb-init
 
-# Run dbt pipeline and start MCP server (background)
-docker compose up -d dbt
+# Run dbt pipeline
+docker compose up dbt
 
-# Open chat interface (interactive)
-docker compose run --rm chat-bi
+# Open chat interface (interactive) — available at http://localhost:5005
+docker compose run --rm -p 5005:5005 -p 8005:8005 chat-bi
 
 # Stop everything
 docker compose down
