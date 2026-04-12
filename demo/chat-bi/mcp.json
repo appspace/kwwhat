@@ -9,9 +9,10 @@
         "DBT_TARGET": "duckdb",
         "DISABLE_REMOTE": "true",
         "DISABLE_SEMANTIC_LAYER": "false",
-        "DISABLE_DISCOVERY": "true",
+        "DISABLE_DISCOVERY": "false",
         "DISABLE_SQL": "true",
-        "DISABLE_ADMIN_API": "true"
+        "DISABLE_ADMIN_API": "true",
+        "DBT_LOG_PATH": "/tmp/dbt-mcp-logs"
       }
     }
   }

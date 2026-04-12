@@ -6,11 +6,17 @@ databases:
     path: /data/analytics.duckdb
     schema_name: ANALYTICS
     include:
-      - fact_*
-      - dim_*
+      - ANALYTICS.fact_*
+      - ANALYTICS.dim_*
     accessors:
       - columns
       - description
       - preview
 
-repos: []
+repos:
+  - name: kwwhat
+    local_path: /kwwhat
+    include:
+      - models/semantic/semantic_models.yml
+      - models/marts/marts.yml
+      - dbt_project.yml

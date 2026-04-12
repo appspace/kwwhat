@@ -20,4 +20,8 @@ echo "==========================================="
 echo ""
 
 cd /app
+mkdir -p repos databases
+echo "Syncing nao context (repos + database schemas)..."
+nao sync
+echo ""
 exec nao chat

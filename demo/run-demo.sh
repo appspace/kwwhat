@@ -54,7 +54,7 @@ docker compose up dbt --wait 2>/dev/null || true
 echo ""
 echo "Step 3/3: Starting chat BI interface..."
 echo ""
-docker compose run --rm chat-bi
+docker compose run --rm -p 5005:5005 -p 8005:8005 chat-bi
 
 # ── Cleanup prompt ───────────────────────────────────────────────────────────
 
