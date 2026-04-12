@@ -2,20 +2,7 @@
 
 Run the full kwwhat analytics pipeline locally — no cloud account needed.
 
-This demo spins up three services via Docker Compose:
-
-| Service | What it does |
-|---------|-------------|
-| `duckdb-init` | Loads the sample OCPP log data into a local database |
-| `dbt` | Runs the kwwhat dbt pipeline, transforming raw logs into analytics tables |
-| `chat-bi` | Opens an AI chat interface so you can ask questions about the data |
-
----
-
-## Prerequisites
-
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-- An [Anthropic API key](https://console.anthropic.com/) (powers the chat interface)
+<img width="1427" height="770" alt="Screenshot 2026-04-12 at 3 11 46 PM" src="https://github.com/user-attachments/assets/95010112-11c3-4c51-b77d-8ea3dcc10053" />
 
 ---
 
@@ -31,6 +18,22 @@ cp .env.example .env
 ```
 
 That's it. The script will build the images, load the data, run the pipeline, and open the chat interface at **http://localhost:5005**.
+
+---
+
+## Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+  
+This demo spins up three services via Docker Compose:
+
+| Service | What it does |
+|---------|-------------|
+| `duckdb-init` | Loads the sample OCPP log data into a local database |
+| `dbt` | Runs the kwwhat dbt pipeline, transforming raw logs into analytics tables |
+| `chat-bi` | Opens an AI chat interface so you can ask questions about the data |
+
+- An [Anthropic API key](https://console.anthropic.com/) (powers the chat interface)
 
 ---
 
