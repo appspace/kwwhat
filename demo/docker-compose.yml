@@ -1,0 +1,41 @@
+services:
+
+  # ── Service 1 ──────────────────────────────────────────────────────────────
+  # Loads CSV seed data into raw.duckdb (RAW catalog, SEED schema).
+  # Runs once and exits — all other services wait for it to complete.
+  duckdb-init:
+    build: ./duckdb-init
+    volumes:
+      - duckdb-data:/data
+      - ./seeds:/seeds:ro      # seed CSVs live here under demo/
+
+  # ── Service 2 ──────────────────────────────────────────────────────────────
+  # Runs dbt build: staging → intermediate → marts written to analytics.duckdb.
+  # Exits when done — chat-bi waits for completion before starting.
+  dbt:
+    build: ./dbt
+    depends_on:
+      duckdb-init:
+        condition: service_completed_successfully
+    volumes:
+      - duckdb-data:/data
+      - ../:/kwwhat            # mount the kwwhat dbt project
+
+  # ── Service 3 ──────────────────────────────────────────────────────────────
+  # Interactive chat interface with dbt-mcp running as a local subprocess.
+  # Run with: docker compose run --rm chat-bi
+  chat-bi:
+    build: ./chat-bi
+    volumes:
+      - duckdb-data:/data      # read analytics.duckdb
+      - ../:/kwwhat:ro         # dbt-mcp needs the project for CLI tools
+    ports:
+      - "5005:5005"            # nao chat server
+      - "8005:8005"            # nao FastAPI server
+    stdin_open: true
+    tty: true
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+
+volumes:
+  duckdb-data:

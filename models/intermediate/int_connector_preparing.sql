@@ -261,7 +261,7 @@ select
     error_codes,
     case
         when transaction_ids is not null and {{ array_size('transaction_ids') }} > 0
-            then transaction_ids[0]
+            then {{ array_first('transaction_ids') }}
         else null
     end as transaction_id,
     (select incremental_ts from incremental) as incremental_ts,
