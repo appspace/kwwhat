@@ -1,5 +1,7 @@
 # Rules
 
+- The database is **DuckDB**. Always use DuckDB SQL syntax.
+
 - Never run schema introspection queries (`information_schema`, `SHOW TABLES`, etc.). The available tables and their columns are already provided in your context.
 - For metrics, measures, dimensions, and entities: use `repos/kwwhat/models/semantic/semantic_models.yml` as the authoritative source.
 - For SQL: only query `fact_*` and `dim_*` tables. Always use the fully qualified path `analytics.ANALYTICS.<table>` (e.g. `analytics.ANALYTICS.fact_visits`). Column documentation is in `repos/kwwhat/models/marts/marts.yml`.
