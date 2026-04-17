@@ -24,20 +24,8 @@ latest_status as (
         status as latest_status,
         error_code as latest_error_code,
         ingested_ts as latest_status_ts
-    from (
-        select
-            charge_point_id,
-            connector_id,
-            status,
-            error_code,
-            ingested_ts,
-            row_number() over (
-                partition by charge_point_id, connector_id
-                order by ingested_ts desc
-            ) as rn
-        from {{ ref('int_status_changes') }}
-    )
-    where rn = 1
+    from {{ ref('int_status_changes') }}
+    where next_status is null
 )
 
 select

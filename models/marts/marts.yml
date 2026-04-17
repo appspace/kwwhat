@@ -323,6 +323,16 @@ models:
               - charge_point_id
               - port_id
               - connector_id
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "latest_status is null or latest_status_ts is not null"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "latest_status is null or latest_error_code is not null"
+          config:
+            severity: error
 
   - name: charge_point_span_daily
     description: "One row per charge point per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."
