@@ -1,13 +1,9 @@
-FROM python:3.12-slim
+FROM getnao/nao:latest
 
-RUN pip install --no-cache-dir \
-    "nao-core[duckdb]==0.0.59"
+COPY nao_config.yaml /app/kwwhat/nao_config.yaml
+COPY RULES.md /app/kwwhat/RULES.md
+COPY tests/ /app/kwwhat/tests/
+COPY entrypoint.sh /demo-entrypoint.sh
+RUN chmod +x /demo-entrypoint.sh
 
-WORKDIR /app
-
-COPY nao_config.yaml .
-COPY RULES.md .
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/demo-entrypoint.sh"]
