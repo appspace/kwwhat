@@ -1,7 +1,7 @@
 FROM getnao/nao:latest
 
-COPY nao_config.yaml /app/example/nao_config.yaml
-COPY RULES.md /app/example/RULES.md
+COPY nao_config.yaml /app/kwwhat/nao_config.yaml
+COPY RULES.md /app/kwwhat/RULES.md
 COPY entrypoint.sh /demo-entrypoint.sh
 RUN chmod +x /demo-entrypoint.sh
 

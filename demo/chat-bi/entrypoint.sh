@@ -11,9 +11,9 @@ until [ -f "$ANALYTICS_DB" ]; do
 done
 echo "analytics.duckdb is ready."
 
-mkdir -p /app/example/repos /app/example/databases
+mkdir -p /app/kwwhat/repos /app/kwwhat/databases
 echo "Syncing nao context (repos + database schemas)..."
-cd /app/example
+cd /app/kwwhat
 nao sync
 
 echo ""
