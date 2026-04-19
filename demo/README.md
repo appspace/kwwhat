@@ -101,6 +101,40 @@ docker compose down -v
 
 ---
 
+## Running tests
+
+Tests live in `chat-bi/tests/` and run against the live chat server. With the demo already running, open a terminal and exec into the container:
+
+```bash
+docker exec -it $(docker ps -q --filter "publish=5005") bash
+cd /app/kwwhat
+nao test -m anthropic:claude-sonnet-4-6
+```
+
+You'll be prompted to log in with the account you created at http://localhost:5005. Results (pass/fail, tokens, cost, latency) are saved to `/app/kwwhat/tests/outputs/`.
+
+You should see
+```
+                                             Test Results
+┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
+┃ Test        ┃ Model                       ┃ Status ┃ Message ┃ Tokens ┃ Cost      ┃ Time (s) ┃ Tools ┃
+┡━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
+│ total_ports │ anthropic:claude-sonnet-4-6 │ ✓      │ match   │ 16253  │ 0.0246861 │ 12.2     │ 5     │
+│             │                             │        │         │ 16253  │ $0.0247   │ 12       │ 5     │
+└─────────────┴─────────────────────────────┴────────┴─────────┴────────┴───────────┴──────────┴───────┘
+```
+
+To add more tests, create a YAML file in `chat-bi/tests/`:
+
+```yaml
+name: my_test
+prompt: "Your natural language question here"
+sql: |
+  SELECT ... -- reference query whose results the agent must match
+```
+
+---
+
 ## Project structure
 
 ```
