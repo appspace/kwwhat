@@ -2,7 +2,11 @@
 
 Run the full kwwhat analytics pipeline locally — no cloud account needed.
 
-<img width="1427" height="770" alt="Screenshot 2026-04-12 at 3 11 46 PM" src="https://github.com/user-attachments/assets/95010112-11c3-4c51-b77d-8ea3dcc10053" />
+<img
+  alt="demo screenshot showing ChatBI interface" 
+  src="https://github.com/user-attachments/assets/95010112-11c3-4c51-b77d-8ea3dcc10053"
+style="width: 100%; height: auto;"
+/>
 
 ---
 
