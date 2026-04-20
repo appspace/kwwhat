@@ -1,6 +1,39 @@
 version: 2
 
 models:
+  - name: int_connector_latest_status
+    description: "Latest OCPP status snapshot per connector. View over int_status_changes filtered to rows where next_status is null. Grain: one row per charge_point_id + connector_id."
+    columns:
+      - name: charge_point_id
+        description: "Identifier for the charge point"
+        tests:
+          - not_null
+      - name: connector_id
+        description: "Identifier for the connector"
+        tests:
+          - not_null
+      - name: latest_status
+        description: "Most recent OCPP status for this connector"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Available', 'Preparing', 'Charging', 'SuspendedEVSE', 'SuspendedEV', 'Finishing', 'Reserved', 'Unavailable', 'Faulted']
+      - name: latest_error_code
+        description: "Error code from the most recent StatusNotification"
+        tests:
+          - not_null
+      - name: latest_status_ts
+        description: "Timestamp when the most recent status was ingested"
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - connector_id
+
   - name: int_status_changes
     description: "Intermediate model that tracks connector status changes with previous status tracking and confirmation status. Uses incremental processing with 30-minute buffer to ensure accurate previous_status relationships. Grain: one row per status notification."
     columns:
