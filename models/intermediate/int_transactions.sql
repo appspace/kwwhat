@@ -199,7 +199,7 @@ select
     ) as energy_transferred_kwh,
     case 
         when t.connector_ids is not null and {{ array_size('t.connector_ids') }} > 0
-            then t.connector_ids[0]
+            then {{ array_first('t.connector_ids') }}
         else null
     end as connector_id,
 

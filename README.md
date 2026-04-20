@@ -59,6 +59,22 @@ Visits is successful when the last attempt of the visit is successful.
 
 ---
 
+## Try it locally (demo)
+
+The fastest way to explore kwwhat is the self-contained Docker demo — no cloud account needed.
+
+```bash
+cd demo
+cp .env.example .env   # add your Anthropic API key
+./run-demo.sh
+```
+
+This spins up three services: a local DuckDB database loaded with sample OCPP logs, the full dbt pipeline, and an AI chat interface where you can ask plain-English questions about your EV charger data.
+
+See [`demo/README.md`](demo/README.md) for details.
+
+---
+
 ## Installation
 
 ```bash

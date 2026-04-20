@@ -77,9 +77,9 @@ with incremental_date_range as (
             transaction_id,
             connector_id,
             -- Extract timestamp from the meter value object
-            cast({{ fivetran_utils.json_extract(string="mv.value", string_path="timestamp") }} as {{ dbt.type_timestamp() }}) as meter_timestamp,
+            cast({{ json_extract(string="mv.value", string_path="timestamp") }} as {{ dbt.type_timestamp() }}) as meter_timestamp,
             -- Keep the full meter value object for now
-            {{ fivetran_utils.json_extract(string="mv.value", string_path="sampledValue") }} as sample_values
+            {{ json_extract(string="mv.value", string_path="sampledValue") }} as sample_values
         from meter_value_logs
         {{ json_array_unnest('meter_values') }} as mv
         where meter_values is not null
