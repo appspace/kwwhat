@@ -7,3 +7,6 @@ logs/
 # Python virtual environment
 venv/
 .dbt/
+
+# Local secrets — copy from .env.example and fill in
+demo/.env
