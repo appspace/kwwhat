@@ -6,8 +6,9 @@ import json
 import logging
 import random
 import uuid
+from collections import defaultdict
 from dataclasses import asdict, is_dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -351,8 +352,16 @@ class ChargePoint(cp):
 
 
 class SessionLogWriter:
-    def __init__(self, output: Path):
+    def __init__(
+        self,
+        output: Path,
+        response_delay_ms: int = 40,
+        response_delay_jitter_ms: int = 10,
+    ):
         self.output = output
+        self.response_delay_ms = max(0, response_delay_ms)
+        self.response_delay_jitter_ms = max(0, response_delay_jitter_ms)
+        self.message_counters: dict[str, int] = defaultdict(int)
         self.file = output.open("w", encoding="utf-8", newline="")
         self.writer = csv.DictWriter(self.file, fieldnames=["timestamp", "id", "action", "msg"])
         self.writer.writeheader()
@@ -378,9 +387,15 @@ class SessionLogWriter:
         response_payload: dict[str, Any],
         msg_prefix: str,
     ) -> None:
-        msg_id = f"{msg_prefix}-{uuid.uuid4().hex[:5]}"
-        request_time = format_utc_z()
-        response_time = format_utc_z(datetime.now(timezone.utc))
+        self.message_counters[msg_prefix] += 1
+        msg_id = f"{msg_prefix}-{self.message_counters[msg_prefix]:05d}"
+        request_dt = datetime.now(timezone.utc)
+        response_dt = request_dt + timedelta(
+            milliseconds=self.response_delay_ms
+            + random.randint(0, self.response_delay_jitter_ms)
+        )
+        request_time = format_utc_z(request_dt)
+        response_time = format_utc_z(response_dt)
         self._write_row(request_time, charge_point_id, action, [2, msg_id, action, request_payload])
         self._write_row(response_time, charge_point_id, "", [3, msg_id, response_payload])
 
@@ -428,6 +443,18 @@ def parse_args() -> argparse.Namespace:
         default=0.05,
         help="Chance of a fault/recovery status sequence per loop (default: 0.05).",
     )
+    parser.add_argument(
+        "--response-delay-ms",
+        type=int,
+        default=40,
+        help="Base response spacing in CSV rows (default: 40ms).",
+    )
+    parser.add_argument(
+        "--response-delay-jitter-ms",
+        type=int,
+        default=10,
+        help="Extra random response delay jitter in ms (default: 10).",
+    )
     return parser.parse_args()
 
 
@@ -439,9 +466,15 @@ async def main(
     output: Path,
     status_every: int,
     fault_probability: float,
+    response_delay_ms: int,
+    response_delay_jitter_ms: int,
 ):
     connector_ids = read_ports(ports_file, charge_point_id)
-    log_writer = SessionLogWriter(output)
+    log_writer = SessionLogWriter(
+        output,
+        response_delay_ms=response_delay_ms,
+        response_delay_jitter_ms=response_delay_jitter_ms,
+    )
     start_task: asyncio.Task | None = None
     async with websockets.connect(
         f"ws://localhost:9000/{charge_point_id}", subprotocols=["ocpp2.0.1"]
@@ -550,5 +583,7 @@ if __name__ == "__main__":
             output=args.output,
             status_every=args.status_every,
             fault_probability=args.fault_probability,
+            response_delay_ms=args.response_delay_ms,
+            response_delay_jitter_ms=args.response_delay_jitter_ms,
         )
     )
