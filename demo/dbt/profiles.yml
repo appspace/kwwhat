@@ -1,0 +1,15 @@
+kwwhat:
+  target: duckdb
+  outputs:
+    duckdb:
+      type: duckdb
+      # Analytics models are written here
+      path: /data/analytics.duckdb
+      # Attach the raw seed data (read-only) as the RAW catalog
+      attach:
+        - path: /data/raw.duckdb
+          alias: RAW
+          read_only: true
+      # Write transformed models into the ANALYTICS schema
+      schema: ANALYTICS
+      threads: 4

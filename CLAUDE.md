@@ -64,6 +64,11 @@ Marts (tables, incremental)
 - CTEs for readability
 - meaningful CTE names
 
+### Macros
+- For cross-platform SQL compatibility, use `adapter.dispatch` instead of `{% if target.type == '...' %}` branches — it keeps each adapter's implementation separate and allows overrides by downstream projects.
+- Check `dbt.` built-ins first (`dbt.type_string()`, `dbt.date_trunc()`, `dbt.dateadd()`, etc.) before writing a custom cross-platform macro.
+- Use dispatch when SQL syntax genuinely differs across adapters (JSON, arrays, date math, regex, string aggregation). Skip it for logic that is identical everywhere.
+
 ### Naming
 | Type | Convention |
 |------|------------|

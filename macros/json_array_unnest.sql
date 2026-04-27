@@ -13,7 +13,7 @@
     {% elif target.type == 'bigquery' %}
         cross join unnest(json_extract_array({{ json_column }}))
     {% elif target.type == 'duckdb' %}
-        cross join unnest(json_extract({{ json_column }}, '$'))
+        cross join (select unnest(json_transform({{ json_column }}, '["JSON"]')) as value)
     {% elif target.type in ['postgres', 'redshift'] %}
         cross join unnest({{ json_column }})
     {% elif target.type in ['spark', 'databricks'] %}
