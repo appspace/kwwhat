@@ -306,6 +306,16 @@ models:
         description: "Timestamp when the charger was commissioned (null if not commissioned yet)"
       - name: decommissioned_ts
         description: "Timestamp when the charger was decommissioned (null if still active)"
+      - name: latest_status
+        description: "Most recent OCPP status reported by this connector (null if no status has been received)"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Available', 'Preparing', 'Charging', 'SuspendedEVSE', 'SuspendedEV', 'Finishing', 'Reserved', 'Unavailable', 'Faulted']
+      - name: latest_error_code
+        description: "Error code from the most recent StatusNotification (e.g., NoError, ConnectorLockFailure)"
+      - name: latest_status_ts
+        description: "Timestamp when the most recent status was ingested"
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
