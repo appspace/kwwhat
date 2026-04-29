@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "connector_id"],
+    unique_key=["charge_point_id", "connector_id", "port_id"],
     incremental_strategy="merge",
     cluster_by="latest_status_ts"
   )
@@ -10,6 +10,7 @@
 select
     charge_point_id,
     connector_id,
+    port_id,
     status as latest_status,
     error_code as latest_error_code,
     ingested_ts as latest_status_ts,
