@@ -4,7 +4,7 @@
 
 ---
 
-## With nao code changes
+## Option 0: With nao code changes
 
 There's one coherent set of changes, across 4 files:
 
@@ -217,7 +217,7 @@ response_text = "".join(full_text)
 
 ## Summary table
 
-| | **With nao changes** | **Option A** | **Option B** | **Option C** |
+| | **Option 0: With nao changes** | **Option A** | **Option B** | **Option C** |
 |---|---|---|---|---|
 | **nao code touched** | Yes — 4 files | No | No | No |
 | **Eval defined in** | YAML test file | Your script | Your script | Your script |
