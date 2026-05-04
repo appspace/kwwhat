@@ -28,6 +28,11 @@ latest_status as (
 )
 
 select
+    {{ dbt_utils.generate_surrogate_key([
+        'ports.charge_point_id', 
+        'ports.port_id', 
+        'ports.connector_id'
+        ]) }} as port_sk,
     ports.charge_point_id,
     ports.location_id,
     ports.port_id,
