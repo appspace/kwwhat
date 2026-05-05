@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: int_connector_latest_status
-    description: "Latest OCPP status snapshot per connector. View over int_status_changes filtered to rows where next_status is null. Grain: one row per charge_point_id + connector_id."
+    description: "Latest OCPP status snapshot per connector. View over int_status_changes filtered to rows where next_status is null. Grain: one row per charge_point_id + connector_id + port_id."
     columns:
       - name: charge_point_id
         description: "Identifier for the charge point"
@@ -10,6 +10,10 @@ models:
           - not_null
       - name: connector_id
         description: "Identifier for the connector"
+        tests:
+          - not_null
+      - name: port_id
+        description: "Identifier for the port"
         tests:
           - not_null
       - name: latest_status
@@ -33,6 +37,7 @@ models:
             combination_of_columns:
               - charge_point_id
               - connector_id
+              - port_id
 
   - name: int_status_changes
     description: "Intermediate model that tracks connector status changes with previous status tracking and confirmation status. Uses incremental processing with 30-minute buffer to ensure accurate previous_status relationships. Grain: one row per status notification."
