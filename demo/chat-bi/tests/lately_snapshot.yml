@@ -1,5 +1,5 @@
 name: lately_snapshot
-prompt: "How are we doing lately? Give me a quick snapshot of uptime and failed charging attempts."
+prompt: "Give me a quick snapshot of uptime and failed charging attempts."
 sql: |
   SELECT
     (

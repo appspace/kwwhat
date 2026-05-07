@@ -1,5 +1,5 @@
 name: decommissioned_ports_check
-prompt: "Did we decommission the wrong charger? How many ports are currently decommissioned?"
+prompt: "How many ports are currently decommissioned?"
 sql: |
   SELECT COUNT(*) AS decommissioned_ports
   FROM analytics.ANALYTICS.dim_ports
