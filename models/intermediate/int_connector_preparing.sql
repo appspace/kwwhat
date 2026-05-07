@@ -198,7 +198,7 @@ preparing_agg as (
         next_ingested_ts,
         previous_payload_ts,
         next_payload_ts
-    )
+)
 
 {% if is_incremental() %}
 ,
