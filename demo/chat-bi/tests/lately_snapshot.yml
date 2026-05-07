@@ -1,0 +1,12 @@
+name: lately_snapshot
+prompt: "How are we doing lately? Give me a quick snapshot of uptime and failed charging attempts."
+sql: |
+  SELECT
+    (
+      SELECT ROUND(AVG(uptime) * 100, 2)
+      FROM analytics.ANALYTICS.fact_uptime
+    ) AS avg_uptime_pct,
+    (
+      SELECT ROUND((1 - AVG(CASE WHEN is_successful THEN 1.0 ELSE 0.0 END)) * 100, 2)
+      FROM analytics.ANALYTICS.fact_charge_attempts
+    ) AS failed_attempt_rate_pct
