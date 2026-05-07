@@ -10,3 +10,5 @@ venv/
 
 # Local secrets — copy from .env.example and fill in
 demo/.env
+.DS_Store
+demo/chat-bi/tests/outputs/

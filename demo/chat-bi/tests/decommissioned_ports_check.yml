@@ -1,0 +1,6 @@
+name: decommissioned_ports_check
+prompt: "How many ports are currently decommissioned?"
+sql: |
+  SELECT COUNT(*) AS decommissioned_ports
+  FROM analytics.ANALYTICS.dim_ports
+  WHERE decommissioned_ts IS NOT NULL

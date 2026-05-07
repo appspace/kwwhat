@@ -1,0 +1,5 @@
+name: network_reliability_uptime
+prompt: "What is the overall uptime percentage of my EV charging network?"
+sql: |
+  SELECT ROUND(AVG(uptime) * 100, 2) AS overall_uptime_pct
+  FROM analytics.ANALYTICS.fact_uptime
