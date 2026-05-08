@@ -107,15 +107,22 @@ docker compose down -v
 
 ## Running tests
 
-Tests live in `chat-bi/tests/` and run against the live chat server. With the demo already running, open a terminal and exec into the container:
+Tests live in `chat-bi/tests/` and run against the live chat server.
 
 ```bash
-docker exec -it $(docker ps -q --filter "publish=5005") bash
-cd /app/kwwhat
+docker exec -it $(docker ps -q --filter "publish=5005") bash -lc "cd /app/kwwhat && exec bash"
 nao test -m anthropic:claude-sonnet-4-6
 ```
 
-You'll be prompted to log in with the account you created at http://localhost:5005. Results (pass/fail, tokens, cost, latency) are saved to `/app/kwwhat/tests/outputs/`.
+Wait until the final results table is printed.
+
+You'll be prompted to log in with the account you created at http://localhost:5005. Results (pass/fail, tokens, cost, latency) are saved to `/app/kwwhat/tests/outputs/` in the container and are available on host at `demo/chat-bi/tests/outputs/` (Docker volume mapping, no `docker cp` needed).
+
+After test run, `exit` the container and verify on host:
+
+```bash
+ls -lt demo/chat-bi/tests/outputs
+```
 
 You should see
 ```

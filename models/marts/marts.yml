@@ -286,6 +286,11 @@ models:
   - name: dim_ports
     description: "Port/connector dimension. Full refresh from stg_ports. Charger means a device with one or more charging ports and connectors for charging EVs (EVSE)."
     columns:
+      - name: port_sk
+        description: "Surrogate key for the port/connector dimension"
+        tests:
+          - not_null
+          - unique
       - name: charge_point_id
         description: "Charger identifier"
         tests:
@@ -306,13 +311,16 @@ models:
         description: "Timestamp when the charger was commissioned (null if not commissioned yet)"
       - name: decommissioned_ts
         description: "Timestamp when the charger was decommissioned (null if still active)"
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns:
-              - charge_point_id
-              - port_id
-              - connector_id
+      - name: latest_status
+        description: "Most recent OCPP status reported by this connector (null if no status has been received)"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Available', 'Preparing', 'Charging', 'SuspendedEVSE', 'SuspendedEV', 'Finishing', 'Reserved', 'Unavailable', 'Faulted']
+      - name: latest_error_code
+        description: "Error code from the most recent StatusNotification (e.g., NoError, ConnectorLockFailure)"
+      - name: latest_status_ts
+        description: "Timestamp when the most recent status was ingested"
 
   - name: charge_point_span_daily
     description: "One row per charge point per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."

@@ -339,3 +339,41 @@ unit_tests:
     expect:
       rows:
         - {charge_point_id: 'CH-001', connector_id: '1', status: 'Preparing', next_status: 'Charging'}
+
+  # ── int_connector_latest_status ─────────────────────────────────────────────
+
+  - name: test_connector_latest_status_retains_record_when_no_new_events
+    description: >
+      When a batch contains no status updates for connector X, the model should
+      produce no output row for X so that the merge strategy leaves X's existing
+      record in {{ this }} untouched.
+    model: int_connector_latest_status
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            'P-001'                                    as port_id,
+            'Available'                                as latest_status,
+            'NoError'                                  as latest_error_code,
+            cast('2025-10-02 09:00:00' as timestamp)  as latest_status_ts,
+            cast('2025-10-02 10:00:00' as timestamp)  as incremental_ts
+      - input: ref('int_status_changes')
+        format: sql
+        rows: |
+          select
+            'CH-002'                                   as charge_point_id,
+            '1'                                        as connector_id,
+            'P-002'                                    as port_id,
+            cast('2025-10-02 10:30:00' as timestamp)  as ingested_ts,
+            'Charging'                                 as status,
+            'NoError'                                  as error_code,
+            cast(null as string)                       as next_status
+    expect:
+      rows:
+        - {charge_point_id: 'CH-002', connector_id: '1', port_id: 'P-002', latest_status: 'Charging'}

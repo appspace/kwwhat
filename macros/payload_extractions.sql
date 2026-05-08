@@ -117,22 +117,16 @@
 {% macro payload_extract_meter_values(action, payload) %}
     case
         when {{ action }} = 'MeterValues'
-            then
-                {% if target.type == 'snowflake' %}
-                    try_parse_json({{ payload }}):meterValue
-                {% elif target.type == 'bigquery' %}
-                    json_extract_array({{ payload }}, '$.meterValue')
-                {% elif target.type in ['trino', 'presto', 'athena'] %}
-                    cast(json_extract(try_parse_json({{ payload }}), '$.meterValue') as array(json))
-                {% elif target.type == 'duckdb' %}
-                    json_extract({{ payload }}, '$.meterValue')
-                {% elif target.type in ['postgres', 'redshift'] %}
-                    ({{ payload }}::jsonb -> 'meterValue')
-                {% elif target.type in ['spark', 'databricks'] %}
-                    from_json({{ payload }}, 'STRUCT<meterValue: ARRAY<STRUCT<timestamp: STRING, sampledValue: ARRAY<STRUCT<measurand: STRING, value: STRING, unit: STRING, phase: STRING>>>>>').meterValue
-                {% else %}
-                    cast(json_extract(try_parse_json({{ payload }}), '$.meterValue') as array(json))
-                {% endif %}
+            then {{ adapter.dispatch('meter_values_json', 'kwwhat')(payload) }}
         else null
     end
 {% endmacro %}
+
+{% macro default__meter_values_json(payload) %}cast(json_extract(try_parse_json({{ payload }}), '$.meterValue') as array(json)){% endmacro %}
+{% macro snowflake__meter_values_json(payload) %}try_parse_json({{ payload }}):meterValue{% endmacro %}
+{% macro bigquery__meter_values_json(payload) %}json_extract_array({{ payload }}, '$.meterValue'){% endmacro %}
+{% macro duckdb__meter_values_json(payload) %}json_extract({{ payload }}, '$.meterValue'){% endmacro %}
+{% macro postgres__meter_values_json(payload) %}({{ payload }}::jsonb -> 'meterValue'){% endmacro %}
+{% macro redshift__meter_values_json(payload) %}({{ payload }}::jsonb -> 'meterValue'){% endmacro %}
+{% macro spark__meter_values_json(payload) %}from_json({{ payload }}, 'STRUCT<meterValue: ARRAY<STRUCT<timestamp: STRING, sampledValue: ARRAY<STRUCT<measurand: STRING, value: STRING, unit: STRING, phase: STRING>>>>>').meterValue{% endmacro %}
+{% macro databricks__meter_values_json(payload) %}from_json({{ payload }}, 'STRUCT<meterValue: ARRAY<STRUCT<timestamp: STRING, sampledValue: ARRAY<STRUCT<measurand: STRING, value: STRING, unit: STRING, phase: STRING>>>>>').meterValue{% endmacro %}
