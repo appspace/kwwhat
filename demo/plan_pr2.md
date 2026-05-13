@@ -1,167 +1,110 @@
-# Stage 1 Plan (MVP Baseline)
+# Chat evals plan — Stage 2 (stabilization)
 
-## Status — where we stand
-
-**Stage 1 merged in [`#86`](https://github.com/appspace/kwwhat/pull/86)** (2026-05-07). That PR is the **baseline we build from** for Stage 2+ on branch `chat-evals-stabilization`.
-
-**Delivered in #86**
-
-- **SQL eval tests** in `demo/chat-bi/tests/*.yml` — added cases alongside existing [`total_ports.yml`](demo/chat-bi/tests/total_ports.yml) (`decommissioned_ports_check`, `lately_snapshot`, `network_reliability_uptime`).
-- **Stage 1 analysis artifacts** — updated [`stage1_analysis.csv`](demo/chat-bi/tests/analysis/stage1_analysis.csv) and [`stage1_delta_summary.md`](demo/chat-bi/tests/analysis/stage1_delta_summary.md) for the expanded `nao test` run.
-- **Reproducible outputs** — Docker volume maps host `demo/chat-bi/tests/outputs/` ↔ container `/app/kwwhat/tests/outputs/` so `results_*.json` is reachable without `docker cp` (see [`demo/README.md`](demo/README.md)).
-- **Prompt wording** tightened on new tests so questions match what SQL assertions exercise.
-- **Local run noise** — ignore rules for generated artifacts where agreed (no accidental bulk commits of raw JSON).
-- **Approach locked for Stage 1** — `nao test` + SQL as **factual** reference; **manual** `semantic_label` / `failure_reason` in the mini analysis table for a lightweight semantic layer; **no** G-eval automation in that PR.
-
-**This document** — keeps the Stage 1 spec and merge alignment as **reference**, plus the **Stage 2 / Stage 3 placeholder** sections below. Edits here target the stabilization branch unless noted otherwise.
+**Branch:** `chat-evals-stabilization`
+**Status:** Stage 1 merged in [**#86**](https://github.com/appspace/kwwhat/pull/86) (2026-05-07) — that is the baseline we build from.
 
 ---
 
-**Goal:** Test whether the curated project context still drives correct chat behavior — not the LLM itself, not the chat product, not RAG. Catch regressions when [`agent_instructions.md`](demo/chat-bi/agent_instructions.md), [`RULES.md`](demo/chat-bi/RULES.md), [`nao_config.yaml`](demo/chat-bi/nao_config.yaml), [`semantic_models.yml`](models/semantic/semantic_models.yml), or [`marts.yml`](models/marts/marts.yml) change.
+## Stage 2 — current focus
 
-## Scope
+### Goal
 
-- Add 2–3 SQL test cases in `demo/chat-bi/tests/*.yml`
-- Run expanded `nao test`
-- Save outputs and build mini analysis table (`demo/chat-bi/tests/analysis/stage1_analysis.csv`)
-- Ensure outputs are saved via Docker volume (no manual copy)
-- Perform baseline vs expanded comparison (baseline = existing [`total_ports.yml`](demo/chat-bi/tests/total_ports.yml) run)
-- Send short update with findings
+Strengthen repeatable evals: golden dataset, rubrics, light automation, stable result format. No blocking on upstream nao.
 
-## Done Criteria
+### Scope
 
-- `>=3` test files total (including existing [`total_ports.yml`](demo/chat-bi/tests/total_ports.yml))
-- 1 expanded run completed
-- `results_*.json` retained following nao's local JSON output pattern (reachable via Docker volume)
-- Docker volume confirmed working (outputs reachable on host without `docker cp`)
-- mini analysis table (`demo/chat-bi/tests/analysis/stage1_analysis.csv`) filled for all tests in run
-- mini analysis table includes `failure_reason` for failed cases
-- Stage 1 test case format agreed (baseline: existing [`total_ports.yml`](demo/chat-bi/tests/total_ports.yml) structure)
-- baseline metrics recorded (accuracy / cost / time)
-- delta metrics captured (baseline vs expanded)
-- short status note in the PR (or agreed team channel)
-- storage decision documented for this run
+- **Golden dataset** — single-turn; ~10–12 entries; fields: `question_id`, `user_input`, `reference_answer`, `reference_contexts` (or `source_refs`), optional `human_explanation`.
+  - `reference_contexts` = evidence pointers (`RULES.md`, `semantic_models.yml`, `marts.yml`) for traceability and review — **not** extra chunks injected into model prompts.
+- **G-Eval rubrics** — e.g. Terminology (no `session`; source: [`RULES.md`](demo/chat-bi/RULES.md)), Rate Format (%, pp), Metric Validity (only metrics defined in [`semantic_models.yml`](models/semantic/semantic_models.yml)), Completeness vs expected output — aim for ≥1 custom rubric.
+- **`results_summary.py`** — lightweight script to generate `stage1_analysis.csv` and `stage1_delta_summary.md` from `results_*.json`; first automation step in Stage 2.
+- **Standardize result fields** — `semantic_metric`, `semantic_score`, `semantic_threshold`, `semantic_pass`, `semantic_reason`, `judge_model`.
+- **Upstream nao direction** — native generic/context evals in `nao test` via upstream issue/contribution; **parallel track**, not a Stage 2 blocker; local prep proceeds independently.
+- **Optional CI** — add gate once rubrics and flake are under control.
+- **Plan doc** — this file (`plan_pr2.md`) on branch `chat-evals-stabilization`.
 
-## Mini Analysis Table (Stage 1)
+### Visualization in Stage 2
 
-Columns: `question`, `actual`, `expected` (optional), `status` (nao: `pass`/`fail`), `semantic_label` (`correct`/`partial`/`incorrect`), `failure_reason` (required if fail), `cost`, `execution_time`.
+Keep lightweight: tables and short markdown recaps in PRs. No standalone dashboard deliverable yet.
 
-**Note:** `status` and `semantic_label` are independent layers — `status` is factual (nao harness), `semantic_label` is human review (rubric: see **Alignment and remaining checks (merge)**).
+### Post–Stage 1 calibration (carry into Stage 2 runs)
 
-## Methodology Note
+Tune with real runs and document outcomes in Stage 2 PRs:
 
-- **`nao test`** — current **runtime** and **factual** baseline on the demo stack (DuckDB + chat-bi).
-- **Factual layer** — `nao test` + SQL reference (data correctness).
-- **Semantic layer (Stage 1)** — lightweight manual label (`semantic_label`) and `failure_reason`; no automated judge in this PR.
-- **Future direction** — native rubric/context eval support in `nao test` via upstream nao issue/contribution; not a Stage 1 blocker.
+- Acceptable **cost** and **execution_time** per run.
+- Numeric / ordering **tolerance** thresholds.
+- **Priority** among error categories (`hallucination` vs `wrong_filter` vs `sql_logic`).
+- Top **eval scenarios** to grow first (e.g. partner support flows when ready).
 
-## Stage 1 Boundary and Next Stages
+---
 
-### Out of scope for Stage 1
+## Stage 3 — direction (branch `chat-evals-analytics`, after Stage 2 merge)
 
-- Full integration of the **deepeval** package into the demo runtime or CI (unless explicitly approved later).
-- Making Answer Relevancy (or any deepeval metric) a required automated merge gate in Stage 1.
-- Sidecar/post-processing G-eval automation scripts for Stage 1.
-- Any automation that belongs to Stage 2+.
+- **Streamlit viewer** — color-coded summary (questions × rubrics), drill-down per row (actual vs expected + reason per rubric), aggregate trends per rubric across runs.
+- **Chat replays (optional source)** — use nao chat replay storage as a read-only source of candidate eval cases; sanitize/anonymize before dataset inclusion.
+- **Long-term storage** of eval history.
+- **Stricter org-wide gates.**
+- **Plan doc** — `plan_pr3.md` on branch `chat-evals-analytics` (after Stage 2 merge).
 
-### Stage 2+ direction (placeholder)
+---
 
-- **Stage 2 (example):**
+## Out of scope
 
-  - **Upstream nao direction** — native generic/context evals in `nao test` via upstream issue/contribution; this is a parallel track, not a Stage 1 blocker.
-  - **Golden dataset** — single-turn; 10–12 entries; `question_id`, `user_input`, `reference_answer`, `reference_contexts` (or `source_refs`), optional `human_explanation`.
-  - **`reference_contexts` meaning** — evidence/source pointers (e.g. `RULES.md`, `semantic_models.yml`, `marts.yml`) used for traceability and review; **not** extra context injected into model prompts.
-  - **G-Eval rubrics** — Terminology (no `session`; source: [`RULES.md`](demo/chat-bi/RULES.md)), Rate Format (%, pp), Metric Validity (only metrics defined in [`semantic_models.yml`](models/semantic/semantic_models.yml)), Completeness vs expected output — aim for at least one custom metric.
-  - **Automation path** — prefer native `nao test` support over temporary post-processing scripts; local Stage 2 prep can proceed while upstream direction is clarified.
-  - **`results_summary.py`** — lightweight script to generate `stage1_analysis.csv` and `stage1_delta_summary.md` from `results_*.json`; proposed for early Stage 2 as first automation.
-  - **Standardize fields** — `semantic_metric`, `semantic_score`, `semantic_threshold`, `semantic_pass`, `semantic_reason`, `judge_model`.
-  - **Optional CI.**
-  - **Plan doc** — `plan_pr2.md` on branch `chat-evals-stabilization` (after Stage 1 merge).
+- **deepeval** full integration into demo runtime or CI as a **required** merge gate — unless explicitly approved.
+- **Sidecar/post-processing G-eval scripts** as a required Stage 2 gate before rubrics are stable.
+- **Standalone BI dashboard** (Power BI / Metabase on DuckDB) — duplicate effort; revisit only with clear value.
+- **Tableau Public** — optional later if portfolio case warrants it.
+- **MCP / external agent distribution** — separate parallel track; not part of this eval roadmap.
 
-- **Stage 3 (example):**
+---
 
-  - **Streamlit viewer** — color-coded summary (questions × rubrics), drill-down per row (actual vs expected + reason per rubric), aggregate trends per rubric across runs.
-  - **Chat replays (optional source)** — use nao chat replay storage as a read-only source of candidate eval cases; sanitize/anonymize before dataset inclusion.
-  - **Long-term storage** of eval history.
-  - **Stricter org-wide gates.**
-  - **Plan doc** — `plan_pr3.md` on branch `chat-evals-analytics` (after Stage 2 merge).
+## Stage 1 — completed reference
 
-### Visualization notes (non-blocking)
+> Full execution checklists and PR alignment live in [**#86**](https://github.com/appspace/kwwhat/pull/86). This section is a compact record to orient Stage 2.
 
-Visualization is available as a future presentation layer, but it is **not required for this PR**.
+### Goal (achieved)
 
-- **Stage 1:** no separate dashboard deliverable; use run artifacts + mini analysis table (`demo/chat-bi/tests/analysis/stage1_analysis.csv`) in PR updates.
-- **Stage 2:** keep visualization lightweight if useful (tables/recaps) while the eval mechanics and result format stabilize.
-- **Stage 3:** primary visualization layer can be **Streamlit** for eval results (summary, drill-down, reasons, trends).
-- **Out of scope for now:** standalone BI dashboard track (Power BI/Metabase on DuckDB) to avoid duplicate effort.
-- **Optional later:** revisit Tableau Public only if there is clear value in extending existing WIP.
+Test whether **curated project context** drives correct chat behavior — not the LLM product, not RAG — and catch regressions when [`agent_instructions.md`](demo/chat-bi/agent_instructions.md), [`RULES.md`](demo/chat-bi/RULES.md), [`nao_config.yaml`](demo/chat-bi/nao_config.yaml), [`semantic_models.yml`](models/semantic/semantic_models.yml), or [`marts.yml`](models/marts/marts.yml) change.
 
-## Test Design Constraints
+### Delivered in #86
 
-**Rules:** [`demo/chat-bi/RULES.md`](demo/chat-bi/RULES.md), [`demo/chat-bi/agent_instructions.md`](demo/chat-bi/agent_instructions.md), [`demo/chat-bi/nao_config.yaml`](demo/chat-bi/nao_config.yaml) — DuckDB only, no schema introspection, only `fact_*`/`dim_*` tables (`analytics.ANALYTICS.<table>`), default time window last 7 days.
+- **SQL eval tests** in `demo/chat-bi/tests/*.yml` — `decommissioned_ports_check`, `lately_snapshot`, `network_reliability_uptime` added alongside existing [`total_ports.yml`](demo/chat-bi/tests/total_ports.yml).
+- **Analysis artifacts** — [`stage1_analysis.csv`](demo/chat-bi/tests/analysis/stage1_analysis.csv) and [`stage1_delta_summary.md`](demo/chat-bi/tests/analysis/stage1_delta_summary.md) filled for the expanded `nao test` run (2 passed, 2 failed — both failures: SQL binder error `Catalog "RAW" does not exist`, tracked as context/namespace drift signal).
+- **Reproducible outputs** — Docker volume: host `demo/chat-bi/tests/outputs/` ↔ `/app/kwwhat/tests/outputs/`; `results_*.json` reachable without `docker cp` (see [`demo/README.md`](demo/README.md)).
+- **Prompt wording** tightened to match SQL assertions.
+- **Ignore rules** — local run noise excluded from commits.
 
-**SQL:** reference `sql:` must use real columns from [`models/marts/marts.yml`](models/marts/marts.yml) and only metrics defined in [`models/semantic/semantic_models.yml`](models/semantic/semantic_models.yml).
+### Approach locked for Stage 1 (carries forward as baseline convention)
 
-**Narrative:** use `charge attempt`, `transaction`, `visit` — never `session`. Presentation rules (metrics at a glance, % format) apply to answer quality evaluation, not to the `sql:` block.
+- `nao test` + SQL = **factual** reference layer.
+- Manual `semantic_label` / `failure_reason` = lightweight semantic layer; no automated G-eval judge in Stage 1.
+- YAML cases called **"SQL tests"**; baseline shape = [`total_ports.yml`](demo/chat-bi/tests/total_ports.yml) structure.
+- Storage: nao JSON pattern, Docker volume path above.
+- **Upstream native evals** = parallel Stage 2 input, not a Stage 1 blocker.
 
-**No extra context in tests:** do not inject additional context chunks into test prompts — tests rely only on the system context already configured in nao (`agent_instructions.md`, `RULES.md`, etc.). This is intentional: we test the curated context, not a retrieval layer.
+### Decisions locked with #86
 
-## PR (Stage 1 only)
+- `semantic_label` values: `correct` = accurate and complete; `partial` = correct conclusion but imprecise or incomplete; `incorrect` = factual error or hallucination.
+- `status` and `semantic_label` are **independent layers** — harness pass/fail vs human rubric.
+- Do not bulk-commit raw `results_*.json`; keep selected analysis artifacts only.
 
-**PR title:**
+### Mini analysis table columns (Stage 1; extend for Stage 2)
 
-`Stage 1 MVP: initial eval set + expanded baseline run`
+`question`, `actual`, `expected` (optional), `status`, `semantic_label`, `failure_reason` (if fail), `cost`, `execution_time` (+ `run_id`, `model`, etc. already used in CSV).
 
-**PR should include:**
+---
 
-- new SQL tests in `demo/chat-bi/tests/*.yml`
-- expanded run outputs/artifacts (`results_*.json` from local nao output flow)
-- mini analysis table covering all tests from the expanded run
-- evaluation approach:
-  - SQL as factual reference layer
-  - LLM answer as semantic quality layer
-- link/reference to baseline run
-- delta summary: baseline vs expanded
-- short summary:
-  - pass/fail
-  - cost/time
-  - top 1–2 failure patterns
-  - next actions
-- storage outcome documented; artifact paths: container `/app/kwwhat/tests/outputs/`, repo/Docker volume `demo/chat-bi/tests/outputs/`
-- review note: `failure_reason` is filled for failed cases (`status=fail`)
+## Test design constraints (all stages)
 
-## Execution Order
+**Rules:** [`RULES.md`](demo/chat-bi/RULES.md), [`agent_instructions.md`](demo/chat-bi/agent_instructions.md), [`nao_config.yaml`](demo/chat-bi/nao_config.yaml) — DuckDB only, no schema introspection, only `fact_*`/`dim_*` tables (`analytics.ANALYTICS.<table>`), default time window last 7 days.
 
-1. Add tests (`demo/chat-bi/tests/*.yml`)
-2. Run expanded `nao test`
-3. Save/retain `results_*.json` following nao's local JSON output pattern
-4. Fill mini analysis table (include `question`, `actual`, optional `expected`, `status`, `semantic_label`, `failure_reason`, `cost`, `execution_time`)
-5. Capture baseline vs expanded delta (accuracy / cost / time) and include a short summary of top 1–2 failure patterns
-6. Commit implementation work using one PR/branch approach consistently for this repo
-7. Post a short PR update and close items in **Alignment and remaining checks (merge)**.
+**SQL:** `sql:` must use real columns from [`marts.yml`](models/marts/marts.yml) and only metrics defined in [`semantic_models.yml`](models/semantic/semantic_models.yml).
 
-## Alignment and remaining checks (merge)
+**Narrative:** `charge attempt`, `transaction`, `visit` — never `session`. Presentation rules (%, pp) apply to **answer quality** evaluation, not to the `sql:` block.
 
-Document the outcomes below in the PR (description or comments) before merge. They are **merge checks**, not a prerequisite for local work: tests, `nao test` runs, and analysis drafts can proceed in parallel.
+**No extra context in test prompts** — no injected chunks; tests exercise curated nao context only (`agent_instructions.md`, `RULES.md`, etc.).
 
-**Aligned decisions**
+---
 
-- **Stage 1 scope** — proceed with SQL tests + manual `semantic_label`; no G-eval automation in this PR.
-- **Storage** — follow nao's existing local JSON output pattern (`results_*.json` in Docker volume / `tests/outputs` flow).
-- **Test case naming** — call Stage 1 YAML cases “SQL tests” for clarity.
-- **Test case format** — use existing [`total_ports.yml`](demo/chat-bi/tests/total_ports.yml) structure as Stage 1 baseline.
-- **Upstream nao issue** — native context/rubric eval support is a parallel Stage 2 input, not a Stage 1 blocker.
+## Scratch / course notes (ephemeral)
 
-**Remaining merge checks**
-
-- **Semantic rubric (Stage 1)** — confirm `semantic_label` values and concise rubric.
-  - **Proposed default:** `correct` = answer is accurate and complete; `partial` = correct conclusion but imprecise numbers or incomplete; `incorrect` = factual error or hallucination.
-- **Outputs/ignore rules** — ensure generated local outputs are not accidentally committed unless explicitly selected as a small analysis artifact.
-
-## Post-Stage 1 Calibration
-
-- acceptable cost per run
-- acceptable `execution_time`
-- numeric/order tolerance thresholds
-- priority among error categories (`hallucination` vs `wrong_filter` vs `sql_logic`)
-- top-priority eval scenarios for next iteration
+_Bullets from evals course / syncs. Trim or delete before merging to `main`._
