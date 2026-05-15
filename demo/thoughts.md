@@ -32,8 +32,8 @@
 
 ## Categories to consider
 
-| Category | Question it answers |
-|----------|-------------------|
+| Category | Criteria |
+|----------|----------|
 | `metric_validity` | Did the model avoid inventing metrics not defined in the context? |
 | `faithfulness` | Does the answer stick to facts — no hallucination or unsupported claims? |
 | `answer_relevance` | Does the answer address the user input? |
@@ -71,6 +71,7 @@ Be strict and concise. Return only valid JSON.
 
 ## Evaluation criteria
 Category: {{ category }}
+Criteria: {{ criteria }}
 {{ human_explanation }}
 
 ## Actual response
