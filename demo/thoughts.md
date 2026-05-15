@@ -32,13 +32,13 @@
 
 ## Categories to consider
 
-| Category | Criteria |
-|----------|----------|
-| `metric_validity` | Did the model avoid inventing metrics not defined in the context? |
-| `faithfulness` | Does the answer stick to facts — no hallucination or unsupported claims? |
-| `answer_relevance` | Does the answer address the user input? |
-| `terminology` | Did the model use correct vocabulary ("charge attempt" / "visit", never "session")? |
-| `completeness` | Does the response cover everything the user input asked for? |
+| Category | Criteria | Why it matters |
+|----------|----------|----------------|
+| `metric_validity` | Did the model avoid inventing metrics not defined in the context? | prevents made-up KPIs from reaching dashboards and decisions |
+| `faithfulness` | Does the answer stick to facts — no hallucination or unsupported claims? | prevents hallucinations, ensures traceable answers, builds user trust |
+| `answer_relevance` | Does the answer address the user input? | ensures the response is useful, not just grounded in context |
+| `terminology` | Did the model use correct vocabulary ("charge attempt" / "visit", never "session")? | keeps domain language consistent across the product and reports |
+| `completeness` | Does the response cover everything the user input asked for? | avoids partial answers that require follow-up or cause misinterpretation |
 
 ## Open question
 
