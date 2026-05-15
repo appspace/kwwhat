@@ -30,6 +30,16 @@
 | `reference_answer` | what a correct answer looks like — format and intent, not exact match |
 | `human_explanation` | one line; captures the rubric intent for the judge prompt |
 
+## Categories to consider
+
+| Category | Question it answers |
+|----------|-------------------|
+| `metric_validity` | Did the model avoid inventing metrics not defined in the context? |
+| `faithfulness` | Does the answer stick to facts — no hallucination or unsupported claims? |
+| `answer_relevance` | Does the answer address the user input? |
+| `terminology` | Did the model use correct vocabulary ("charge attempt" / "visit", never "session")? |
+| `completeness` | Does the response cover everything the user input asked for? |
+
 ## Open question
 
 Should `primary_context` point to the file that lets a reviewer **verify** the answer
