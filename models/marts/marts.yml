@@ -350,8 +350,6 @@ models:
         description: "Most recent charge_attempt_start_ts associated with this driver. For the UNKNOWN sentinel: the most recent unauthorized attempt, or '1900-01-01' if none exist yet."
         tests:
           - not_null
-      - name: first_seen_location_id
-        description: "location_id of the charger where the driver was first seen. Nullable for the UNKNOWN sentinel when no unauthorized attempts exist. Note: drivers are not bound to locations; this is an 'origin' tag, not an identity attribute."
     tests:
       - dbt_utils.expression_is_true:
           arguments:
