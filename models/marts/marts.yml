@@ -322,6 +322,43 @@ models:
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested"
 
+  - name: dim_drivers
+    description: "Driver dimension. Grain: one row per distinct RFID id_tag observed in OCPP charge attempts, plus a single UNKNOWN sentinel row for unauthorized visits. Full refresh from fact_charge_attempts + stg_ports. Type 1 (overwrite on each refresh). Behavioral attributes (first/last seen, first location) are derived; lifetime metrics belong in the semantic layer, not on this dim."
+    columns:
+      - name: driver_key
+        description: "Surrogate key for the driver dimension. Deterministic hash of id_tag. The UNKNOWN sentinel uses a stable hash of the literal 'UNKNOWN'."
+        tests:
+          - not_null
+          - unique
+      - name: id_tag
+        description: "Natural key. RFID tag string observed in OCPP messages, or the literal 'UNKNOWN' for the sentinel row aggregating all unauthorized visits."
+        tests:
+          - not_null
+          - unique
+      - name: is_known_driver
+        description: "True for real drivers (id_tag observed in logs). False only for the UNKNOWN sentinel row."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: first_seen_ts
+        description: "Earliest charge_attempt_start_ts associated with this driver. For the UNKNOWN sentinel: the earliest unauthorized attempt, or '1900-01-01' if none exist yet."
+        tests:
+          - not_null
+      - name: last_seen_ts
+        description: "Most recent charge_attempt_start_ts associated with this driver. For the UNKNOWN sentinel: the most recent unauthorized attempt, or '1900-01-01' if none exist yet."
+        tests:
+          - not_null
+      - name: first_seen_location_id
+        description: "location_id of the charger where the driver was first seen. Nullable for the UNKNOWN sentinel when no unauthorized attempts exist. Note: drivers are not bound to locations; this is an 'origin' tag, not an identity attribute."
+    tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "last_seen_ts >= first_seen_ts"
+          config:
+            severity: error
+
   - name: charge_point_span_daily
     description: "One row per charge point per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."
     columns:
