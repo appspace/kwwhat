@@ -95,6 +95,9 @@ Assess:
 
 3. **note**: Brief explanation (1 sentence)
 
+**KEY TRADEOFFS TO CONSIDER:**
+- A short reply can have HIGHER signal than a long one — brevity is not a flaw if the answer is complete
+
 **BE STRICT:**
 - Do not give "high" if the response is missing key facts or format requirements from the reference answer
 - Do not round up signal_pct — penalize filler, hedging, or content not grounded in the reference answer
