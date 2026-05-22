@@ -39,7 +39,7 @@
 | `faithfulness` | Does the answer stick to facts — no hallucination or unsupported claims? | prevents hallucinations, ensures traceable answers, builds user trust | LLM-as-judge |
 | `answer_relevance` | Does the answer address the user input? | ensures the response is useful, not just grounded in context | LLM-as-judge |
 | `terminology` | Did the model use correct vocabulary ("charge attempt" / "visit", never "session")? | keeps domain language consistent across the product and reports | LLM-as-judge |
-| `completeness` | Does the response cover everything the user input asked for? | avoids partial answers that require follow-up or cause misinterpretation | LLM-as-judge |
+| `completeness` | Does the response cover everything the user input asked for? Is it complete? Is it at the right level of detail? | avoids partial answers that require follow-up or cause misinterpretation | LLM-as-judge |
 
 ## Open question
 
@@ -116,3 +116,13 @@ Assess:
 
 - `primary_context` is a reviewer traceability pointer — not injected into the judge prompt.
 - The judge model goes into a `judge_model` field on the result record (not in the prompt itself).
+
+## Execution strategy
+
+**Prompt chaining** — break eval into stages where each stage feeds the next:
+
+1. **Retrieve** — fetch the actual response for a `question_id` from the chat log
+2. **Judge** — render the user prompt template and call the judge model; get back the JSON score
+3. **Aggregate** — collect scores across entries, compute pass rates per category
+
+Each stage is a discrete LLM call (or SQL step). The output of one becomes the input of the next. This keeps each prompt focused and makes failures easy to isolate.
