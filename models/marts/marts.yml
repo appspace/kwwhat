@@ -284,7 +284,7 @@ models:
         granularity: day
   
   - name: dim_ports
-    description: "Port/connector dimension. Full refresh from stg_ports. Charger means a device with one or more charging ports and connectors for charging EVs (EVSE)."
+    description: "Port/connector dimension. Grain: one row per (charge_point_id, port_id, connector_id). Full refresh from stg_ports. Type 1 (overwrite on each refresh). Charger means a device with one or more charging ports and connectors for charging EVs (EVSE)."
     columns:
       - name: port_key
         description: "Surrogate key for the port/connector dimension"
@@ -321,6 +321,13 @@ models:
         description: "Error code from the most recent StatusNotification (e.g., NoError, ConnectorLockFailure)"
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - port_id
+              - connector_id
 
   - name: dim_drivers
     description: "Driver dimension. Grain: one row per distinct RFID id_tag observed in OCPP charge attempts, plus a single UNKNOWN sentinel row for unauthorized visits. Full refresh from fact_charge_attempts + stg_ports. Type 1 (overwrite on each refresh). Behavioral attributes (first/last seen, first location) are derived; lifetime metrics belong in the semantic layer, not on this dim."
