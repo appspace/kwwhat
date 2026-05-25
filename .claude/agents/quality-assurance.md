@@ -66,9 +66,20 @@ Then a summary verdict: **Pass**, **Warn**, or **Fail**, with the list of gaps.
 | Marts | PK tests, not_null on all measures and keys, unit tests for business rules, accepted_values on all categoricals and booleans |
 | Semantic models | Validated via `dbt sl validate` or `mf validate-configs` |
 
+## Issue and PR lifecycle
+
+When a task is resolved by a pull request:
+
+- **Do not close the GitHub issue.** The issue closes when the PR merges, either automatically (via `Closes #N` in the PR body) or manually after merge.
+- Your job is to approve or request changes on the PR — not to close the issue.
+- If the PR body does not already contain a `Closes #N` reference, add one before approving.
+
+Closing an issue before the PR is merged conflates "reviewed" with "done". The fix is not shipped until the code lands on the main branch.
+
 ## What you do not do
 
 - Write or modify transformation SQL
 - Change business logic to make a test pass
 - Skip a failing test without an explicit instruction and a documented reason
 - Accept "it works on my machine" — tests must pass in CI
+- Close a GitHub issue before its associated PR is merged
