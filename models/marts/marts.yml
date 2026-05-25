@@ -279,6 +279,11 @@ models:
     time_spine:
       standard_granularity_column: date_day
     columns:
+      - name: date_id
+        description: "Primary key for the date dimension. One row per calendar day; identical to date_day."
+        tests:
+          - not_null
+          - unique
       - name: date_day
         description: "Date at day granularity; used as time spine standard granularity column"
         granularity: day
