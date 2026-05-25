@@ -29,6 +29,7 @@ services:
     volumes:
       - duckdb-data:/data      # read analytics.duckdb
       - ../:/kwwhat:ro         # dbt-mcp needs the project for CLI tools
+      - ./chat-bi/tests/outputs:/app/kwwhat/tests/outputs  # persist nao test results on host
     ports:
       - "5005:5005"            # nao chat server
       - "8005:8005"            # nao FastAPI server
