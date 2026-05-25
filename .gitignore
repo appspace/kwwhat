@@ -10,5 +10,10 @@ venv/
 
 # Local secrets — copy from .env.example and fill in
 demo/.env
+
+# Claude Code temporary agent worktrees
+.claude/worktrees/
+
 .DS_Store
+
 demo/chat-bi/tests/outputs/
