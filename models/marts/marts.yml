@@ -209,6 +209,16 @@ models:
           - not_null
       - name: id_tag
         description: "Driver identifier (RFID tag). Null for visits where authorization failed. May be inferred from subsequent authorized attempts within 2 minutes on the same charger."
+      - name: driver_key
+        description: "Foreign key to dim_drivers. Computed as dbt_utils.generate_surrogate_key(coalesce(id_tag, 'UNKNOWN')) so unauthorized visits resolve to the UNKNOWN sentinel."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_drivers')
+                field: driver_key
+              config:
+                severity: warn
       - name: visit_start_ts
         description: "Start timestamp of the first charge attempt in the visit (charge_attempt_start_ts)"
         tests:
@@ -330,7 +340,7 @@ models:
               - connector_id
 
   - name: dim_drivers
-    description: "Driver dimension. Grain: one row per distinct RFID id_tag observed in OCPP charge attempts, plus a single UNKNOWN sentinel row for unauthorized visits. Full refresh from fact_charge_attempts + stg_ports. Type 1 (overwrite on each refresh). Behavioral attributes (first/last seen, first location) are derived; lifetime metrics belong in the semantic layer, not on this dim."
+    description: "Driver dimension. Grain: one row per distinct RFID id_tag observed in OCPP charge attempts, plus a single UNKNOWN sentinel row for unauthorized visits. Full refresh from fact_charge_attempts. Type 1 (overwrite on each refresh). Behavioral attributes (first/last seen, first location) are derived; lifetime metrics belong in the semantic layer, not on this dim."
     columns:
       - name: driver_key
         description: "Surrogate key for the driver dimension. Deterministic hash of id_tag. The UNKNOWN sentinel uses a stable hash of the literal 'UNKNOWN'."
@@ -357,6 +367,18 @@ models:
         description: "Most recent charge_attempt_start_ts associated with this driver. For the UNKNOWN sentinel: the most recent unauthorized attempt, or '1900-01-01' if none exist yet."
         tests:
           - not_null
+      - name: first_authorization_status
+        description: "Authorization status reported for this driver's earliest charge attempt (from id_tag_statuses array). Null for the UNKNOWN sentinel (no id_tag observed)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Accepted', 'Blocked', 'Expired', 'Invalid', 'ConcurrentTx']
+      - name: latest_authorization_status
+        description: "Authorization status reported for this driver's most recent charge attempt (from id_tag_statuses array). Null for the UNKNOWN sentinel (no id_tag observed)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Accepted', 'Blocked', 'Expired', 'Invalid', 'ConcurrentTx']
     tests:
       - dbt_utils.expression_is_true:
           arguments:

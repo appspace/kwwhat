@@ -1,6 +1,25 @@
 version: 2
 
 unit_tests:
+  # ── dim_drivers ─────────────────────────────────────────────────────────────
+
+  - name: test_dim_drivers_first_latest_authorization_status
+    description: "first_authorization_status is the status at the earliest charge_attempt_start_ts; latest_authorization_status is the status at the most recent one."
+    model: dim_drivers
+    given:
+      - input: ref('fact_charge_attempts')
+        format: dict
+        rows:
+          - {id_tags: ['TAG-001'], id_tag_statuses: ['Invalid'],  charge_attempt_start_ts: '2025-10-02 10:00:00'}
+          - {id_tags: ['TAG-001'], id_tag_statuses: ['Accepted'], charge_attempt_start_ts: '2025-10-02 11:00:00'}
+          - {id_tags: ['TAG-001'], id_tag_statuses: ['Blocked'],  charge_attempt_start_ts: '2025-10-02 12:00:00'}
+    expect:
+      rows:
+        - {id_tag: 'TAG-001', is_known_driver: true,  first_authorization_status: 'Invalid', latest_authorization_status: 'Blocked'}
+        - {id_tag: 'UNKNOWN', is_known_driver: false, first_authorization_status: null,      latest_authorization_status: null}
+
+  # ── fact_visits ─────────────────────────────────────────────────────────────
+
   - name: test_authorized_visits_15min_apart_same_location
     description: "Two authorized attempts on the same charger 15 minutes apart should result in one visit (gap from stop_ts to start_ts < 30 min)"
     model: fact_visits

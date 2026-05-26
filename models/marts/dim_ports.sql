@@ -1,7 +1,6 @@
 {{
   config(
-    materialized='table',
-    description='Port/connector dimension; full refresh from int_ports'
+    materialized='table'
   )
 }}
 
