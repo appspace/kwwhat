@@ -45,24 +45,28 @@ unknown_driver as (
         cast(null as {{ dbt.type_string() }}) as latest_authorization_status
     from attempts
     where id_tag is null
+),
+
+final as (
+    select
+        driver_key,
+        id_tag,
+        is_known_driver,
+        first_seen_ts,
+        last_seen_ts,
+        first_authorization_status,
+        latest_authorization_status
+    from known_drivers
+    union all
+    select
+        driver_key,
+        id_tag,
+        is_known_driver,
+        first_seen_ts,
+        last_seen_ts,
+        first_authorization_status,
+        latest_authorization_status
+    from unknown_driver
 )
 
-select
-    driver_key,
-    id_tag,
-    is_known_driver,
-    first_seen_ts,
-    last_seen_ts,
-    first_authorization_status,
-    latest_authorization_status
-from known_drivers
-union all
-select
-    driver_key,
-    id_tag,
-    is_known_driver,
-    first_seen_ts,
-    last_seen_ts,
-    first_authorization_status,
-    latest_authorization_status
-from unknown_driver
+select * from final
