@@ -14,7 +14,7 @@ with ports as (
         connector_type,
         commissioned_ts,
         decommissioned_ts
-    from {{ ref('stg_ports') }}
+    from {{ ref('int_ports') }}
 ),
 
 latest_status as (
