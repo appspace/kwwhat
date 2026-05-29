@@ -10,7 +10,7 @@ with ports as (
         charge_point_id,
         min(commissioned_ts) as commissioned_ts,
         max(decommissioned_ts) as decommissioned_ts
-    from {{ ref('stg_ports') }}
+    from {{ ref('int_ports') }}
     where commissioned_ts is not null
     group by charge_point_id
 ),

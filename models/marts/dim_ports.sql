@@ -1,7 +1,7 @@
 {{
   config(
     materialized='table',
-    description='Port/connector dimension; full refresh from stg_ports'
+    description='Port/connector dimension; full refresh from int_ports'
   )
 }}
 

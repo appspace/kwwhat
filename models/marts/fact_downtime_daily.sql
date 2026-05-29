@@ -23,7 +23,7 @@ ports as (
         port_id,
         commissioned_ts,
         decommissioned_ts
-    from {{ ref('stg_ports') }}
+    from {{ ref('int_ports') }}
 ),
 
 -- Get faulted outages first to filter offline outages
