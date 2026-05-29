@@ -22,7 +22,7 @@ unit_tests:
           select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
           union all
           select cast('2025-10-01 10:30:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
-      - input: ref('stg_ports')
+      - input: ref('int_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
@@ -49,7 +49,7 @@ unit_tests:
           select cast('2025-10-01 10:05:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'
           union all
           select cast('2025-10-01 10:10:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-003', '{"connectorId": 1, "errorCode": "NoError", "status": "Charging"}'
-      - input: ref('stg_ports')
+      - input: ref('int_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
@@ -94,7 +94,7 @@ unit_tests:
         format: sql
         rows: |
           select cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'StatusNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}' as payload
-      - input: ref('stg_ports')
+      - input: ref('int_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
@@ -120,7 +120,7 @@ unit_tests:
           select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted'   as status, cast(null as string) as next_status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
           union all
           select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Available', cast(null as string), cast(null as timestamp), cast('2025-10-01 12:00:00' as timestamp)
-      - input: ref('stg_ports')
+      - input: ref('int_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
@@ -144,7 +144,7 @@ unit_tests:
           select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, cast(null as string) as next_status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
           union all
           select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Faulted', cast(null as string), cast('2025-10-01 11:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
-      - input: ref('stg_ports')
+      - input: ref('int_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
@@ -169,7 +169,7 @@ unit_tests:
           select 'CH-001' as charge_point_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, cast(null as string) as next_status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
           union all
           select 'CH-001', 'PORT-001', '1', cast('2025-10-01 11:00:00' as timestamp), 'Faulted', cast(null as string), cast('2025-10-01 12:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
-      - input: ref('stg_ports')
+      - input: ref('int_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
@@ -194,7 +194,7 @@ unit_tests:
           select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-001' as unique_id, '{}' as payload
           union all
           select cast('2025-10-01 11:30:00' as timestamp), 'CH-001', 'Heartbeat', '2', 'UID-002', '{}'
-      - input: ref('stg_ports')
+      - input: ref('int_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 09:59:00' as timestamp) as commissioned_ts, cast('2025-10-01 11:30:00' as timestamp) as decommissioned_ts
@@ -217,7 +217,7 @@ unit_tests:
           select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-001' as unique_id, '{}' as payload
           union all
           select cast('2025-10-01 10:04:00' as timestamp), 'CH-001', 'Heartbeat', '2', 'UID-002', '{}'
-      - input: ref('stg_ports')
+      - input: ref('int_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 09:59:00' as timestamp) as commissioned_ts, cast('2025-10-01 10:04:00' as timestamp) as decommissioned_ts
@@ -237,7 +237,7 @@ unit_tests:
         format: sql
         rows: |
           select cast('2025-10-01 13:00:00' as timestamp) as ingested_timestamp, 'CH-002' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-999' as unique_id, '{}' as payload
-      - input: ref('stg_ports')
+      - input: ref('int_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 10:00:00' as timestamp) as commissioned_ts, cast('2025-10-01 12:00:00' as timestamp) as decommissioned_ts
@@ -268,7 +268,7 @@ unit_tests:
         format: sql
         rows: |
           select cast('2025-10-01 10:30:00' as timestamp) as ingested_timestamp, 'CH-001' as charge_point_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-001' as unique_id, '{}' as payload
-      - input: ref('stg_ports')
+      - input: ref('int_ports')
         format: sql
         rows: |
           select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-10-01 09:00:00' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts

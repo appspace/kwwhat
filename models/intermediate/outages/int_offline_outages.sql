@@ -34,7 +34,7 @@ charger_context as (
             coalesce(max(decommissioned_ts), (select to_timestamp from incremental_date_range)),
             (select to_timestamp from incremental_date_range)
         ) as monitoring_end_ts
-    from {{ ref("stg_ports") }}
+    from {{ ref("int_ports") }}
     where commissioned_ts is not null
         and commissioned_ts < (select to_timestamp from incremental_date_range)
         and (decommissioned_ts is null or decommissioned_ts > (select from_timestamp from incremental_date_range))

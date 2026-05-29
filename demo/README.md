@@ -109,8 +109,15 @@ docker compose down -v
 
 Tests live in `chat-bi/tests/` and run against the live chat server.
 
+**Step 1 — open a shell inside the running chat-bi container:**
+
 ```bash
 docker exec -it $(docker ps -q --filter "publish=5005") bash -lc "cd /app/kwwhat && exec bash"
+```
+
+**Step 2 — inside the container, run the test suite:**
+
+```bash
 nao test -m anthropic:claude-sonnet-4-6
 ```
 

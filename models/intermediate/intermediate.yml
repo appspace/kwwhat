@@ -274,3 +274,28 @@ models:
             expression: "min_value <= avg_value and avg_value <= max_value"
           config:
             severity: error
+
+  - name: int_ports
+    description: "Materialized snapshot of stg_ports. Breaks the live RAW catalog dependency for downstream views and incremental models. Grain: one row per charge_point_id + port_id + connector_id."
+    columns:
+      - name: charge_point_id
+        description: "Charger identifier"
+      - name: location_id
+        description: "Location identifier where the charge point is located"
+      - name: port_id
+        description: "Port identifier within the charge point"
+      - name: connector_id
+        description: "Connector identifier within the port"
+      - name: connector_type
+        description: "Type of connector (e.g., CCS, NACS)"
+      - name: commissioned_ts
+        description: "Timestamp when the charge point was commissioned (null if not commissioned yet)"
+      - name: decommissioned_ts
+        description: "Timestamp when the charge point was decommissioned (null if still active)"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - port_id
+              - connector_id
