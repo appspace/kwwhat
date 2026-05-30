@@ -189,6 +189,18 @@ semantic_models:
         agg: average
         expr: uptime
 
+  - name: locations
+    description: "Location dimension. One row per distinct location observed in port data."
+    model: ref('dim_locations')
+    # No defaults.agg_time_dimension: this is an attribute-only dimension with no time column or measures.
+    entities:
+      - name: location
+        type: primary
+        expr: location_key
+    dimensions:
+      - name: location_id
+        type: categorical
+
 metrics:
   - name: total_visits
     description: "Total number of charging visits"
