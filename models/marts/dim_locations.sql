@@ -7,7 +7,7 @@
 with ports as (
     select
         location_id
-    from {{ ref('stg_ports') }}
+    from {{ ref('int_ports') }}
 ),
 
 locations as (
