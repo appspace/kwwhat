@@ -286,7 +286,7 @@ models:
   - name: dim_ports
     description: "Port/connector dimension. Full refresh from stg_ports. Charger means a device with one or more charging ports and connectors for charging EVs (EVSE)."
     columns:
-      - name: port_sk
+      - name: port_key
         description: "Surrogate key for the port/connector dimension"
         tests:
           - not_null

@@ -1,7 +1,7 @@
 {{
   config(
     materialized='table',
-    description='Port/connector dimension; full refresh from int_ports'
+    description='Port/connector dimension; full refresh from stg_ports'
   )
 }}
 
@@ -30,8 +30,9 @@ latest_status as (
 select
     {{ dbt_utils.generate_surrogate_key([
         'ports.charge_point_id', 
-        'ports.port_id'
-        ]) }} as port_key,
+        'ports.port_id', 
+        'ports.connector_id'
+        ]) }} as connector_key,
     ports.charge_point_id,
     ports.location_id,
     ports.port_id,
