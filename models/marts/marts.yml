@@ -203,6 +203,13 @@ models:
         tests:
           - not_null
           - unique
+      - name: location_key
+        description: "Foreign key to dim_locations."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_locations')
+              field: location_key
       - name: location_id
         description: "Location identifier where the visit occurred"
         tests:
@@ -323,7 +330,7 @@ models:
         description: "Timestamp when the most recent status was ingested"
 
   - name: dim_locations
-    description: "Location dimension. One row per distinct location. Grain: one row per location_id."
+    description: "Conformed location dimension. One row per distinct charging location. SCD Type 1."
     columns:
       - name: location_key
         description: "Surrogate key for the location dimension, generated from location_id."
@@ -335,6 +342,44 @@ models:
         tests:
           - not_null
           - unique
+
+  - name: fact_location_capacity
+    description: "Physical capacity counts per location. One row per location. Full refresh — counts are overwritten when ports are commissioned or decommissioned. Join to dim_locations on location_key for site-level analysis."
+    columns:
+      - name: location_key
+        description: "Surrogate key matching dim_locations.location_key."
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('dim_locations')
+              field: location_key
+      - name: location_id
+        description: "Natural key. Location identifier sourced from int_ports."
+        tests:
+          - not_null
+          - unique
+      - name: charge_point_count
+        description: "Number of distinct charge points (devices) at this location."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+      - name: port_count
+        description: "Number of distinct ports (charge_point + port combinations) at this location."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+      - name: connector_count
+        description: "Number of distinct connectors (charge_point + port + connector combinations) at this location."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
 
   - name: charge_point_span_daily
     description: "One row per charge point per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."

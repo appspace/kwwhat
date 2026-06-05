@@ -429,6 +429,7 @@ new_visits as (
 {% endif %}
 
 select
+    {{ dbt_utils.generate_surrogate_key(['location_id']) }} as location_key,
     location_id,
     charge_point_ids,
     id_tag,
