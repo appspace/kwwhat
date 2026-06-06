@@ -142,7 +142,69 @@ and a plain "No X found for ID Y" text block, with HTTP 200 and MCP success.
 
 ---
 
-## 7. Stack
+## 7. Tool definitions
+
+The description field carries the weight — the agent decides whether to call a tool
+almost entirely from it. Each description states what the tool returns and includes a
+"Call this when…" trigger condition rather than leaving the model to guess.
+
+```json
+{
+  "name": "get_driver",
+  "description": "Retrieve non-identifying attributes for a driver by their kWwhat driver ID. Returns vehicle profile — NO PII (no name, email, phone, or address). Call this when the agent needs context about who is on the call to tailor support or understand the driver's setup. Requires a valid driver ID obtained earlier in the call.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The kWwhat driver ID (opaque identifier). Not a phone number, email, or name."
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false
+  }
+}
+```
+
+```json
+{
+  "name": "get_charger",
+  "description": "Retrieve technical and status attributes for a charger by its ID. Returns model, connector types, power rating, current operational status (available/in-use/faulted/offline), firmware version, and last-seen timestamp. Call this when diagnosing a charging problem, confirming a charger's capabilities, or checking whether a unit is reachable. Does not return location PII tied to a private residence.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The charger ID (opaque identifier)."
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false
+  }
+}
+```
+
+```json
+{
+  "name": "get_charge_attempt",
+  "description": "Retrieve details for a charge attempt by its ID. Returns start/end time, energy delivered (kWh), session state (active/completed/interrupted/errored), associated charger ID, and error codes if any. Call this to investigate a specific charge — e.g. 'my last session failed'. Returns the charger and driver IDs so the agent can chain to get_charger or get_driver if more context is needed.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The charge attempt ID (opaque identifier)."
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false
+  }
+}
+```
+
+---
+
+## 8. Stack
 
 | Layer | Choice | Reason |
 |-------|--------|--------|
