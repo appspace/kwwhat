@@ -1,8 +1,8 @@
 # kWwhat MCP Context Server — Implementation Plan
 
 A web MCP server exposing three narrow context tools (`get_driver`, `get_charger`,
-`get_session`) to any MCP-compatible client (Claude Desktop, MCP Inspector, calling
-agent backends). Deployed as **Service 4** alongside the existing demo stack.
+`get_charge_attempt`) to any MCP-compatible client (Claude Desktop, MCP Inspector, calling
+agent backends). Deployed as **Service 4** alongside the existing demo stack: duckdb, dbt, nao chat.
 
 ---
 
@@ -171,11 +171,11 @@ demo/
     │   │   ├── __init__.py
     │   │   ├── get_driver.py  # tool definition + query + response builder
     │   │   ├── get_charger.py
-    │   │   └── get_session.py
+    │   │   └── get_charge_attempt.py
     │   └── models/
     │       ├── driver.py      # Pydantic output models mirroring outputSchema
     │       ├── charger.py
-    │       └── session.py
+    │       └── charge_attempt.py
     └── tests/
         ├── test_auth.py
         ├── test_tools.py      # happy path + not-found + invalid ID per tool
@@ -244,7 +244,7 @@ Once running locally, add to `claude_desktop_config.json`:
 Add an "MCP server" section to `demo/README.md` covering:
 - What it is and when to use it (alternative to chat-bi for agent/API access)
 - How to point Claude Desktop at it
-- The three tools and the chaining pattern (`get_session` → `get_charger` / `get_driver`)
+- The three tools and the chaining pattern (`get_charge_attempt` → `get_charger` / `get_driver`)
 - The two auth modes and when to use each
 
 ---
