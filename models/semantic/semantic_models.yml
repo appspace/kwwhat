@@ -1,6 +1,50 @@
 version: 2
 
 semantic_models:
+  - name: charge_points
+    description: "Charge point dimension. Use to slice metrics by charger lifecycle attributes (active/decommissioned, port count, connector count)."
+    model: ref('dim_charge_points')
+    entities:
+      - name: charge_point
+        type: primary
+        expr: charge_point_id
+    dimensions:
+      - name: is_active
+        type: categorical
+        description: "True if the charge point has not been decommissioned."
+      - name: location_id
+        type: categorical
+
+  - name: ports
+    description: "Port dimension. Use to slice uptime and downtime metrics by port."
+    model: ref('dim_ports')
+    entities:
+      - name: port
+        type: primary
+        expr: port_key
+    dimensions:
+      - name: charge_point_id
+        type: categorical
+      - name: location_id
+        type: categorical
+
+  - name: connectors
+    description: "Connector dimension. Use to slice metrics by connector type or current status."
+    model: ref('dim_connectors')
+    entities:
+      - name: connector
+        type: primary
+        expr: connector_key
+    dimensions:
+      - name: connector_type
+        type: categorical
+      - name: latest_status
+        type: categorical
+      - name: charge_point_id
+        type: categorical
+      - name: location_id
+        type: categorical
+
   - name: visits
     description: ""
     model: ref('fact_visits')
@@ -13,6 +57,9 @@ semantic_models:
       - name: charge_attempt
         type: foreign
         expr: last_charge_attempt_id
+      - name: location
+        type: foreign
+        expr: location_key
     dimensions:
       - name: visit_end_ts
         type: time
@@ -104,6 +151,9 @@ semantic_models:
       - name: charge_attempt
         type: primary
         expr: charge_attempt_id
+      - name: charge_point
+        type: foreign
+        expr: charge_point_id
     dimensions:
       - name: charge_attempt_start_ts
         type: time
@@ -174,6 +224,9 @@ semantic_models:
       - name: uptime_record
         type: primary
         expr: uptime_id
+      - name: charge_point
+        type: foreign
+        expr: charge_point_id
     dimensions:
       - name: date_id
         type: time
