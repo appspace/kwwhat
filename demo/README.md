@@ -163,6 +163,6 @@ demo/
 ├── .env.example
 ├── seeds/                  ← sample OCPP CSV data
 ├── duckdb-init/            ← Service 1: loads seeds into raw.duckdb
-├── dbt/                    ← Service 2: dbt build + MCP server
+├── dbt/                    ← Service 2: dbt build
 └── chat-bi/                ← Service 3: nao chat interface
 ```

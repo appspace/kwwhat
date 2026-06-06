@@ -22,13 +22,13 @@ services:
       - ../:/kwwhat            # mount the kwwhat dbt project
 
   # ── Service 3 ──────────────────────────────────────────────────────────────
-  # Interactive chat interface with dbt-mcp running as a local subprocess.
+  # Interactive chat interface (nao) for querying the analytics database.
   # Run with: docker compose run --rm chat-bi
   chat-bi:
     build: ./chat-bi
     volumes:
       - duckdb-data:/data      # read analytics.duckdb
-      - ../:/kwwhat:ro         # dbt-mcp needs the project for CLI tools
+      - ../:/kwwhat:ro         # nao needs the project for CLI tools
       - ./chat-bi/tests/outputs:/app/kwwhat/tests/outputs  # persist nao test results on host
     ports:
       - "5005:5005"            # nao chat server
