@@ -6,14 +6,18 @@
 }}
 
 with ports as (
-    select distinct
+    select
         charge_point_id,
         location_id,
         commissioned_ts,
         decommissioned_ts,
-        port_count,
-        connector_count,
+        count(distinct port_id) as port_count
     from {{ ref('int_ports') }}
+    group by
+        charge_point_id,
+        location_id,
+        commissioned_ts,
+        decommissioned_ts
 )
 
 select
@@ -22,7 +26,6 @@ select
     ports.location_id,
     ports.commissioned_ts,
     ports.decommissioned_ts,
-    ports.port_count,
-    ports.connector_count,
     ports.decommissioned_ts is null as is_active,
+    port_count,
 from ports

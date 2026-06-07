@@ -316,20 +316,6 @@ models:
           - not_null
       - name: decommissioned_ts
         description: "Timestamp when the charge point was decommissioned. Null if still active."
-      - name: port_count
-        description: "Number of ports on this charge point."
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 1
-      - name: connector_count
-        description: "Number of connectors on this charge point across all ports."
-        tests:
-          - not_null
-          - dbt_utils.accepted_range:
-              arguments:
-                min_value: 1
       - name: is_active
         description: "True if the charge point has not been decommissioned."
         tests:
@@ -358,6 +344,12 @@ models:
         description: "Port identifier within the charge point."
         tests:
           - not_null
+      - name: connectors_count
+        description: "Number of connectors on this port."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
