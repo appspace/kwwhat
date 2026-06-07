@@ -323,6 +323,12 @@ models:
           - accepted_values:
               arguments:
                 values: [true, false]
+      - name: port_count
+        description: "Number of ports on this charge point."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
 
   - name: dim_ports
     description: "Port dimension. One row per (charge_point_id, port_id). Use for faulted outages, port-level uptime, port inventory, operational analysis."
