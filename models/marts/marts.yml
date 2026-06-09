@@ -203,6 +203,13 @@ models:
         tests:
           - not_null
           - unique
+      - name: location_key
+        description: "Foreign key to dim_locations."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_locations')
+              field: location_key
       - name: location_id
         description: "Location identifier where the visit occurred"
         tests:
@@ -283,44 +290,179 @@ models:
         description: "Date at day granularity; used as time spine standard granularity column"
         granularity: day
   
-  - name: dim_ports
-    description: "Port/connector dimension. Full refresh from stg_ports. Charger means a device with one or more charging ports and connectors for charging EVs (EVSE)."
+  - name: dim_charge_points
+    description: "Charge point dimension. One row per charge point. Use for offline outages, charger-level uptime and availability, charger inventory, and visit attribution at charger level."
     columns:
-      - name: port_sk
-        description: "Surrogate key for the port/connector dimension"
+      - name: charge_point_key
+        description: "Surrogate key for the charge point, generated from charge_point_id."
         tests:
           - not_null
           - unique
       - name: charge_point_id
-        description: "Charger identifier"
+        description: "Natural key. Unique identifier for the charge point."
+        tests:
+          - not_null
+          - unique
+      - name: location_id
+        description: "Location where this charge point is installed."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_locations')
+              field: location_id
+      - name: commissioned_ts
+        description: "Timestamp when the charge point was commissioned."
+        tests:
+          - not_null
+      - name: decommissioned_ts
+        description: "Timestamp when the charge point was decommissioned. Null if still active."
+      - name: is_active
+        description: "True if the charge point has not been decommissioned."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: port_count
+        description: "Number of ports on this charge point."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+
+  - name: dim_ports
+    description: "Port dimension. One row per (charge_point_id, port_id). Use for faulted outages, port-level uptime, port inventory, operational analysis."
+    columns:
+      - name: port_key
+        description: "Surrogate key for the port, generated from charge_point_id and port_id."
+        tests:
+          - not_null
+          - unique
+      - name: charge_point_id
+        description: "Charge point this port belongs to."
         tests:
           - not_null
       - name: location_id
-        description: "Location identifier where the charger is located"
+        description: "Location where this port is installed."
+        tests:
+          - not_null
       - name: port_id
-        description: "Port identifier within the charger"
+        description: "Port identifier within the charge point."
+        tests:
+          - not_null
+      - name: connectors_count
+        description: "Number of connectors on this port."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - port_id
+
+  - name: dim_connectors
+    description: "Connector dimension. One row per (charge_point_id, port_id, connector_id). Use for connector-type analysis, current inventory, and connector-specific operational reporting if needed. Finest-grain hardware dimension."
+    columns:
+      - name: connector_key
+        description: "Surrogate key for the connector, generated from charge_point_id, port_id, and connector_id."
+        tests:
+          - not_null
+          - unique
+      - name: charge_point_id
+        description: "Charge point this connector belongs to."
+        tests:
+          - not_null
+      - name: location_id
+        description: "Location where this connector is installed."
+        tests:
+          - not_null
+      - name: port_id
+        description: "Port this connector belongs to."
         tests:
           - not_null
       - name: connector_id
-        description: "Connector identifier within the port"
+        description: "Connector identifier within the port."
         tests:
           - not_null
       - name: connector_type
-        description: "Type of connector (e.g., CCS, NACS)"
-      - name: commissioned_ts
-        description: "Timestamp when the charger was commissioned (null if not commissioned yet)"
-      - name: decommissioned_ts
-        description: "Timestamp when the charger was decommissioned (null if still active)"
+        description: "Plug standard for this connector (e.g. CCS, NACS)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['CCS', 'NACS', 'CHAdeMO', 'Type1', 'Type2']
       - name: latest_status
-        description: "Most recent OCPP status reported by this connector (null if no status has been received)"
+        description: "Most recent OCPP status reported by this connector. Null if no StatusNotification has been received yet."
         tests:
           - accepted_values:
               arguments:
                 values: ['Available', 'Preparing', 'Charging', 'SuspendedEVSE', 'SuspendedEV', 'Finishing', 'Reserved', 'Unavailable', 'Faulted']
       - name: latest_error_code
-        description: "Error code from the most recent StatusNotification (e.g., NoError, ConnectorLockFailure)"
+        description: "Error code from the most recent StatusNotification (e.g. NoError, ConnectorLockFailure)."
       - name: latest_status_ts
-        description: "Timestamp when the most recent status was ingested"
+        description: "Timestamp when the most recent status was ingested."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - port_id
+              - connector_id
+
+  - name: dim_locations
+    description: "Conformed location dimension. One row per distinct charging location. SCD Type 1."
+    columns:
+      - name: location_key
+        description: "Surrogate key for the location dimension, generated from location_id."
+        tests:
+          - not_null
+          - unique
+      - name: location_id
+        description: "Natural key. Location identifier sourced from stg_ports."
+        tests:
+          - not_null
+          - unique
+
+  - name: fact_location_capacity
+    description: "Physical capacity counts per location. One row per location. Full refresh — counts are overwritten when ports are commissioned or decommissioned. Join to dim_locations on location_key for site-level analysis."
+    columns:
+      - name: location_key
+        description: "Surrogate key matching dim_locations.location_key."
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('dim_locations')
+              field: location_key
+      - name: location_id
+        description: "Natural key. Location identifier sourced from int_ports."
+        tests:
+          - not_null
+          - unique
+      - name: charge_point_count
+        description: "Number of distinct charge points (devices) at this location."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+      - name: port_count
+        description: "Number of distinct ports (charge_point + port combinations) at this location."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+      - name: connector_count
+        description: "Number of distinct connectors (charge_point + port + connector combinations) at this location."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
 
   - name: charge_point_span_daily
     description: "One row per charge point per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."
