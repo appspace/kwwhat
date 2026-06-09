@@ -20,10 +20,8 @@ with incremental_date_range as (
 ports as (
     select
         charge_point_id,
-        port_id,
-        commissioned_ts,
-        decommissioned_ts
-    from {{ ref('int_ports') }}
+        port_id
+    from {{ ref('dim_ports') }}
 ),
 
 -- Get faulted outages first to filter offline outages

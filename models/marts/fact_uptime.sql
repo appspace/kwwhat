@@ -6,8 +6,10 @@
 }}
 
 with ports as (
-    select distinct charge_point_id, port_id
-    from {{ ref('int_ports') }}
+    select
+        charge_point_id,
+        port_id
+    from {{ ref('dim_ports') }}
 ),
 
 span_port_days as (
