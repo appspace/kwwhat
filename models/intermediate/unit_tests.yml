@@ -2,6 +2,71 @@ version: 2
 
 unit_tests:
 
+  # ── int_driver_aggregates ───────────────────────────────────────────────────
+
+  - name: test_int_driver_aggregates_late_arriving_event_updates_first_seen
+    description: "A late-arriving event with an earlier charge_attempt_start_ts must overwrite first_seen_ts and first_authorization_status."
+    model: int_driver_aggregates
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 00:00:00'
+    given:
+      - input: this
+        format: dict
+        rows:
+          - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 11:00:00', last_seen_ts: '2025-10-02 12:00:00', first_authorization_status: 'Accepted', latest_authorization_status: 'Blocked', incremental_ts: '2025-10-02 12:00:00'}
+      - input: ref('fact_charge_attempts')
+        format: dict
+        rows:
+          - {id_tags: ['TAG-001'], id_tag_statuses: ['Invalid'], charge_attempt_start_ts: '2025-10-02 09:00:00', incremental_ts: '2025-10-02 13:00:00'}
+    expect:
+      rows:
+        - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 09:00:00', last_seen_ts: '2025-10-02 12:00:00', first_authorization_status: 'Invalid', latest_authorization_status: 'Blocked'}
+
+  - name: test_int_driver_aggregates_new_latest_event_updates_last_seen
+    description: "A new event with a later charge_attempt_start_ts must overwrite last_seen_ts and latest_authorization_status."
+    model: int_driver_aggregates
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 00:00:00'
+    given:
+      - input: this
+        format: dict
+        rows:
+          - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 11:00:00', last_seen_ts: '2025-10-02 12:00:00', first_authorization_status: 'Accepted', latest_authorization_status: 'Accepted', incremental_ts: '2025-10-02 12:00:00'}
+      - input: ref('fact_charge_attempts')
+        format: dict
+        rows:
+          - {id_tags: ['TAG-001'], id_tag_statuses: ['Blocked'], charge_attempt_start_ts: '2025-10-02 14:00:00', incremental_ts: '2025-10-02 15:00:00'}
+    expect:
+      rows:
+        - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 11:00:00', last_seen_ts: '2025-10-02 14:00:00', first_authorization_status: 'Accepted', latest_authorization_status: 'Blocked'}
+
+  - name: test_int_driver_aggregates_unknown_sentinel_accumulates_incremental
+    description: "Null id_tag rows aggregate under __UNKNOWN__ and merge correctly with the existing sentinel on incremental runs."
+    model: int_driver_aggregates
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 00:00:00'
+    given:
+      - input: this
+        format: dict
+        rows:
+          - {id_tag: '__UNKNOWN__', first_seen_ts: '2025-10-02 08:00:00', last_seen_ts: '2025-10-02 09:00:00', first_authorization_status: null, latest_authorization_status: null, incremental_ts: '2025-10-02 09:00:00'}
+      - input: ref('fact_charge_attempts')
+        format: dict
+        rows:
+          - {id_tags: [], id_tag_statuses: [], charge_attempt_start_ts: '2025-10-02 07:00:00', incremental_ts: '2025-10-02 13:00:00'}
+    expect:
+      rows:
+        - {id_tag: '__UNKNOWN__', first_seen_ts: '2025-10-02 07:00:00', last_seen_ts: '2025-10-02 09:00:00', first_authorization_status: null, latest_authorization_status: null}
+
   # ── int_status_changes ──────────────────────────────────────────────────────
 
   - name: test_status_changes_deduplicates_consecutive_same_status

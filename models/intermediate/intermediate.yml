@@ -205,6 +205,45 @@ models:
               - connector_id
               - ingested_ts
 
+  - name: int_driver_aggregates
+    description: "Incremental per-driver aggregation over fact_charge_attempts. Maintains running first/last timestamps and authorization statuses per id_tag. Also tracks unauthorized attempts (null id_tag) under the sentinel id_tag '__UNKNOWN__'. Consumed by dim_drivers so that dim_drivers never scans fact_charge_attempts directly."
+    columns:
+      - name: id_tag
+        description: "RFID tag string observed in OCPP messages. Natural key; null id_tag rows (unauthorized attempts) are excluded."
+        tests:
+          - not_null
+          - unique
+      - name: first_seen_ts
+        description: "Earliest charge_attempt_start_ts for this driver. Updated via least() on each incremental merge to handle late-arriving events."
+        tests:
+          - not_null
+      - name: last_seen_ts
+        description: "Most recent charge_attempt_start_ts for this driver. Updated via greatest() on each incremental merge."
+        tests:
+          - not_null
+      - name: first_authorization_status
+        description: "Authorization status at the driver's earliest charge attempt. Follows first_seen_ts: updated when a new batch contains an earlier event."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Accepted', 'Blocked', 'Expired', 'Invalid', 'ConcurrentTx']
+      - name: latest_authorization_status
+        description: "Authorization status at the driver's most recent charge attempt. Follows last_seen_ts: updated when a new batch contains a later event."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Accepted', 'Blocked', 'Expired', 'Invalid', 'ConcurrentTx']
+      - name: incremental_ts
+        description: "Largest incremental_ts from fact_charge_attempts processed into this row. Serves as the watermark for the next incremental run."
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "last_seen_ts >= first_seen_ts"
+          config:
+            severity: error
+
   - name: int_meter_values
     description: "Intermediate incremental model that processes transaction-level aggregated meter values. Provides min, max, and average values for each measurand aggregated across the entire transaction. Use for transaction-level analysis."
     columns:
