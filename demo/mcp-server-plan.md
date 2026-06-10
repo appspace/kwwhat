@@ -118,9 +118,13 @@ shortcut; a production deployment should serve a `client_id` metadata document.
 Intended for trusted backend callers in a server-to-server context.
 
 Flow:
-1. Operator provisions an `API_KEY` (set via env var).
+1. Operator provisions an `API_KEY` (set via env var). The key must be alphanumeric
+   (`[A-Za-z0-9]`) — HTTP header values have encoding constraints and alphanumeric is
+   the safest subset. Recommended length: 32+ characters.
 2. Client attaches `Authorization: Bearer <api_key>` to every `POST /mcp` request.
-3. Server compares the header value to `API_KEY` using a constant-time comparison.
+3. Server validates the key format on startup (reject non-alphanumeric at boot, not at
+   request time) and compares the header value to `API_KEY` using a constant-time
+   comparison.
 
 No token exchange needed. Simpler; appropriate when the caller is a controlled backend,
 not a desktop tool.
