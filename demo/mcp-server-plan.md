@@ -90,8 +90,15 @@ Intended for Claude Desktop and the MCP Inspector during development and demos.
 
 Flow:
 1. Operator provisions a `CLIENT_ID` + `CLIENT_SECRET` pair (set via env vars).
-2. Client posts to `POST /oauth/token` with `grant_type=client_credentials`,
-   `client_id`, `client_secret`.
+2. Client posts to `POST /oauth/token` with `Content-Type: application/x-www-form-urlencoded`
+   and form fields `grant_type=client_credentials`, `client_id`, `client_secret`:
+   ```sh
+   curl -X POST "$SERVER_URL/oauth/token" \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "grant_type=client_credentials" \
+     -d "client_id=$CLIENT_ID" \
+     -d "client_secret=$CLIENT_SECRET"
+   ```
 3. Server returns a short-lived JWT access token (default TTL: 1 hour).
 4. Client attaches `Authorization: Bearer <token>` to every `POST /mcp` request.
 5. Server validates the JWT signature and expiry on each request.
