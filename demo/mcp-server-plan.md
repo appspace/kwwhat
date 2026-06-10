@@ -60,10 +60,17 @@ joined view built on top of it — it does not query the seed directly.
 
 ## 3. Transport and protocol
 
-Use **Streamable HTTP** (MCP spec 2025-03-26). A single `POST /mcp` endpoint handles
+Use **Streamable HTTP** (MCP spec 2025-11-25). A single `POST /mcp` endpoint handles
 all JSON-RPC messages; the server may optionally upgrade to SSE for streaming responses.
 This is the current recommended transport for web-hosted MCP servers and is supported by
 Claude Desktop and the MCP Inspector.
+
+After the `initialize` handshake, every subsequent `POST /mcp` request must include the
+`MCP-Protocol-Version` header set to the negotiated version string (e.g. `2025-11-25`).
+The server must reject requests that omit or mismatch this header with HTTP 400.
+
+The server must return HTTP 403 for requests with an invalid or unexpected `Origin` header
+(CSRF protection per the spec).
 
 Endpoint surface:
 
@@ -92,6 +99,12 @@ Flow:
 No user-facing consent screen; this is machine-to-machine only.
 Tokens are signed with a `JWT_SECRET` env var (HS256). In production, replace with
 an asymmetric key pair.
+
+Production note: the 2025-06-18 spec classifies MCP servers as OAuth Resource Servers
+and requires clients to implement Resource Indicators ([RFC 8707](https://www.rfc-editor.org/rfc/rfc8707.html)).
+The 2025-11-25 spec additionally recommends **OAuth Client ID Metadata Documents** as
+the dynamic client registration mechanism — the demo's static env-var credentials are a
+shortcut; a production deployment should serve a `client_id` metadata document.
 
 ### Mode B: Shared Secret (production server-to-server)
 
@@ -125,8 +138,10 @@ is limited to:
 - No `@`, spaces, or other common PII signals (basic heuristic; production would be stricter).
 - Exceeds 64 characters → reject.
 
-Return `400 Bad Request` with a structured error body (not an MCP tool result) for
-invalid input. Do not log the rejected value.
+Return a **tool execution error** (`isError: true` in the tool result, with a descriptive
+`content[0].text` message) for invalid input — not an HTTP 400 or a JSON-RPC protocol
+error. The 2025-06-18 spec requires this so the model can read the error and self-correct
+(e.g. retry with a valid ID format). Do not log the rejected value.
 
 ---
 
