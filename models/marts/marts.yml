@@ -350,7 +350,7 @@ models:
         description: "Port identifier within the charge point."
         tests:
           - not_null
-      - name: connectors_count
+      - name: connector_count
         description: "Number of connectors on this port."
         tests:
           - not_null
