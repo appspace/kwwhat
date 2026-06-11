@@ -208,8 +208,9 @@ models:
         data_tests:
           - not_null
           - relationships:
-              to: ref('dim_locations')
-              field: location_key
+              arguments:
+                to: ref('dim_locations')
+                field: location_key
       - name: location_id
         description: "Location identifier where the visit occurred"
         data_tests:
@@ -308,8 +309,9 @@ models:
         data_tests:
           - not_null
           - relationships:
-              to: ref('dim_locations')
-              field: location_id
+              arguments:
+                to: ref('dim_locations')
+                field: location_id
       - name: commissioned_ts
         description: "Timestamp when the charge point was commissioned."
         data_tests:
@@ -435,8 +437,9 @@ models:
           - not_null
           - unique
           - relationships:
-              to: ref('dim_locations')
-              field: location_key
+              arguments:
+                to: ref('dim_locations')
+                field: location_key
       - name: location_id
         description: "Natural key. Location identifier sourced from int_ports."
         data_tests:
