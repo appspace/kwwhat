@@ -24,11 +24,9 @@ Stackable metrics to begin with:
 
 | Metric | What it checks |
 |--------|---------------|
-| Answer relevance | Does the response address what the user actually asked? |
 | Faithfulness | Is every claim grounded in the retrieved context — no hallucinations? |
-| Metric validity | Did the model avoid inventing metrics not defined in the semantic model? |
-| Terminology | Did the model use the correct domain vocabulary? |
 | Completeness | Did the response cover the full scope of the question at the right level of detail? |
+| Answer relevance | Does the response address what the user actually asked? |
 
 ---
 
