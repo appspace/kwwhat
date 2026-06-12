@@ -2,6 +2,8 @@
 
 ## What we're building
 
+**Goal** — implement an evals framework that quantifies the impact of context changes on the nao Chat BI tool. We are not testing the LLM or general chat performance. We are testing one specific thing: did a change to the context — RULES.md, semantic model definitions, or similar input files — make the assistant's answers better or worse? The eval score is a signal for context quality, not model quality.
+
 We are adding **LLM-as-a-judge, single-turn, reference-based evals** to this project. Here is what each term means:
 
 **LLM-as-a-judge** — instead of checking outputs with deterministic rules or exact string matches, a second LLM (the "judge") reads the assistant's response and scores it against expected answer. This handles the inherent non-determinism of Chat BI.
