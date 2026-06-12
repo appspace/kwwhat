@@ -1,5 +1,33 @@
 # Thoughts — golden dataset format
 
+## What we're building
+
+We are adding **LLM-as-a-judge, single-turn, reference-based evals** to this project. Here is what each term means:
+
+**LLM-as-a-judge** — instead of checking outputs with deterministic rules or exact string matches, a second LLM (the "judge") reads the assistant's response and scores it against expected answer. This handles the inherent non-determinism of Chat BI.
+
+**Single-turn** — each eval entry is one self-contained exchange: one user input, one assistant response. There is no conversation history or multi-step context to manage. The assistant is evaluated on what it says in a single reply, making scoring deterministic and reproducible.
+
+**Reference-based** — every entry includes a `reference_answer` that describes what a correct response looks like. The judge uses this as the gold standard — not to demand an exact match, but to assess whether the actual response aligns with the same intent, facts, and format. This grounds the judge's scoring in something concrete rather than asking it to reason from the rubric alone.
+
+**Local-first** — the eval harness runs entirely on the developer's machine, with no external eval platform or cloud service required. The golden dataset, judge prompts, scores, and results all live in this repository. This keeps the feedback loop fast, keeps data private, and means the eval is as easy to run as any other dbt command.
+
+**Same model as judge** — we plan to use the same model that powers Chat BI as the judge. This simplifies setup: no second API key, no model version management, no configuration drift. The trade-off is that models tend to score their own outputs more favorably — a known bias in self-evaluation. We accept this for now in exchange for simplicity, and can swap in a separate judge model later if scores prove unreliable.
+
+**Eval framework (deepeval or similar)** — rather than hand-rolling judge prompts, we intend to use an established eval framework. This means the noa labs team does not need to become prompt engineering experts just to run evaluations — the framework owns the judge prompt design and scoring logic. It also provides a foundation that can be extended to multi-turn evals later without rebuilding from scratch.
+
+Stackable metrics to begin with:
+
+| Metric | What it checks |
+|--------|---------------|
+| Answer relevance | Does the response address what the user actually asked? |
+| Faithfulness | Is every claim grounded in the retrieved context — no hallucinations? |
+| Metric validity | Did the model avoid inventing metrics not defined in the semantic model? |
+| Terminology | Did the model use the correct domain vocabulary? |
+| Completeness | Did the response cover the full scope of the question at the right level of detail? |
+
+---
+
 ## Proposed entry format
 
 ```yaml
