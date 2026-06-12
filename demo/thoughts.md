@@ -30,6 +30,20 @@ Stackable metrics to begin with:
 
 ---
 
+## Framework options
+
+| | DeepEval | Latitude | In-house |
+|--|----------|----------|----------|
+| **Approach** | Pre-built generic metric library | Evals derived from production failures and expert judgment | Hand-rolled judge prompts |
+| **Best for** | Pre-production unit testing — useful when there is no production traffic yet | Post-production — requires real failure data to work from | Full control, no dependencies |
+| **Main value** | No prompt engineering required; plug in metrics and run | Evals grounded in actual user failures, not generic rubrics | Fully tailored to the use case |
+| **Main risk** | Score quality depends on golden dataset quality — the framework is only as good as the reference answers | Not useful pre-production; concedes this itself | Requires prompt engineering expertise; hard to maintain |
+| **Multi-turn path** | Built in | Built in | Rebuild from scratch |
+
+**Why this matters for nao:** we are targeting reference-based evals and assume end users arrive with a golden dataset. This changes the comparison significantly. The "generic metrics lie" concern — the main argument against DeepEval — is largely neutralised when every entry has a `reference_answer`: the judge is not scoring in the abstract, it is comparing against a concrete expected output. Latitude's value proposition (evals grounded in real production failures) does not apply here; a golden dataset replaces the need for production traffic. In-house also becomes more viable since comparing against a reference answer is a simpler judge prompt than scoring on abstract rubrics — but DeepEval still wins on setup cost and the multi-turn path for the noa labs team.
+
+---
+
 ## Proposed entry format
 
 ```yaml
