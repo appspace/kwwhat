@@ -8,9 +8,9 @@ We are adding **LLM-as-a-judge, single-turn, reference-based evals** to this pro
 
 **LLM-as-a-judge** — instead of checking outputs with deterministic rules or exact string matches, a second LLM (the "judge") reads the assistant's response and scores it against expected answer. This handles the inherent non-determinism of Chat BI.
 
-**Single-turn** — each eval entry is one self-contained exchange: one user input, one assistant response. There is no conversation history or multi-step context to manage. The assistant is evaluated on what it says in a single reply, making scoring deterministic and reproducible.
+**Single-turn** — each eval entry is a single, atomic unit of interaction with the LLM app: one user input, one assistant response, no conversation history. The assistant is evaluated on what it says in that one reply, in isolation.
 
-**Reference-based** — every entry includes a `reference_answer` that describes what a correct response looks like. The judge uses this as the gold standard — not to demand an exact match, but to assess whether the actual response aligns with the same intent, facts, and format. This grounds the judge's scoring in something concrete rather than asking it to reason from the rubric alone.
+**Reference-based** — every entry includes a `reference_answer` that describes what a correct response looks like. The judge uses this as the gold standard — not to demand an exact match, but to assess whether the actual response aligns with the same intent, facts, and format. This grounds the judge's scoring in whether the agent arrived at the expected answer rather than asking it to reason from the rubric alone.
 
 **Local-first** — the eval harness runs entirely on the developer's machine, with no external eval platform or cloud service required. The golden dataset, judge prompts, scores, and results all live in this repository. This keeps the feedback loop fast, keeps data private, and means the eval is as easy to run as any other dbt command.
 
