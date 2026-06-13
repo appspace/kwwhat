@@ -6,25 +6,44 @@
 }}
 
 with ports as (
-    select distinct
-        charge_point_id, 
-        port_id,
+    select
+        charge_point_id,
         location_id,
-        count(connector_id) as connector_count,
+        port_id,
+        connector_id,
+        connector_type,
+        commissioned_ts,
+        decommissioned_ts
     from {{ ref('int_ports') }}
-    group by
-        charge_point_id, 
-        port_id, 
-        location_id
+),
+
+latest_status as (
+    select
+        charge_point_id,
+        connector_id,
+        latest_status,
+        latest_error_code,
+        latest_status_ts
+    from {{ ref('int_connector_latest_status') }}
 )
 
 select
     {{ dbt_utils.generate_surrogate_key([
         'ports.charge_point_id', 
-        'ports.port_id'
-        ]) }} as port_key,
+        'ports.port_id', 
+        'ports.connector_id'
+        ]) }} as port_sk,
     ports.charge_point_id,
     ports.location_id,
     ports.port_id,
-    ports.connector_count,
+    ports.connector_id,
+    ports.connector_type,
+    ports.commissioned_ts,
+    ports.decommissioned_ts,
+    latest_status.latest_status,
+    latest_status.latest_error_code,
+    latest_status.latest_status_ts
 from ports
+left join latest_status
+    on ports.charge_point_id = latest_status.charge_point_id
+    and ports.connector_id = latest_status.connector_id

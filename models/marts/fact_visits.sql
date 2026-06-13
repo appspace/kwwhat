@@ -43,7 +43,7 @@ charge_attempts_with_location as (
             else null
         end as id_tag
     from {{ ref("fact_charge_attempts") }} att
-    inner join {{ ref("dim_connectors") }} p
+    inner join {{ ref("int_ports") }} p
         on att.charge_point_id = p.charge_point_id
         and att.connector_id = p.connector_id
     where att.incremental_ts > (select from_timestamp from incremental_date_range)
@@ -429,7 +429,6 @@ new_visits as (
 {% endif %}
 
 select
-    {{ dbt_utils.generate_surrogate_key(['location_id']) }} as location_key,
     location_id,
     charge_point_ids,
     id_tag,
