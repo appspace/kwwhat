@@ -48,7 +48,7 @@ RAG traid tests relationship b/w three entities: Question, Context and Response 
 | Metric | Inputs | What it checks |
 |--------|--------|-------|
 | Context Relevance | input and curated_context | Was the context relevant to the question? |
-| Faithfulness | actual_output and curated_context | Is every claim grounded in the curated context — no hallucinations? |
+| Faithfulness | input, actual_output, and curated_context | Is every claim grounded in the curated context — no hallucinations? |
 | Answer relevance | input and actual_output | Does the response address what the user actually asked? |
 | Completeness | input and actual_output | Did the response cover the full scope of the question at the right level of detail? |
 
