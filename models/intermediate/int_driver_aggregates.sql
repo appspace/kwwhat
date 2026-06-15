@@ -2,8 +2,7 @@
   config(
     materialized='incremental',
     unique_key='id_tag',
-    incremental_strategy='merge',
-    cluster_by='last_seen_ts'
+    incremental_strategy='merge'
   )
 }}
 
@@ -14,7 +13,10 @@
 {%- endif -%}
 
 with incremental_date_range as (
-    {{ incremental_date_range(from_timestamp_caps=from_ts_caps) }}
+    {{ incremental_date_range(
+        from_timestamp_caps=from_ts_caps,
+        buffer_minutes=30
+        ) }}
 ),
 
 attempts as (
@@ -41,8 +43,8 @@ new_aggs as (
         id_tag,
         min(charge_attempt_start_ts) as first_seen_ts,
         max(charge_attempt_start_ts) as last_seen_ts,
-        min_by(id_tag_status, charge_attempt_start_ts) as first_authorization_status,
-        max_by(id_tag_status, charge_attempt_start_ts) as latest_authorization_status,
+        {{ min_by('id_tag_status', 'charge_attempt_start_ts') }} as first_authorization_status,
+        {{ max_by('id_tag_status', 'charge_attempt_start_ts') }} as latest_authorization_status,
         max(incremental_ts) as incremental_ts
     from attempts
     where id_tag is not null
