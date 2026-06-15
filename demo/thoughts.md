@@ -23,14 +23,6 @@ We are adding **LLM-as-a-judge, single-turn, reference-based evals** to this pro
 
 **Eval framework (deepeval or similar)** — rather than hand-rolling judge prompts, we intend to use an established eval framework. This means the noa labs team does not need to become prompt engineering experts just to run evaluations — the framework owns the judge prompt design and scoring logic. It also provides a foundation that can be extended to multi-turn evals later without rebuilding from scratch.
 
-Stackable metrics to begin with:
-
-| Metric | What it checks |
-|--------|---------------|
-| Faithfulness | Is every claim grounded in the retrieved context — no hallucinations? |
-| Completeness | Did the response cover the full scope of the question at the right level of detail? |
-| Answer relevance | Does the response address what the user actually asked? |
-
 ---
 
 ## Framework options
@@ -45,6 +37,27 @@ Stackable metrics to begin with:
 
 **Why this matters for nao:** we are targeting reference-based evals and assume end users arrive with a golden dataset. This changes the comparison significantly. The "generic metrics lie" concern — the main argument against DeepEval — is largely neutralised when every entry has a `reference_answer`: the judge is not scoring in the abstract, it is comparing against a concrete expected output. Latitude's value proposition (evals grounded in real production failures) does not apply here; a golden dataset replaces the need for production traffic. In-house also becomes more viable since comparing against a reference answer is a simpler judge prompt than scoring on abstract rubrics — but DeepEval still wins on setup cost and the multi-turn path for the noa labs team.
 
+---
+
+# Metrics borrow from RAG triad
+
+RAG retrives context, which is different from what nao's users are doing - they curate context. We can account for this difference and reuse RAG metrics. 
+
+RAG traid tests relationship b/w three entities: Question, Context and Response with metrics around 1. `Context Relevance` - is the context retried relevant to the question; 2. answer `Faithfulness` - was the answer grounded in retrived context; 3. `Answer Relevance` - is the answer relevant to what was asked. We can re-use this methodology by substituting retrived context with curated context. So the question changes from `Was the right context retrived` to `Was the right context curated`? 
+
+| Metric | Inputs | What it checks |
+|--------|--------|-------|
+| Context Relevance | input and curated_context | Was the context relevant to the question? |
+| Faithfulness | actual_output and curated_context | Is every claim grounded in the curated context — no hallucinations? |
+| Answer relevance | input and actual_output | Does the response address what the user actually asked? |
+| Completeness | input and actual_output | Did the response cover the full scope of the question at the right level of detail? |
+
+So the challenge will be to attache curated context to the test at runtime. Other than that, the triad itself seems very close to what nao users might want to accomplish with their evals.
+
+
+
+
+## Do not use the rest
 ---
 
 ## Proposed entry format
