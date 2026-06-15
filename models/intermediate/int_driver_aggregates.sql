@@ -69,8 +69,8 @@ final as (
 
     select
         n.id_tag,
-        least(n.first_seen_ts, coalesce(b.first_seen_ts, n.first_seen_ts)) as first_seen_ts,
-        greatest(n.last_seen_ts, coalesce(b.last_seen_ts, n.last_seen_ts)) as last_seen_ts,
+        coalesce(b.first_seen_ts, n.first_seen_ts) as first_seen_ts,
+        n.last_seen_ts as last_seen_ts,
         case
             when b.first_seen_ts is null or n.first_seen_ts <= b.first_seen_ts
                 then n.first_authorization_status
@@ -81,7 +81,7 @@ final as (
                 then n.latest_authorization_status
             else b.latest_authorization_status
         end as latest_authorization_status,
-        greatest(n.incremental_ts, coalesce(b.incremental_ts, n.incremental_ts)) as incremental_ts
+        n.incremental_ts as incremental_ts
     from new_aggs n
     left join {{ this }} b on n.id_tag = b.id_tag
 
