@@ -14,8 +14,8 @@ unit_tests:
           - {id_tag: '__UNKNOWN__', first_seen_ts: '2025-10-02 08:00:00', last_seen_ts: '2025-10-02 09:00:00', first_authorization_status: null, latest_authorization_status: null, incremental_ts: '2025-10-02 09:00:00'}
     expect:
       rows:
-        - {id_tag: 'TAG-001', is_known_driver: true,  first_authorization_status: 'Invalid', latest_authorization_status: 'Blocked'}
-        - {id_tag: 'UNKNOWN', is_known_driver: false, first_authorization_status: null,      latest_authorization_status: null, first_seen_ts: '2025-10-02 08:00:00', last_seen_ts: '2025-10-02 09:00:00'}
+        - {id_tag: 'TAG-001', is_known_driver: true,  first_authorization_status: 'Invalid', latest_authorization_status: 'Blocked', first_seen_ts: '2025-10-02 10:00:00', last_seen_ts: '2025-10-02 12:00:00'}
+        - {id_tag: 'UNKNOWN', is_known_driver: false, first_authorization_status: null,      latest_authorization_status: null,    first_seen_ts: '2025-10-02 08:00:00', last_seen_ts: '2025-10-02 09:00:00'}
 
   - name: test_dim_drivers_unknown_sentinel_fallback_when_no_unauthorized_attempts
     description: "When no __UNKNOWN__ row exists in int_driver_aggregates yet, the UNKNOWN sentinel gets first_seen_ts and last_seen_ts of 1900-01-01."
@@ -27,7 +27,7 @@ unit_tests:
           - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 10:00:00', last_seen_ts: '2025-10-02 12:00:00', first_authorization_status: 'Accepted', latest_authorization_status: 'Accepted', incremental_ts: '2025-10-02 12:00:00'}
     expect:
       rows:
-        - {id_tag: 'TAG-001', is_known_driver: true}
+        - {id_tag: 'TAG-001', is_known_driver: true, first_seen_ts: '2025-10-02 10:00:00', last_seen_ts: '2025-10-02 12:00:00'}
         - {id_tag: 'UNKNOWN', is_known_driver: false, first_seen_ts: '1900-01-01 00:00:00', last_seen_ts: '1900-01-01 00:00:00'}
 
   # ── fact_visits ─────────────────────────────────────────────────────────────

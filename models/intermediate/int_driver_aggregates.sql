@@ -65,12 +65,20 @@ new_aggs as (
 ),
 
 final as (
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() %}
 
     select
         n.id_tag,
-        coalesce(b.first_seen_ts, n.first_seen_ts) as first_seen_ts,
-        n.last_seen_ts as last_seen_ts,
+        case
+            when b.first_seen_ts is null or n.first_seen_ts <= b.first_seen_ts
+                then n.first_seen_ts
+            else b.first_seen_ts
+        end as first_seen_ts,
+        case
+            when b.last_seen_ts is null or n.last_seen_ts >= b.last_seen_ts
+                then n.last_seen_ts
+            else b.last_seen_ts
+        end as last_seen_ts,
         case
             when b.first_seen_ts is null or n.first_seen_ts <= b.first_seen_ts
                 then n.first_authorization_status
