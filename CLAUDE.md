@@ -293,6 +293,23 @@ Not just to produce tables.
 
 
 
+## Known Issues
+
+### dbt 2.0 alpha: unit tests fail on incremental models against a clean schema
+
+**Symptom:** `DbSyntaxInvalid (dbt1302)` on unit tests for incremental models (e.g. `int_status_changes`, `int_offline_outages`) during a full refresh.
+
+**Cause:** dbt 2.0 alpha introspects the existing table schema before running unit tests on incremental models. On a clean schema the table doesn't exist yet, so introspection fails and the model is skipped.
+
+**Workaround:** Exclude unit tests from the full refresh, then run them after the tables exist:
+
+```bash
+dbt build --full-refresh --exclude "test_type:unit"
+dbt test --select "test_type:unit"
+```
+
+---
+
 ## Common commands
 
 ```bash

@@ -17,3 +17,4 @@ demo/.env
 .DS_Store
 
 demo/chat-bi/tests/outputs/
+dbt_internal_packages/
