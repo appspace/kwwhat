@@ -5,7 +5,7 @@ dbt_packages/
 logs/
 
 # Python virtual environment
-venv/
+.venv/
 .dbt/
 
 # Local secrets — copy from .env.example and fill in
@@ -17,3 +17,4 @@ demo/.env
 .DS_Store
 
 demo/chat-bi/tests/outputs/
+dbt_internal_packages/

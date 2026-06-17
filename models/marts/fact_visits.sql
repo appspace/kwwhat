@@ -37,11 +37,13 @@ charge_attempts_with_location as (
         att.is_successful,
         att.preparing_ingested_ts,
         -- Extract first idTag from array (or null if empty)
-        case 
-            when att.id_tags is not null and {{ array_size('att.id_tags') }} > 0
-            then {{ array_first('att.id_tags') }}
-            else null
-        end as id_tag
+        cast(
+            case
+                when att.id_tags is not null and {{ array_size('att.id_tags') }} > 0
+                then {{ array_first('att.id_tags') }}
+                else null
+            end
+        as {{ dbt.type_string() }}) as id_tag
     from {{ ref("fact_charge_attempts") }} att
     inner join {{ ref("int_ports") }} p
         on att.charge_point_id = p.charge_point_id
