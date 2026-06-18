@@ -18,7 +18,7 @@ echo "Installing dbt packages..."
 dbt deps --log-path /tmp/dbt-logs
 
 echo "Running dbt run (staging → intermediate → marts)..."
-dbt run --target duckdb --full-refresh --log-path /tmp/dbt-logs
+dbt run --target duckdb --log-path /tmp/dbt-logs
 
 echo "Running dbt tests (failures reported but do not block startup)..."
 dbt test --target duckdb --log-path /tmp/dbt-logs --exclude "test_type:unit" || echo "Some tests failed — see logs."
