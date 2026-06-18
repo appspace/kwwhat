@@ -1,5 +1,5 @@
 name: lately_snapshot
-prompt: "Give me a quick snapshot of uptime and failed charging attempts."
+prompt: "Show me uptime and failed charge attempts for the full history."
 sql: |
   SELECT
     (
