@@ -330,7 +330,8 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 1
+              arguments:
+                min_value: 1
 
   - name: dim_ports
     description: "Port dimension. One row per (charge_point_id, port_id). Use for faulted outages, port-level uptime, port inventory, operational analysis."
@@ -357,7 +358,8 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 1
+              arguments:
+                min_value: 1
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
