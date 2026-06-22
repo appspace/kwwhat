@@ -99,6 +99,10 @@ Test whether **curated project context** drives correct chat behavior — not th
 
 **SQL:** `sql:` must use real columns from [`marts.yml`](models/marts/marts.yml) and only metrics defined in [`semantic_models.yml`](models/semantic/semantic_models.yml).
 
+**Time windows:** if expected SQL has no date filter and aggregates over all available data, the prompt must explicitly ask for "full history"; otherwise the default last-7-days rule applies.
+
+**Reproducibility:** use `dbt run --full-refresh` for demo test setup when previous incremental state could affect eval outputs.
+
 **Narrative:** `charge attempt`, `transaction`, `visit` — never `session`. Presentation rules (%, pp) apply to **answer quality** evaluation, not to the `sql:` block.
 
 **No extra context in test prompts** — no injected chunks; tests exercise curated nao context only (`agent_instructions.md`, `RULES.md`, etc.).
