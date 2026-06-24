@@ -1,4 +1,4 @@
-name: lately_snapshot
+name: full_history_snapshot
 prompt: "Show me uptime and failed charge attempts for the full history."
 sql: |
   SELECT
