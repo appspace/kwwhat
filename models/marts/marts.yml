@@ -358,15 +358,8 @@ models:
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
-              min_value: 1
-      - name: decommissioned_ts
-        description: "Timestamp when this port was decommissioned. Null if still active."
-      - name: is_active
-        description: "True when the port has not been decommissioned."
-        data_tests:
-          - not_null
-          - accepted_values:
-              values: [true, false]
+              arguments:
+                min_value: 1
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
