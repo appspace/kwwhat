@@ -51,19 +51,19 @@ models:
     columns:
       - name: charge_point_id
         description: "Charge point identifier"
-        tests:
+        data_tests:
           - not_null
       - name: message_type_id
         description: "OCPP message type: 2 = CALL (request), 3 = CALLRESULT (response)"
-        tests:
+        data_tests:
           - not_null
       - name: unique_id
         description: "OCPP message identifier, unique per charge point per direction"
-        tests:
+        data_tests:
           - not_null
       - name: ingested_timestamp
         description: "Timestamp when the message was received"
-        tests:
+        data_tests:
           - not_null
 
   - name: stg_ports
@@ -71,23 +71,23 @@ models:
     columns:
       - name: charge_point_id
         description: "Charger identifier. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE)."
-        tests:
+        data_tests:
           - not_null
       - name: location_id
         description: "Location identifier where the charge point is located"
-        tests:
+        data_tests:
           - not_null
       - name: port_id
         description: "Port identifier within the charge point. Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time."
-        tests:
+        data_tests:
           - not_null
       - name: connector_id
         description: "Connector identifier within the port"
-        tests:
+        data_tests:
           - not_null
       - name: connector_type
         description: "Type of connector (e.g., CCS, NACS)"
-        tests:
+        data_tests:
           - not_null
           - accepted_values:
               arguments:
@@ -96,7 +96,7 @@ models:
         description: "Timestamp when the charge point was commissioned (null if not commissioned yet)"
       - name: decommissioned_ts
         description: "Timestamp when the charge point was decommissioned (null if still active)"
-    tests:
+    data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
