@@ -5,12 +5,13 @@
 nao's agent answers questions by reading file-based project context (schema docs, `columns.md`,
 `preview.md`) and executing SQL. When a user asks a question, the agent:
 
-1. Reads relevant files from the project folder (`read_file`, `grep`, `list` tools)
+1. Reads relevant files from the project folder (`read`, `grep`, `search`, `list` tools)
 2. Executes SQL queries (`execute_sql` tool)
 3. Composes a natural language response from those tool outputs
 
-The **curated context** for a faithfulness eval is exactly those tool outputs — the files the agent
-read and the SQL results it used to compose its answer.
+The **curated context** for a faithfulness eval is the subset of tool outputs that carry actual
+content: `execute_sql`, `read`, `grep`, and `search`. The `list` tool is excluded — it returns
+directory metadata (path/dir/size), not file content, so it adds no semantic signal to the eval.
 
 ---
 
@@ -95,8 +96,10 @@ It mirrors `/api/agent` but:
 1. Calls `agent.generate()` instead of `agent.stream()` — blocks until the agent finishes, returns
    `AgentRunResult`
 2. Returns JSON `{ text, model_id, tool_results }` instead of a UI message stream
-3. `tool_results` = `steps.flatMap(s => s.toolResults)` filtered to context-bearing tools:
-   `execute_sql`, `read`, `grep`, `list`, `search`
+3. `tool_results` = `steps.flatMap(s => s.toolResults)` filtered to content-bearing tools:
+   `execute_sql`, `read`, `grep`, `search`
+   — `list` is intentionally excluded: it returns directory metadata (path/dir/size), not file
+   content, so it adds no semantic signal and dilutes Contextual Relevancy scores
 4. Accepts an optional `model: { provider, modelId }` body field to override the project default
 5. Protected by the same `authMiddleware` as every other route — no additional gate needed
 
@@ -193,12 +196,16 @@ independently — a failure in one does not suppress the others.
 
 **Tool result serialization** (pure Python in `conftest.py`, not backend logic):
 
-| Tool | Serialized as |
-|---|---|
-| `read` | `"[File: {path}]\n{content}"` |
-| `execute_sql` | `"[SQL result]\nColumns: {cols}\n{rows as markdown table}"` |
-| `grep` | `"[Search: {pattern}]\n{matches}"` |
-| `list` | `"[Directory: {path}]\n{entries}"` |
+| Tool | Serialized as | Why included |
+|---|---|---|
+| `execute_sql` | `"[SQL result]\nColumns: {cols}\n{rows as markdown table}"` | The primary grounding — actual query results the agent used |
+| `read` | `"[File: {path}]\n{content}"` | Schema docs, column descriptions, semantic models the agent read |
+| `grep` | `"[grep: {pattern}]\n{matches}"` | File content snippets matched during search |
+| `search` | `"[search]\n{raw output}"` | Semantic search results over project context |
+
+`list` is excluded — it returns directory metadata only (path/dir/size), never file content, and
+consistently dilutes Contextual Relevancy by adding entries with no semantic relationship to the
+question.
 
 ---
 
@@ -217,8 +224,24 @@ ContextualRelevancyMetric(threshold=0.7, model=judge, include_reason=True)
 AnswerRelevancyMetric(threshold=0.7, model=judge, include_reason=True)
 ```
 
-Thresholds start at 0.7 across the board — tighten per metric as the dataset matures and baselines
-become clear.
+**Contextual Relevancy threshold is intentionally lower than the other two metrics.** In a classic
+RAG pipeline, retrieval is scoped tightly to the question — only the most relevant chunks are
+fetched. A chat agent works differently: it reads schema docs, semantic model definitions, and
+column descriptions to build a broad understanding of the data model before it can compose a
+correct answer. Much of that context is genuinely necessary for the agent to reason well, but it is
+not directly about the specific question. The result is that Contextual Relevancy is structurally
+diluted compared to a purpose-built retrieval system — by design, not by failure.
+
+This means a score of 0.5–0.65 on Contextual Relevancy may reflect a well-functioning agent
+rather than a broken retrieval step. The practical threshold to start with:
+
+```python
+FaithfulnessMetric(threshold=0.7, ...)          # grounding: strict
+ContextualRelevancyMetric(threshold=0.5, ...)   # broad context: looser
+AnswerRelevancyMetric(threshold=0.7, ...)       # answer quality: strict
+```
+
+Calibrate from observed baselines as the dataset grows, not from RAG benchmarks.
 
 Using the same model as judge introduces self-serving bias — a model tends to score its own outputs
 higher. To use an independent judge, pass `-m` with a different model than the one configured in
