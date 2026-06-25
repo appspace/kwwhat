@@ -6,32 +6,32 @@ models:
     columns:
       - name: charge_point_id
         description: "Identifier for the charge point"
-        tests:
+        data_tests:
           - not_null
       - name: connector_id
         description: "Identifier for the connector"
-        tests:
+        data_tests:
           - not_null
       - name: port_id
         description: "Identifier for the port"
-        tests:
+        data_tests:
           - not_null
       - name: latest_status
         description: "Most recent OCPP status for this connector"
-        tests:
+        data_tests:
           - not_null
           - accepted_values:
               arguments:
                 values: ['Available', 'Preparing', 'Charging', 'SuspendedEVSE', 'SuspendedEV', 'Finishing', 'Reserved', 'Unavailable', 'Faulted']
       - name: latest_error_code
         description: "Error code from the most recent StatusNotification"
-        tests:
+        data_tests:
           - not_null
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested"
-        tests:
+        data_tests:
           - not_null
-    tests:
+    data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
@@ -44,30 +44,30 @@ models:
     columns:
       - name: charge_point_id
         description: "Identifier for the charge point"
-        tests:
+        data_tests:
           - not_null
       - name: unique_id
         description: "Unique identifier for the OCPP message"
-        tests:
+        data_tests:
           - not_null
       - name: connector_id
         description: "Identifier for the connector"
-        tests:
+        data_tests:
           - not_null
       - name: ingested_ts
         description: "Timestamp when the status notification was ingested"
-        tests:
+        data_tests:
           - not_null
       - name: status
         description: "Current status from the notification"
-        tests:
+        data_tests:
           - not_null
           - accepted_values:
               arguments:
                 values: ['Available', 'Preparing', 'Charging', 'SuspendedEVSE', 'SuspendedEV', 'Finishing', 'Reserved', 'Unavailable', 'Faulted']
       - name: error_code
         description: "Error code from the status notification payload (NoError if no error to report)"
-        tests:
+        data_tests:
           - not_null        
       - name: payload
         description: "Original payload from the status notification"
@@ -81,7 +81,7 @@ models:
         description: "Timestamp of the next status notification for the same charge point and connector (null for last status)"
       - name: confirmation_ingested_ts
         description: "Timestamp when the confirmation was ingested"
-    tests:
+    data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
@@ -104,25 +104,25 @@ models:
     columns:
       - name: charge_point_id
         description: "Identifier for the charge point"
-        tests:
+        data_tests:
           - not_null
       - name: connector_id
         description: "Identifier for the charging connector"
-        tests:
+        data_tests:
           - not_null
       - name: unique_id
         description: "Unique identifier for the status change that triggered this charge attempt"
-        tests:
+        data_tests:
           - not_null
       - name: ingested_ts
         description: "Timestamp when the StatusNotification with status 'Preparing' was ingested (start of charge attempt)"
-        tests:
+        data_tests:
           - not_null
       - name: previous_status
         description: "Status before changing to 'Preparing'"
       - name: status
         description: "Current status (should be 'Preparing')"
-        tests:
+        data_tests:
           - not_null
           - accepted_values:
               arguments:
@@ -141,11 +141,11 @@ models:
         description: "Array of error codes from StatusNotification messages"
       - name: _unique_transaction_count
         description: "Count of unique transaction IDs for this charge attempt (should be 0 or 1)"
-        tests:
+        data_tests:
           - accepted_values:
               arguments:
                 values: [0, 1]
-    tests:
+    data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
@@ -158,23 +158,23 @@ models:
     columns:
       - name: transaction_id
         description: "Unique identifier for the transaction from OCPP StartTransaction/StopTransaction messages"
-        tests:
+        data_tests:
           - not_null
       - name: charge_point_id
         description: "Identifier for the charge point"
-        tests:
+        data_tests:
           - not_null
       - name: connector_id
         description: "Connector ID for this transaction"
-        tests:
+        data_tests:
           - not_null
       - name: ingested_ts
         description: "Earliest timestamp when any OCPP event for this transaction was ingested"
-        tests:
+        data_tests:
           - not_null
       - name: transaction_start_ts
         description: "Timestamp when the transaction started (from StartTransaction message)"
-        tests:
+        data_tests:
           - not_null
       - name: transaction_stop_ts
         description: "Timestamp when the transaction stopped (from StopTransaction message)"
@@ -193,11 +193,11 @@ models:
       - name: error_codes
         description: "Array of error codes from StatusNotification events that occurred during the transaction"
       - name: _unique_connectors_count
-        tests:
+        data_tests:
           - accepted_values:
               arguments:
                 values: [1]
-    tests:
+    data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
@@ -249,55 +249,55 @@ models:
     columns:
       - name: charge_point_id
         description: "Unique identifier for the charging point"
-        tests:
+        data_tests:
           - not_null
       - name: transaction_id
         description: "Unique identifier for the charging transaction"
-        tests:
+        data_tests:
           - not_null
       - name: connector_id
         description: "Unique identifier for the connector within the charging point"
-        tests:
+        data_tests:
           - not_null
       - name: ingested_ts
         description: "Timestamp when transaction was ingested into the system"
-        tests:
+        data_tests:
           - not_null
       - name: measurand
         description: "Type of measurement (e.g., Energy.Active.Import.Register, Voltage, Current.Import)"
-        tests:
+        data_tests:
           - not_null
       - name: unit
         description: "Unit of measurement (e.g., Wh, V, A, W)"
-        tests:
+        data_tests:
           - not_null
       - name: phase
         description: "Electrical phase (e.g., L1, L2, L3) or null for single-phase measurements"
       - name: first_measurement_ts
         description: "Meter timestamp of the first measurement for the transaction"
-        tests:
+        data_tests:
           - not_null
       - name: last_measurement_ts
         description: "Meter timestamp of the last measurement for the transaction"
-        tests:
+        data_tests:
           - not_null
       - name: min_value
         description: "Minimum value recorded for the transaction"
-        tests:
+        data_tests:
           - not_null
       - name: max_value
         description: "Maximum value recorded for the transaction"
-        tests:
+        data_tests:
           - not_null
       - name: avg_value
         description: "Average value for the transaction"
-        tests:
+        data_tests:
           - not_null
       - name: _count
         description: "Total number of measurements for the transaction"
-        tests:
+        data_tests:
           - not_null
-    tests:
+    data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
@@ -331,7 +331,7 @@ models:
         description: "Timestamp when the charge point was commissioned (null if not commissioned yet)"
       - name: decommissioned_ts
         description: "Timestamp when the charge point was decommissioned (null if still active)"
-    tests:
+    data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
