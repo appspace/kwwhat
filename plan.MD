@@ -294,6 +294,59 @@ Install eval deps once with `uv sync --extra evals` from `cli/`. The `evals` ext
 
 Add `make evals` to the root `Makefile` for consistency with `make lint`.
 
+Results are written to `{project}/tests/outputs/evals_{timestamp}.json`:
+
+```json
+{
+  "timestamp": "2026-06-25T11:32:24.385414",
+  "results": [
+    {
+      "id": "q001",
+      "input": "How many ports are currently decommissioned?",
+      "passed": false,
+      "metrics": [
+        {
+          "name": "Faithfulness",
+          "score": 0.3333,
+          "threshold": 0.7,
+          "passed": false,
+          "reason": "The score is 0.33 because the actual output contradicts the retrieval context in multiple ways regarding the decommissioned ports data..."
+        },
+        {
+          "name": "Contextual Relevancy",
+          "score": 0.2667,
+          "threshold": 0.5,
+          "passed": false,
+          "reason": "The score is 0.27 because while there are some tangentially relevant elements such as a file named 'decommissioned_ports_check.yml'..."
+        },
+        {
+          "name": "Answer Relevancy",
+          "score": 1.0,
+          "threshold": 0.7,
+          "passed": true,
+          "reason": "The score is 1.00 because the response directly and completely addresses the question about the number of currently decommissioned ports. Great job!"
+        }
+      ]
+    },
+    {
+      "id": "q002",
+      "input": "What is the overall uptime percentage of my EV charging network for the full history?",
+      "passed": false,
+      "metrics": [
+        { "name": "Faithfulness", "score": 1.0, "threshold": 0.7, "passed": true, "reason": "..." },
+        { "name": "Contextual Relevancy", "score": 0.4737, "threshold": 0.5, "passed": false, "reason": "The score is 0.47 because while some retrieved context is highly relevant — including the 'uptime' semantic model — a significant portion covers unrelated models like 'charge_attempts', 'fact_visits', 'dim_dates'..." },
+        { "name": "Answer Relevancy", "score": 1.0, "threshold": 0.7, "passed": true, "reason": "..." }
+      ]
+    }
+  ]
+}
+```
+
+Both records fail on Contextual Relevancy — consistent with the structural dilution described above.
+Answer Relevancy is perfect (1.0) on both: the agent answers the question correctly even when it
+fetches broader context than strictly needed. Faithfulness failure on q001 indicates the agent made
+claims not grounded in what it actually retrieved — a signal worth investigating.
+
 ---
 
 ## CI
