@@ -448,6 +448,6 @@ select
     grouping_key,
     {{ dbt.datediff('visit_start_ts', 'visit_end_ts', 'minute') }} as visit_duration_minutes,
     {{ dbt_utils.generate_surrogate_key(['location_id', 'first_charge_point_id', "first_port_id", 'visit_start_ts']) }} as visit_id,
+    {{ dbt_utils.generate_surrogate_key(["coalesce(id_tag, 'UNKNOWN')"]) }} as driver_key,
     (select incremental_ts from incremental) as incremental_ts
 from visits
-

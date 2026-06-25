@@ -57,6 +57,9 @@ semantic_models:
       - name: charge_attempt
         type: foreign
         expr: last_charge_attempt_id
+      - name: driver
+        type: foreign
+        expr: driver_key
       - name: location
         type: foreign
         expr: location_key
@@ -214,6 +217,42 @@ semantic_models:
         description: "Percentage of attempts with transactions that were successful"
         agg: average
         expr: case when transaction_id is not null then cast(is_successful as integer) else null end
+
+  - name: drivers
+    description: "Driver dimension. One row per RFID id_tag observed in OCPP charge attempts, plus an UNKNOWN sentinel for unauthorized visits."
+    model: ref('dim_drivers')
+    defaults:
+      agg_time_dimension: first_seen_ts
+    entities:
+      - name: driver
+        type: primary
+        expr: driver_key
+    dimensions:
+      - name: id_tag
+        type: categorical
+      - name: is_known_driver
+        type: categorical
+      - name: first_authorization_status
+        type: categorical
+      - name: latest_authorization_status
+        type: categorical
+      - name: first_seen_ts
+        type: time
+        type_params:
+          time_granularity: day
+      - name: last_seen_ts
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: drivers_count
+        description: "Total number of distinct drivers (includes the UNKNOWN sentinel)"
+        agg: count
+        expr: driver_key
+      - name: known_drivers_count
+        description: "Number of drivers with a real id_tag (excludes UNKNOWN sentinel)"
+        agg: sum_boolean
+        expr: is_known_driver
 
   - name: uptime
     description: "Port-level daily uptime: fraction of commissioned minutes not lost to outages"
