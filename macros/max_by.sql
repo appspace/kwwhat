@@ -3,16 +3,6 @@
 {% endmacro %}
 
 {% macro default__max_by(value, order_col) %}
-    {{ exceptions.raise_compiler_error(
-        "max_by not implemented for adapter " ~ target.type
-    ) }}
-{% endmacro %}
-
-{% macro snowflake__max_by(value, order_col) %}
-    max_by({{ value }}, {{ order_col }})
-{% endmacro %}
-
-{% macro duckdb__max_by(value, order_col) %}
     max_by({{ value }}, {{ order_col }})
 {% endmacro %}
 
@@ -24,14 +14,11 @@
     (array_agg({{ value }} order by {{ order_col }} desc))[1]
 {% endmacro %}
 
+# Dont forget to cast from varchar if needed  #
 {% macro redshift__max_by(value, order_col) %}
-    (array_agg({{ value }} order by {{ order_col }} desc))[1]
-{% endmacro %}
-
-{% macro trino__max_by(value, order_col) %}
-    max_by({{ value }}, {{ order_col }})
-{% endmacro %}
-
-{% macro presto__max_by(value, order_col) %}
-    max_by({{ value }}, {{ order_col }})
+    SPLIT_PART(
+        LISTAGG({{ value }}::varchar, CHR(1)) WITHIN GROUP (ORDER BY {{ order_col }} DESC),
+        CHR(1),
+        1
+    )
 {% endmacro %}

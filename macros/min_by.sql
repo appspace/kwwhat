@@ -3,16 +3,6 @@
 {% endmacro %}
 
 {% macro default__min_by(value, order_col) %}
-    {{ exceptions.raise_compiler_error(
-        "min_by not implemented for adapter " ~ target.type
-    ) }}
-{% endmacro %}
-
-{% macro snowflake__min_by(value, order_col) %}
-    min_by({{ value }}, {{ order_col }})
-{% endmacro %}
-
-{% macro duckdb__min_by(value, order_col) %}
     min_by({{ value }}, {{ order_col }})
 {% endmacro %}
 
@@ -24,14 +14,11 @@
     (array_agg({{ value }} order by {{ order_col }}))[1]
 {% endmacro %}
 
+# Dont forget to cast from varchar if needed  #
 {% macro redshift__min_by(value, order_col) %}
-    (array_agg({{ value }} order by {{ order_col }}))[1]
-{% endmacro %}
-
-{% macro trino__min_by(value, order_col) %}
-    min_by({{ value }}, {{ order_col }})
-{% endmacro %}
-
-{% macro presto__min_by(value, order_col) %}
-    min_by({{ value }}, {{ order_col }})
+    SPLIT_PART(
+        LISTAGG({{ value }}::varchar, CHR(1)) WITHIN GROUP (ORDER BY {{ order_col }} ASC),
+        CHR(1),
+        1
+    )
 {% endmacro %}
