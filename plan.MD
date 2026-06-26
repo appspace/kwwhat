@@ -10,8 +10,9 @@ nao's agent answers questions by reading file-based project context (schema docs
 3. Composes a natural language response from those tool outputs
 
 The **curated context** for evals is the subset of tool outputs that carry actual
-content: `execute_sql`, `read`, `grep`, and `search`. The `list` tool is excluded — it returns
-directory metadata (path/dir/size), not file content, so it adds no semantic signal to the eval.
+content: `execute_sql`, `read`, `grep`. Both `list` and `search` are excluded — they return only
+file metadata (path/dir/size), not file content. They are navigation tools the agent uses to
+decide what to read next, not to compose its answer.
 
 ---
 
