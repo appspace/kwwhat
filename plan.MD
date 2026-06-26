@@ -97,9 +97,11 @@ It mirrors `/api/agent` but:
    `AgentRunResult`
 2. Returns JSON `{ text, model_id, tool_results }` instead of a UI message stream
 3. `tool_results` = `steps.flatMap(s => s.toolResults)` filtered to content-bearing tools:
-   `execute_sql`, `read`, `grep`, `search`
-   — `list` is intentionally excluded: it returns directory metadata (path/dir/size), not file
-   content, so it adds no semantic signal and dilutes Contextual Relevancy scores
+   `execute_sql`, `read`, `grep`
+   — `list` and `search` are intentionally excluded: both return only file metadata
+   (path/dir/size), not file content. They are navigation tools — the agent uses them to decide
+   what to read next, not to compose its answer. Including them dilutes Contextual Relevancy
+   with path listings that have no semantic relationship to the question.
 4. Accepts an optional `model: { provider, modelId }` body field to override the project default
 5. Protected by the same `authMiddleware` as every other route — no additional gate needed
 
@@ -196,16 +198,18 @@ independently — a failure in one does not suppress the others.
 
 **Tool result serialization** (pure Python in `conftest.py`, not backend logic):
 
-| Tool | Serialized as | Why included |
-|---|---|---|
-| `execute_sql` | `"[SQL result]\nColumns: {cols}\n{rows as markdown table}"` | The primary grounding — actual query results the agent used |
-| `read` | `"[File: {path}]\n{content}"` | Schema docs, column descriptions, semantic models the agent read |
-| `grep` | `"[grep: {pattern}]\n{matches}"` | File content snippets matched during search |
-| `search` | `"[search]\n{raw output}"` | Semantic search results over project context |
+| Tool | Returns | Included | Reason |
+|---|---|---|---|
+| `execute_sql` | data rows | yes | primary grounding — the actual query results the agent used |
+| `read` | full file content | yes | schema docs, column descriptions, semantic models |
+| `grep` | matching lines + context | yes | actual file content snippets |
+| `search` | path/dir/size | **no** | glob file finder — navigation only, no content |
+| `list` | path/dir/size | **no** | directory listing — navigation only, no content |
 
-`list` is excluded — it returns directory metadata only (path/dir/size), never file content, and
-consistently dilutes Contextual Relevancy by adding entries with no semantic relationship to the
-question.
+`search` and `list` are excluded for the same reason: both return only file metadata. They are
+navigation tools the agent uses to decide what to read next — not to compose its answer. Including
+them adds path listings with no semantic relationship to the question, diluting Contextual
+Relevancy without adding grounding signal.
 
 ---
 
@@ -298,54 +302,38 @@ Results are written to `{project}/tests/outputs/evals_{timestamp}.json`:
 
 ```json
 {
-  "timestamp": "2026-06-25T11:32:24.385414",
+  "timestamp": "2026-06-25T21:35:40.653031",
   "results": [
     {
       "id": "q001",
       "input": "How many ports are currently decommissioned?",
-      "passed": false,
+      "actual_output": "There are currently 4 decommissioned ports (i.e., ports with a non-null decommissioned_ts).",
+      "passed": true,
       "metrics": [
-        {
-          "name": "Faithfulness",
-          "score": 0.3333,
-          "threshold": 0.7,
-          "passed": false,
-          "reason": "The score is 0.33 because the actual output contradicts the retrieval context in multiple ways regarding the decommissioned ports data..."
-        },
-        {
-          "name": "Contextual Relevancy",
-          "score": 0.2667,
-          "threshold": 0.5,
-          "passed": false,
-          "reason": "The score is 0.27 because while there are some tangentially relevant elements such as a file named 'decommissioned_ports_check.yml'..."
-        },
-        {
-          "name": "Answer Relevancy",
-          "score": 1.0,
-          "threshold": 0.7,
-          "passed": true,
-          "reason": "The score is 1.00 because the response directly and completely addresses the question about the number of currently decommissioned ports. Great job!"
-        }
+        { "name": "Faithfulness",          "score": 1.0,  "threshold": 0.7, "passed": true,  "reason": "The score is 1.00 because the actual output is perfectly faithful to the retrieval context with no contradictions found!" },
+        { "name": "Contextual Relevancy",  "score": 1.0,  "threshold": 0.5, "passed": true,  "reason": "The score is 1.00 because the retrieval context is perfectly relevant, directly addressing the question with a specific SQL query counting decommissioned ports and providing the exact answer: 'There are 4 decommissioned ports.'" },
+        { "name": "Answer Relevancy",      "score": 1.0,  "threshold": 0.7, "passed": true,  "reason": "The score is 1.00 because the response directly and completely addresses the question. Great job staying on topic!" }
       ]
     },
     {
       "id": "q002",
       "input": "What is the overall uptime percentage of my EV charging network for the full history?",
-      "passed": false,
+      "actual_output": "Overall Uptime: 99.71% across Sep 15, 2025 – Jun 26, 2026. All 4,986 downtime minutes were concentrated in October 2025. Every other month recorded 100% uptime.",
+      "passed": true,
       "metrics": [
-        { "name": "Faithfulness", "score": 1.0, "threshold": 0.7, "passed": true, "reason": "..." },
-        { "name": "Contextual Relevancy", "score": 0.4737, "threshold": 0.5, "passed": false, "reason": "The score is 0.47 because while some retrieved context is highly relevant — including the 'uptime' semantic model — a significant portion covers unrelated models like 'charge_attempts', 'fact_visits', 'dim_dates'..." },
-        { "name": "Answer Relevancy", "score": 1.0, "threshold": 0.7, "passed": true, "reason": "..." }
+        { "name": "Faithfulness",          "score": 0.8889, "threshold": 0.7, "passed": true,  "reason": "The score is 0.89 because the actual output incorrectly states total commissioned minutes as 1,722,240 when the retrieval context specifies 1,716,480." },
+        { "name": "Contextual Relevancy",  "score": 0.507,  "threshold": 0.5, "passed": true,  "reason": "The score is 0.51 because while a significant portion of the retrieval context is irrelevant (empty SQL results, database metadata, schema config), the context contains the direct answer '99.71% uptime' and supporting breakdowns. The large volume of irrelevant context dilutes the score." },
+        { "name": "Answer Relevancy",      "score": 0.8182, "threshold": 0.7, "passed": true,  "reason": "The score is 0.82 because the output addresses overall uptime but includes unnecessary detail about which chargers caused the downtime events — not directly relevant to the question asked." }
       ]
     }
   ]
 }
 ```
 
-Both records fail on Contextual Relevancy — consistent with the structural dilution described above.
-Answer Relevancy is perfect (1.0) on both: the agent answers the question correctly even when it
-fetches broader context than strictly needed. Faithfulness failure on q001 indicates the agent made
-claims not grounded in what it actually retrieved — a signal worth investigating.
+Both records pass. q001 is a clean 1.0 across all metrics — the agent found the exact SQL and answer.
+q002 passes but reveals two signals worth tracking: Faithfulness at 0.89 (the agent misreported
+one number) and Contextual Relevancy just above threshold at 0.51 (broad schema context still
+diluting the score, consistent with the structural dilution described above).
 
 ---
 
