@@ -9,6 +9,7 @@
 
 - [ ] Referenceless (RAG triad) or reference-based (Correctness), or both?
 - [ ] Use DeepEval's built-in metrics or maintain custom judge prompts?
+- [ ] RAG triad requires nao to maintain a list of content-bearing tools (`execute_sql`, `read`, `grep`) — acceptable ongoing cost? If a new tool is added (e.g. `fetch_api`, `query_vector_store`), the team must decide whether its output is grounding content or navigation metadata and update the list.
 
 ## Acceptance criteria
 
