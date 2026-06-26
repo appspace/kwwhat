@@ -66,6 +66,11 @@ dataset.
 The only requirement is a running nao backend, which is already needed to get `actual_output`
 anyway. Option B adds zero extra infrastructure.
 
+**Maintenance burden:** `CONTEXT_TOOLS` in `apps/backend/src/routes/evals.ts` must be kept in sync
+as new agent tools are added. When a new tool is introduced, the nao team needs to decide whether
+its output is content-bearing (add it) or navigation-only (leave it out). This is a small but
+ongoing maintenance cost that Option A does not have.
+
 ---
 
 ## Architecture
