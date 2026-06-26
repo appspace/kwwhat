@@ -40,6 +40,14 @@ For nao this means the triad catches hallucinations and off-topic answers but wi
 response that is faithful, relevant, and still factually wrong — for example, an answer grounded in
 context that itself contains a stale or incorrect value.
 
+```python
+from deepeval.metrics import FaithfulnessMetric, ContextualRelevancyMetric, AnswerRelevancyMetric
+
+faithfulness_metric        = FaithfulnessMetric(threshold=0.7, model=judge, include_reason=True)
+context_relevancy_metric   = ContextualRelevancyMetric(threshold=0.5, model=judge, include_reason=True)
+answer_relevancy_metric    = AnswerRelevancyMetric(threshold=0.7, model=judge, include_reason=True)
+```
+
 **Option B — Reference-based: Correctness (GEval)**
 
 Every entry includes a `reference_answer` that describes what a correct response looks like. The judge uses this as the gold standard — not to demand an exact match, but to assess whether the actual response aligns with the same intent, facts, and format. This grounds the judge's scoring in whether the agent arrived at the expected answer rather than asking it to reason from the rubric alone.
