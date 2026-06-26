@@ -40,8 +40,20 @@ For nao this means the triad catches hallucinations and off-topic answers but wi
 response that is faithful, relevant, and still factually wrong — for example, an answer grounded in
 context that itself contains a stale or incorrect value.
 
+These are purpose-built metrics — DeepEval already knows which `LLMTestCase` fields each one needs:
+- `FaithfulnessMetric` → `input`, `actual_output`, `retrieval_context`
+- `ContextualRelevancyMetric` → `input`, `retrieval_context`
+- `AnswerRelevancyMetric` → `input`, `actual_output`
+
 ```python
 from deepeval.metrics import FaithfulnessMetric, ContextualRelevancyMetric, AnswerRelevancyMetric
+from deepeval.test_case import LLMTestCase
+
+test_case = LLMTestCase(
+    input="How many ports are currently decommissioned?",
+    actual_output="There are 4 decommissioned ports.",
+    retrieval_context=["[SQL result]\ndecommissioned_ports: 4"],
+)
 
 faithfulness_metric        = FaithfulnessMetric(threshold=0.7, model=judge, include_reason=True)
 context_relevancy_metric   = ContextualRelevancyMetric(threshold=0.5, model=judge, include_reason=True)
@@ -56,9 +68,17 @@ Compares the actual output directly against the expected output. Requires a `exp
 every golden record. Catches factual errors the triad misses — if the number is wrong, the score
 drops regardless of how grounded the answer is.
 
+`GEval` is a blank-slate metric — you write the evaluation steps yourself, so you must explicitly declare which `LLMTestCase` fields to pass via `evaluation_params`.
+
 ```python
 from deepeval.metrics import GEval
-from deepeval.test_case import LLMTestCaseParams
+from deepeval.test_case import LLMTestCase, LLMTestCaseParams
+
+test_case = LLMTestCase(
+    input="How many ports are currently decommissioned?",
+    actual_output="There are 4 decommissioned ports.",
+    expected_output="There are 4 decommissioned ports.",
+)
 
 correctness_metric = GEval(
     name="Correctness",
