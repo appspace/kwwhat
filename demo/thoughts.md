@@ -5,6 +5,21 @@
 **Goal** — implement an evals framework that quantifies the impact of context changes on the nao Chat BI tool. We are not testing the LLM or general chat performance. We are testing one specific thing: did a change to the context — RULES.md, semantic model definitions, or similar input files — make the assistant's answers better or worse? The eval score is a signal for context quality, not model quality. Nao already has SQL tests in place that guard against schema linking failures and semantic gaps. We are looking to add non-deterministic evals that catch failures when the SQL and even the number is correct.
 
 
+## Open questions
+
+- [ ] Referenceless (RAG triad) or reference-based (Correctness), or both?
+- [ ] Use DeepEval's built-in metrics or maintain custom judge prompts?
+
+## Acceptance criteria
+
+- [ ] Data teams define test cases in `tests/evals/` alongside existing `tests/*.yml` SQL tests
+- [ ] `nao evals` runs from a project directory and produces a JSON report in `tests/outputs/`
+- [ ] Report includes pass/fail per test case, per-metric scores and reasons, and a summary
+- [ ] Exit code is non-zero when any case fails — `nao evals` is CI-friendly
+- [ ] Golden dataset lives in `tests/evals/golden_dataset.jsonl` — no boilerplate beyond `id`, `input`, `expected_output`
+
+---
+
 ## Design choices
 
 We are adding **LLM-as-a-judge, single-turn, reference-based evals** to this project. Here is what each term means:
