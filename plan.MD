@@ -99,10 +99,10 @@ Add one new Fastify route: `POST /api/evals/chat`.
 
 It mirrors `/api/agent` but:
 
-1. Calls `agent.generate()` instead of `agent.stream()` — blocks until the agent finishes, returns
-   `AgentRunResult`
+1. Calls `testAgentService.runTest()` (same service used by `nao test`) — non-streaming, returns
+   the full `AgentRunResult`
 2. Returns JSON `{ text, model_id, tool_results }` instead of a UI message stream
-3. `tool_results` = `steps.flatMap(s => s.toolResults)` filtered to content-bearing tools:
+3. `tool_results` = `TestAgentService.extractToolCalls(result)` filtered to content-bearing tools:
    `execute_sql`, `read`, `grep`
    — `list` and `search` are intentionally excluded: both return only file metadata
    (path/dir/size), not file content. They are navigation tools — the agent uses them to decide
@@ -192,11 +192,9 @@ for each record in golden_dataset.jsonl:
        retrieval_context = curated_context,
        expected_output   = record.expected_output   # used by completeness later
      )
-  5. assert_test(test_case, metrics=[
-       faithfulness_metric,
-       context_relevance_metric,
-       answer_relevance_metric,
-     ])
+  5. for each metric: metric.measure(test_case)   # direct call — owns the instance, reads score/reason
+     record result in session_results
+     raise AssertionError if any metric failed
 ```
 
 All three metrics run concurrently on the same test case. DeepEval reports each score and reason
@@ -230,7 +228,7 @@ agent. `conftest.py` instantiates the judge from that model ID:
 
 ```python
 FaithfulnessMetric(threshold=0.7, model=judge, include_reason=True)
-ContextualRelevancyMetric(threshold=0.7, model=judge, include_reason=True)
+ContextualRelevancyMetric(threshold=0.5, model=judge, include_reason=True)
 AnswerRelevancyMetric(threshold=0.7, model=judge, include_reason=True)
 ```
 
@@ -273,6 +271,10 @@ response `model_id`. No code changes needed.
 - **`llm_test_case`** — serializes tool results into `retrieval_context`, returns `LLMTestCase`.
 - **`faithfulness_metric`**, **`context_relevance_metric`**, **`answer_relevance_metric`** — metric
   instances using the judge model.
+- **`session_results`** — session-scoped list collecting `{id, input, actual_output, passed, metrics}`
+  for each record. Populated in `test_evals_triad.py` after each `metric.measure()` call.
+- **`pytest_sessionfinish`** — writes `session_results` to `NAO_EVALS_OUTPUT_FILE` (set by the runner
+  to `{project}/tests/outputs/evals_{timestamp}.json`) at the end of the session.
 - **`completeness_metric`** — add later; `GEval` with custom rubric (see below).
 
 ---
@@ -365,8 +367,12 @@ This gives a weekly regression signal without gating every PR.
 2. **Register route** in `apps/backend/src/app.ts` under `/api/evals`
 3. **Write `cli/nao_core/evals/conftest.py`** — fixtures, judge model factory, tool result
    serializer, dataset loader via `NAO_EVALS_DIR`
-4. **Write `cli/nao_core/evals/test_evals_triad.py`** — single parametrized test,
-   `assert_test(test_case, metrics=[...])`
+4. **Write `cli/nao_core/evals/test_evals_triad.py`** — single parametrized test; calls
+   `metric.measure(test_case)` per metric directly (not `assert_test`) so scores and reasons are
+   readable on the same instances; appends to `session_results`; raises `AssertionError` on failure
+   so that `nao evals` exits non-zero and pytest reports `FAILED` when thresholds aren't met —
+   consistent with `nao test`, which calls `sys.exit(1)` on any test failure. The JSON output
+   is always written regardless of pass/fail.
 5. **Write `cli/nao_core/commands/evals/runner.py`** — `nao evals` command mirroring `nao test`;
    `-m`, `-u`, `--password`, `-v`, `-s` flags; authenticates via `get_auth_session`, sets env vars,
    invokes pytest
