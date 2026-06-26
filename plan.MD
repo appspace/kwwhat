@@ -273,8 +273,9 @@ response `model_id`. No code changes needed.
   instances using the judge model.
 - **`session_results`** — session-scoped list collecting `{id, input, actual_output, passed, metrics}`
   for each record. Populated in `test_evals_triad.py` after each `metric.measure()` call.
-- **`pytest_sessionfinish`** — writes `session_results` to `NAO_EVALS_OUTPUT_FILE` (set by the runner
-  to `{project}/tests/outputs/evals_{timestamp}.json`) at the end of the session.
+- **`pytest_sessionfinish`** — writes `session_results` plus a `summary: { total, passed, failed }`
+  to `NAO_EVALS_OUTPUT_FILE` (set by the runner to `{project}/tests/outputs/evals_{timestamp}.json`)
+  at the end of the session.
 - **`completeness_metric`** — add later; `GEval` with custom rubric (see below).
 
 ---
@@ -334,7 +335,12 @@ Results are written to `{project}/tests/outputs/evals_{timestamp}.json`:
         { "name": "Answer Relevancy",      "score": 0.8182, "threshold": 0.7, "passed": true,  "reason": "The score is 0.82 because the output addresses overall uptime but includes unnecessary detail about which chargers caused the downtime events — not directly relevant to the question asked." }
       ]
     }
-  ]
+  ],
+  "summary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0
+  }
 }
 ```
 
@@ -367,7 +373,8 @@ Do not block PRs on evals — they are slow (~5–10 s per LLM judge call) and c
    is always written regardless of pass/fail.
 5. **Write `cli/nao_core/commands/evals/runner.py`** — `nao evals` command mirroring `nao test`;
    `-m`, `-u`, `--password`, `-v`, `-s` flags; authenticates via `get_auth_session`, sets env vars,
-   invokes pytest
+   invokes pytest; after pytest exits, reads `summary` from the JSON output and calls `sys.exit(1)`
+   if `failed > 0` — same pattern as `nao test`
 6. **Register command** in `cli/nao_core/commands/__init__.py` and `cli/nao_core/main.py`
 7. **Add `evals` extra** to `cli/pyproject.toml` — `deepeval>=2.0` only
 8. **Populate `{project}/tests/evals/golden_dataset.jsonl`** — Q&A pairs from golden dataset
