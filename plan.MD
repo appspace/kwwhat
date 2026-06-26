@@ -9,7 +9,7 @@ nao's agent answers questions by reading file-based project context (schema docs
 2. Executes SQL queries (`execute_sql` tool)
 3. Composes a natural language response from those tool outputs
 
-The **curated context** for a faithfulness eval is the subset of tool outputs that carry actual
+The **curated context** for evals is the subset of tool outputs that carry actual
 content: `execute_sql`, `read`, `grep`, and `search`. The `list` tool is excluded — it returns
 directory metadata (path/dir/size), not file content, so it adds no semantic signal to the eval.
 
