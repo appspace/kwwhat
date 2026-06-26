@@ -349,14 +349,6 @@ diluting the score, consistent with the structural dilution described above).
 
 Do not block PRs on evals — they are slow (~5–10 s per LLM judge call) and cost money.
 
-Add `.github/workflows/evals.yml`:
-- Trigger: `workflow_dispatch` (manual) + `schedule: cron: '0 6 * * 1'` (weekly, Monday 06:00 UTC)
-- Spins up nao with a test project pointed at a fixture database
-- Runs the eval suite
-- Publishes scores as a job summary table (record ID, score, reason for any failures)
-
-This gives a weekly regression signal without gating every PR.
-
 ---
 
 ## Implementation Sequence
