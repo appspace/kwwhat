@@ -93,6 +93,10 @@ RAG traid tests relationship b/w three entities: Question, Context and Response 
 | Answer relevance | input and actual_output | Does the response address what the user actually asked? |
 | Completeness | input and actual_output | Did the response cover the full scope of the question at the right level of detail? |
 
+**How curated context is captured at runtime**
+
+nao does not have a retrieval step — its context is the set of tool calls the agent made while composing its answer. Tool calls that return actual content (e.g. `execute_sql`, `read`, `grep`) become the curated context passed to the judge. Tool calls that return only file metadata (e.g. `list`, `search`) are excluded — they are navigation, not grounding.
+
 ---
 
 ## Framework options
