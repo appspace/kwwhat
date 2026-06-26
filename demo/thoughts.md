@@ -13,8 +13,6 @@ We are adding **LLM-as-a-judge, single-turn, reference-based evals** to this pro
 
 **Single-turn** — each eval entry is a single, atomic unit of interaction with the LLM app: one user input, one assistant response, no conversation history. The assistant is evaluated on what it says in that one reply, in isolation.
 
-**Reference-based** — every entry includes a `reference_answer` that describes what a correct response looks like. The judge uses this as the gold standard — not to demand an exact match, but to assess whether the actual response aligns with the same intent, facts, and format. This grounds the judge's scoring in whether the agent arrived at the expected answer rather than asking it to reason from the rubric alone.
-
 **End-to-end** — we evaluate the observable input and output of the Chat BI system and treat it as a black box. We do not instrument internal steps — no retrieval spans, no tool call traces, no sub-agent scoring. We care about the result the user sees, not the path the system took to produce it. This is the right fit for context-change evals: if the answer improved, the context change worked, regardless of what happened inside.
 
 **Local-first** — the eval harness runs entirely on the developer's machine, with no external eval platform or cloud service required. The golden dataset, judge prompts, scores, and results all live in this repository. This keeps the feedback loop fast, keeps data private, and means the eval is as easy to run as any other dbt command.
@@ -43,6 +41,8 @@ response that is faithful, relevant, and still factually wrong — for example, 
 context that itself contains a stale or incorrect value.
 
 **Option B — Reference-based: Correctness (GEval)**
+
+Every entry includes a `reference_answer` that describes what a correct response looks like. The judge uses this as the gold standard — not to demand an exact match, but to assess whether the actual response aligns with the same intent, facts, and format. This grounds the judge's scoring in whether the agent arrived at the expected answer rather than asking it to reason from the rubric alone.
 
 Compares the actual output directly against the expected output. Requires a `expected_output` for
 every golden record. Catches factual errors the triad misses — if the number is wrong, the score
