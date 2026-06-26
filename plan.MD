@@ -371,7 +371,6 @@ Do not block PRs on evals — they are slow (~5–10 s per LLM judge call) and c
 6. **Register command** in `cli/nao_core/commands/__init__.py` and `cli/nao_core/main.py`
 7. **Add `evals` extra** to `cli/pyproject.toml` — `deepeval>=2.0` only
 8. **Populate `{project}/tests/evals/golden_dataset.jsonl`** — Q&A pairs from golden dataset
-9. **Wire CI** — add `.github/workflows/evals.yml`
 
 ---
 
