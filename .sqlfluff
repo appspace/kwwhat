@@ -1,0 +1,45 @@
+[sqlfluff]
+templater = dbt
+dialect = snowflake
+max_line_length = 120
+
+# Rules to exclude project-wide
+exclude_rules =
+    # dbt models intentionally fan out (evaluator already tracks this separately)
+    structure.unused_cte,
+    # Jinja macro calls look like function spacing violations
+    layout.functions,
+    # Jinja {% if %}/{% else %} blocks force CTE bodies to column 0; templater
+    # can't reconcile this with SQL indent expectations
+    layout.indent,
+    # Single-target selects in CTE helpers are clearer on their own line
+    layout.select_targets,
+    # Join condition order is a style preference not a correctness issue
+    structure.join_condition_order,
+    # Positional GROUP BY references are used intentionally in this project
+    ambiguous.column_references,
+    # Window-function partitions use unqualified names by convention; qualification
+    # is enforced at CTE output grain, not within partition/order expressions
+    references.consistent,
+    references.qualification,
+    # Trailing commas on single-column scalar subqueries look wrong
+    convention.select_trailing_comma
+
+[sqlfluff:templater:dbt]
+project_dir = ./
+profiles_dir = ~/.dbt/
+profile = kwwhat
+target = dev
+
+[sqlfluff:rules:aliasing.table]
+aliasing = explicit
+
+[sqlfluff:rules:aliasing.column]
+aliasing = explicit
+
+[sqlfluff:rules:capitalisation.literals]
+capitalisation_policy = lower
+
+[sqlfluff:rules:layout.long_lines]
+ignore_comment_lines = true
+ignore_comment_clauses = true

@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "connector_id", "charge_attempt_start_ts"], 
+    unique_key=["charge_point_id", "connector_id", "charge_attempt_start_ts"],
     incremental_strategy="merge",
     cluster_by="charge_attempt_start_ts"
   )
@@ -13,7 +13,7 @@
 {%- if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
 {%- else -%}
-    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
+    {%- set from_ts_caps = ["cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
 {%- endif -%}
 
 with incremental_date_range as (
@@ -79,12 +79,12 @@ incremental as (
     select
         greatest(
             coalesce(
-                (select max(preparing_ingested_ts) from preparing), 
-                '1900-01-01'::timestamp
+                (select max(preparing_ingested_ts) from preparing),
+                cast('1900-01-01' as {{ dbt.type_timestamp() }})
             ),
             coalesce(
-                (select max(transaction_ingested_ts) from transactions), 
-                '1900-01-01'::timestamp
+                (select max(transaction_ingested_ts) from transactions),
+                cast('1900-01-01' as {{ dbt.type_timestamp() }})
             )
         ) as incremental_ts
 ),
@@ -98,7 +98,7 @@ attempts_and_transactions as (
         -- Attempt start and stop timestamps depending on what we know
         coalesce(p.preparing_start_ts, t.transaction_start_ts) as charge_attempt_start_ts,
         coalesce(t.transaction_stop_ts, p.preparing_stop_ts) as charge_attempt_stop_ts,
-        
+
         -- Charge attempt details
         p.preparing_ingested_ts,
         p.preparing_unique_id,
@@ -119,18 +119,22 @@ attempts_and_transactions as (
         t.meter_start_wh,
         t.meter_stop_wh,
         t.energy_transferred_kwh,
-        
+
         -- Error details - concatenate error codes from both sources
         array_distinct({{ array_concat('p.error_codes', 't.error_codes') }}) as error_codes
-        
-    from preparing p
-    full outer join transactions t
+
+    from preparing as p
+    full outer join transactions as t
         on p.charge_point_id = t.charge_point_id
         and p.connector_id = t.connector_id
         and p.transaction_id = t.transaction_id
-        and t.transaction_ingested_ts > {{ dbt.dateadd("second", -_authorize_threshold, 'coalesce(p.previous_ingested_ts, p.preparing_ingested_ts)') }}
-        and t.transaction_ingested_ts <= {{ dbt.dateadd("second", _authorize_threshold, 'coalesce(p.next_ingested_ts, p.preparing_ingested_ts)') }}
-        
+        and t.transaction_ingested_ts > {{ dbt.dateadd(
+            "second", -_authorize_threshold, 'coalesce(p.previous_ingested_ts, p.preparing_ingested_ts)'
+        ) }}
+        and t.transaction_ingested_ts <= {{ dbt.dateadd(
+            "second", _authorize_threshold, 'coalesce(p.next_ingested_ts, p.preparing_ingested_ts)'
+        ) }}
+
 )
 
 {% if is_incremental() %}
@@ -227,12 +231,15 @@ select
     energy_transferred_kwh,
     error_codes,
     -- Generate a deterministic unique ID from the composite key
-    {{ dbt_utils.generate_surrogate_key(['charge_point_id', 'connector_id', 'charge_attempt_start_ts']) }} as charge_attempt_id,
+    {{ dbt_utils.generate_surrogate_key([
+        'charge_point_id', 'connector_id', 'charge_attempt_start_ts'
+    ]) }} as charge_attempt_id,
     case
         when transaction_id is not null
             and (next_status is null or next_status != 'Faulted')
             and transaction_stop_reason in ({{ "'" + "', '".join(VALID_STOP_REASONS) + "'" }})
-            and energy_transferred_kwh is not null and energy_transferred_kwh > {{ var('success_energy_threshold_kwh') }}
+            and energy_transferred_kwh is not null
+            and energy_transferred_kwh > {{ var('success_energy_threshold_kwh') }}
         then true
         else false
     end as is_successful,

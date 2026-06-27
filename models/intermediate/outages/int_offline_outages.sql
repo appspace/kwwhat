@@ -1,13 +1,18 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "from_ts"], 
+    unique_key=["charge_point_id", "from_ts"],
     incremental_strategy="merge",
     cluster_by="from_ts"
   )
 }}
 
-{% set charge_point_initiated_actions = ['Authorize', 'BootNotification', 'DataTransfer', 'DiagnosticStatusNotification', 'FirmwareStatusNotification', 'Heartbeat', 'MeterValues', 'StartTransaction', 'StatusNotification', 'StopTransaction'] %}
+{% set charge_point_initiated_actions = [
+    'Authorize', 'BootNotification', 'DataTransfer',
+    'DiagnosticStatusNotification', 'FirmwareStatusNotification',
+    'Heartbeat', 'MeterValues', 'StartTransaction',
+    'StatusNotification', 'StopTransaction'
+] %}
 
 {%- if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
@@ -48,8 +53,8 @@ charger_messages as (
         cc.monitoring_start_ts,
         cc.monitoring_end_ts,
         ol.ingested_timestamp
-    from charger_context cc
-    inner join {{ ref("stg_ocpp_logs") }} ol
+    from charger_context as cc
+    inner join {{ ref("stg_ocpp_logs") }} as ol
         on cc.charge_point_id = ol.charge_point_id
         and ol.ingested_timestamp >= cc.monitoring_start_ts
         and ol.ingested_timestamp <= cc.monitoring_end_ts
@@ -84,9 +89,9 @@ outages_from_gaps as (
         current_ts as to_ts
     from message_gaps
     where prev_ts is null and current_ts > monitoring_start_ts
-    
+
     union all
-    
+
     -- Gaps between consecutive messages
     select
         charge_point_id,
@@ -94,9 +99,9 @@ outages_from_gaps as (
         current_ts as to_ts
     from message_gaps
     where prev_ts is not null and prev_ts < current_ts
-    
+
     union all
-    
+
     -- Gap after last message (from last message to monitoring_end)
     select
         charge_point_id,
@@ -111,10 +116,10 @@ chargers_with_no_messages as (
         cc.charge_point_id,
         cc.monitoring_start_ts as from_ts,
         cc.monitoring_end_ts as to_ts
-    from charger_context cc
+    from charger_context as cc
     where not exists (
         select 1
-        from charger_messages cm
+        from charger_messages as cm
         where cm.charge_point_id = cc.charge_point_id
     )
 ),
@@ -167,11 +172,11 @@ all_outages as (
 
 {% endif %}
 
-select 
+select
     charge_point_id,
     from_ts,
     to_ts,
-    duration_seconds/60 as duration_minutes,
+    duration_seconds / 60 as duration_minutes,
     (select incremental_ts from incremental) as incremental_ts
 from all_outages
 where duration_seconds > {{ var("heartbeat_interval_seconds") }}

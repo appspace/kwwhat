@@ -13,7 +13,7 @@ with ports as (
         connector_id,
         connector_type,
         commissioned_ts,
-        decommissioned_ts,
+        decommissioned_ts
     from {{ ref('stg_ports') }}
 )
 
@@ -24,5 +24,5 @@ select
     connector_id,
     connector_type,
     commissioned_ts,
-    decommissioned_ts,
+    decommissioned_ts
 from ports

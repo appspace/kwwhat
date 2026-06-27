@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=['date_id', 'charge_point_id', 'port_id', 'type'],
+    unique_key=['date_id', 'charge_point_id', 'port_id', 'reason'],
     incremental_strategy='merge',
     cluster_by=['date_id', 'charge_point_id']
   )
@@ -33,7 +33,7 @@ faulted_outages as (
         to_ts,
         duration_minutes,
         incremental_ts,
-        'FAULTED' as type
+        'FAULTED' as reason
     from {{ ref('int_faulted_outages') }}
     where incremental_ts > (select buffer_from_timestamp from incremental_date_range)
         and incremental_ts <= (select to_timestamp from incremental_date_range)
@@ -49,14 +49,14 @@ offline_outages as (
         o.to_ts,
         o.duration_minutes,
         o.incremental_ts,
-        'OFFLINE' as type
-    from {{ ref('int_offline_outages') }} o
-    join ports p on o.charge_point_id = p.charge_point_id
+        'OFFLINE' as reason
+    from {{ ref('int_offline_outages') }} as o
+    inner join ports as p on o.charge_point_id = p.charge_point_id
     where o.incremental_ts > (select buffer_from_timestamp from incremental_date_range)
         and o.incremental_ts <= (select to_timestamp from incremental_date_range)
         and not exists (
             select 1
-            from faulted_outages f
+            from faulted_outages as f
             where f.charge_point_id = o.charge_point_id
                 and f.port_id = p.port_id
                 and o.from_ts >= f.from_ts
@@ -65,17 +65,17 @@ offline_outages as (
 ),
 
 outages as (
-    select charge_point_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, type from offline_outages
+    select charge_point_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, reason from offline_outages
     union all
-    select charge_point_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, type from faulted_outages
+    select charge_point_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, reason from faulted_outages
 ),
 
 filtered_outages as (
     select
         o.*,
         d.date_id
-    from outages o
-    join {{ ref('dim_dates') }} d 
+    from outages as o
+    inner join {{ ref('dim_dates') }} as d
         on date_id between {{ dbt.date_trunc('day', 'o.from_ts') }} and {{ dbt.date_trunc('day', 'o.to_ts') }}
 ),
 
@@ -90,10 +90,10 @@ outage_days as (
         o.charge_point_id,
         o.port_id,
         o.date_id,
-        o.type,
+        o.reason,
         greatest(o.from_ts, o.date_id) as interval_start,
         least(o.to_ts, {{ dbt.dateadd('day', 1, "o.date_id") }}) as interval_end
-    from filtered_outages o
+    from filtered_outages as o
 ),
 
 per_day as (
@@ -101,7 +101,7 @@ per_day as (
         charge_point_id,
         port_id,
         date_id,
-        type,
+        reason,
         {{ dbt.datediff('interval_start', 'interval_end', 'minutes') }} as duration_minutes
     from outage_days
 ),
@@ -111,7 +111,7 @@ final as (
         date_id,
         charge_point_id,
         port_id,
-        type,
+        reason,
         sum(duration_minutes) as duration_minutes
     from per_day
     group by 1, 2, 3, 4
@@ -121,10 +121,9 @@ select
     date_id,
     charge_point_id,
     port_id,
-    type,
+    reason,
     duration_minutes,
     -- Generate a deterministic unique ID from the composite key
-    {{ dbt_utils.generate_surrogate_key(['date_id', 'charge_point_id', 'port_id', 'type']) }} as downtime_id,
+    {{ dbt_utils.generate_surrogate_key(['date_id', 'charge_point_id', 'port_id', 'reason']) }} as downtime_id,
     (select incremental_ts from incremental) as incremental_ts
 from final
-

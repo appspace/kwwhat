@@ -26,4 +26,3 @@ select
     {{ dbt.date_trunc('quarter', 'date_day') }} as quarter_start_date,
     {{ dbt.date_trunc('year', 'date_day') }} as year_start_date
 from date_spine
-

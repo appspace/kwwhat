@@ -1,18 +1,21 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "connector_id", "ingested_ts"], 
+    unique_key=["charge_point_id", "connector_id", "ingested_ts"],
     incremental_strategy="merge",
     cluster_by="ingested_ts"
   )
 }}
 
-{% set charge_attempt_actions = ['Authorize', 'StartTransaction', 'StopTransaction', 'StatusNotification', 'RemoteStartTransaction', 'RemoteStopTransaction'] %}
+{% set charge_attempt_actions = [
+    'Authorize', 'StartTransaction', 'StopTransaction',
+    'StatusNotification', 'RemoteStartTransaction', 'RemoteStopTransaction'
+] %}
 
 {%- if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
 {%- else -%}
-    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
+    {%- set from_ts_caps = ["cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
 {%- endif -%}
 
 with incremental_date_range as (
@@ -44,7 +47,7 @@ status_changes_to_preparing as (
         next_payload_ts,
         error_code,
         incremental_ts,
-        
+
         -- Confirmation details
         confirmation_ingested_ts
     from {{ ref('int_status_changes') }}
@@ -93,11 +96,13 @@ charge_attempt_events_conf as (
         conf.payload as conf_payload,
         {{ payload_extract_connector_id('req.action', 'req.payload') }} as connector_id,
         {{ payload_extract_transaction_id('req.action', 'req.payload', 'conf.payload') }} as transaction_id
-    from charge_attempt_events req
-    left join ocpp_logs conf on req.unique_id = conf.unique_id
+    from charge_attempt_events as req
+    left join ocpp_logs as conf on req.unique_id = conf.unique_id
         and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
         and conf.ingested_ts >= req.ingested_ts
-        and conf.ingested_ts <= {{ dbt.dateadd("second", var("transaction_message_retry_interval"), "req.ingested_ts") }}
+        and conf.ingested_ts <= {{ dbt.dateadd(
+            "second", var("transaction_message_retry_interval"), "req.ingested_ts"
+        ) }}
 
 ),
 
@@ -117,13 +122,13 @@ preparing_events_chaining as (
         p.previous_payload_ts,
         p.next_payload_ts,
         p.payload_ts,
-        
+
         -- Charge attempt event details
         e.action,
         e.payload,
         e.conf_payload
-    from status_changes_to_preparing p
-    left join charge_attempt_events_conf e on p.charge_point_id = e.charge_point_id
+    from status_changes_to_preparing as p
+    left join charge_attempt_events_conf as e on p.charge_point_id = e.charge_point_id
         and p.connector_id = e.connector_id
         and e.ingested_ts > coalesce(p.previous_ingested_ts, p.ingested_ts)
         and e.ingested_ts <= coalesce(p.next_ingested_ts, p.ingested_ts)
@@ -146,7 +151,7 @@ preparing_details as (
         p.previous_payload_ts,
         p.next_payload_ts,
         p.payload_ts,
-        
+
         {{ payload_extract_id_tag('action', 'payload', 'conf_payload') }} as id_tag,
         {{ payload_extract_id_tag_status('action', 'conf_payload') }} as id_tag_status,
         {{ payload_extract_parent_id_tag('action', 'payload', 'conf_payload') }} as parent_id_tag,
@@ -155,7 +160,7 @@ preparing_details as (
 
         -- Error details
         {{ payload_extract_error_code('action', 'payload') }} as error_code
-    from preparing_events_chaining p
+    from preparing_events_chaining as p
 ),
 
 
@@ -182,13 +187,13 @@ preparing_agg as (
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="parent_id_tag") }}) as parent_id_tags,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_id") }}) as transaction_ids,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="error_code") }}) as error_codes
-                
+
     from preparing_details
-    group by 
+    group by
         charge_point_id,
         connector_id,
         unique_id,
-        ingested_ts,        
+        ingested_ts,
         payload_ts,
         previous_status,
         status,
@@ -230,8 +235,8 @@ combined_preparing as (
 
         array_distinct({{ array_concat('n.error_codes', 'b.error_codes') }}) as error_codes
 
-    from preparing_agg n
-    left join {{ this}} b
+    from preparing_agg as n
+    left join {{ this }} as b
         on n.charge_point_id = b.charge_point_id
         and n.connector_id = b.connector_id
         and n.unique_id = b.unique_id

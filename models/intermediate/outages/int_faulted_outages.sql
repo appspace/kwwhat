@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "port_id", "from_ts"], 
+    unique_key=["charge_point_id", "port_id", "from_ts"],
     incremental_strategy="merge",
     cluster_by="from_ts"
   )
@@ -25,10 +25,14 @@
     with incremental_date_range as (
         select
             from_timestamp,
-            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
+            {{ dbt.dateadd(
+                var("incremental_window").unit,
+                var("incremental_window").length,
+                "from_timestamp"
+            ) }} as to_timestamp
         from
             (
-                select cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
+                select cast('{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
             )
     ),
 {% endif %}
@@ -83,9 +87,9 @@ time_points as (
         port_id,
         from_ts as time_point
     from fault_periods
-    
+
     union distinct
-    
+
     select
         charge_point_id,
         port_id,
@@ -100,8 +104,8 @@ time_intervals as (
         tp1.port_id,
         tp1.time_point as from_ts,
         min(tp2.time_point) as to_ts
-    from time_points tp1
-    inner join time_points tp2
+    from time_points as tp1
+    inner join time_points as tp2
         on tp1.charge_point_id = tp2.charge_point_id
         and tp1.port_id = tp2.port_id
         and tp2.time_point > tp1.time_point
@@ -116,8 +120,8 @@ intervals_with_faulted_count as (
         ti.from_ts,
         ti.to_ts,
         count(distinct fp.connector_id) as faulted_connector_count
-    from time_intervals ti
-    left join fault_periods fp
+    from time_intervals as ti
+    left join fault_periods as fp
         on ti.charge_point_id = fp.charge_point_id
         and ti.port_id = fp.port_id
         and fp.from_ts <= ti.to_ts
@@ -132,8 +136,8 @@ all_connectors_faulted as (
         iwfc.port_id,
         iwfc.from_ts,
         iwfc.to_ts
-    from intervals_with_faulted_count iwfc
-    inner join ports_count pc
+    from intervals_with_faulted_count as iwfc
+    inner join ports_count as pc
         on iwfc.charge_point_id = pc.charge_point_id
         and iwfc.port_id = pc.port_id
     where iwfc.faulted_connector_count = pc.connector_count
@@ -148,7 +152,7 @@ faulted_outages_with_lag as (
         from_ts,
         to_ts,
         lag(to_ts) over (
-            partition by charge_point_id, port_id 
+            partition by charge_point_id, port_id
             order by from_ts
         ) as prev_to_ts
     from all_connectors_faulted
@@ -160,11 +164,11 @@ faulted_outages_with_groups as (
         port_id,
         from_ts,
         to_ts,
-        sum(case 
-            when prev_to_ts >= from_ts then 0 
-            else 1 
+        sum(case
+            when prev_to_ts >= from_ts then 0
+            else 1
         end) over (
-            partition by charge_point_id, port_id 
+            partition by charge_point_id, port_id
             order by from_ts
             rows unbounded preceding
         ) as group_id
@@ -192,7 +196,7 @@ faulted_outages as (
 
 {% endif %}
 
-select 
+select
     charge_point_id,
     port_id,
     from_ts,
@@ -201,4 +205,3 @@ select
     (select incremental_ts from incremental) as incremental_ts
 from faulted_outages
 where to_ts > from_ts
-

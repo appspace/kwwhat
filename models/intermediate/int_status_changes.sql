@@ -1,10 +1,10 @@
-{{ 
+{{
     config(
-        materialized="incremental", 
-        unique_key=["charge_point_id", "connector_id", "ingested_ts"], 
+        materialized="incremental",
+        unique_key=["charge_point_id", "connector_id", "ingested_ts"],
         incremental_strategy="merge",
         cluster_by="ingested_ts"
-    ) 
+    )
 }}
 
 {%- if is_incremental() -%}
@@ -69,15 +69,15 @@ with incremental_date_range as (
             req.error_code,
             req.payload,
             req.payload_ts,
-            
+
             -- Confirmation details
             conf.ingested_timestamp as confirmation_ingested_ts
-            
-        from status_notification_events req
-        left join {{ ref("int_ports") }} p
+
+        from status_notification_events as req
+        left join {{ ref("int_ports") }} as p
             on req.charge_point_id = p.charge_point_id
             and req.connector_id = p.connector_id
-        left join ocpp_logs conf
+        left join ocpp_logs as conf
             on req.unique_id = conf.unique_id
             and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
             and conf.ingested_timestamp >= req.ingested_timestamp
@@ -85,7 +85,7 @@ with incremental_date_range as (
     ),
 
 {% if is_incremental() %}
-    
+
     -- Get previous statuses from the existing table to extend lag window
     statuses_buffer as (
         select
@@ -109,13 +109,13 @@ with incremental_date_range as (
     ),
 
     statuses_with_buffer as (
-        select 
+        select
             *,
             cast(null as {{ dbt.type_string() }}) as previous_status,
             cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts,
             cast(null as {{ dbt.type_timestamp() }}) as previous_payload_ts
         from status_with_confirmation
-        
+
         union all
 
         select
@@ -137,7 +137,7 @@ with incremental_date_range as (
 
 {% else %}
     statuses_with_buffer as (
-        select 
+        select
             *,
             cast(null as {{ dbt.type_string() }}) as previous_status,
             cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts,
@@ -223,4 +223,3 @@ select
     next_payload_ts,
     (select incremental_ts from incremental) as incremental_ts
 from status_with_lead
- 

@@ -11,7 +11,7 @@ with ports as (
         location_id,
         port_id,
         connector_id,
-        connector_type,
+        connector_type
     from {{ ref('int_ports') }}
 ),
 
@@ -21,14 +21,14 @@ latest_status as (
         connector_id,
         latest_status,
         latest_error_code,
-        latest_status_ts,
+        latest_status_ts
     from {{ ref('int_connector_latest_status') }}
 )
 
 select
     {{ dbt_utils.generate_surrogate_key([
-        'ports.charge_point_id', 
-        'ports.port_id', 
+        'ports.charge_point_id',
+        'ports.port_id',
         'ports.connector_id'
         ]) }} as connector_key,
     ports.charge_point_id,
@@ -38,7 +38,7 @@ select
     ports.connector_type,
     latest_status.latest_status,
     latest_status.latest_error_code,
-    latest_status.latest_status_ts,
+    latest_status.latest_status_ts
 from ports
 left join latest_status
     on ports.charge_point_id = latest_status.charge_point_id

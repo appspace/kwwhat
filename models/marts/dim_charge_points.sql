@@ -27,5 +27,5 @@ select
     ports.commissioned_ts,
     ports.decommissioned_ts,
     ports.decommissioned_ts is null as is_active,
-    port_count,
+    ports.port_count
 from ports

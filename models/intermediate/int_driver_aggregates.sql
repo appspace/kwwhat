@@ -33,7 +33,7 @@ attempts as (
         end as id_tag_status,
         att.charge_attempt_start_ts,
         att.incremental_ts
-    from {{ ref('fact_charge_attempts') }} att
+    from {{ ref('fact_charge_attempts') }} as att
     where att.incremental_ts > (select from_timestamp from incremental_date_range)
         and att.incremental_ts <= (select to_timestamp from incremental_date_range)
 ),

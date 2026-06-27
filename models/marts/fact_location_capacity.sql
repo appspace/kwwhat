@@ -18,8 +18,12 @@ capacity as (
     select
         location_id,
         count(distinct charge_point_id) as charge_point_count,
-        count(distinct charge_point_id || '|' || cast(port_id as varchar)) as port_count,
-        count(distinct charge_point_id || '|' || cast(port_id as varchar) || '|' || cast(connector_id as varchar)) as connector_count
+        count(distinct charge_point_id || '|' || cast(port_id as {{ dbt.type_string() }})) as port_count,
+        count(
+            distinct charge_point_id
+                || '|' || cast(port_id as {{ dbt.type_string() }})
+                || '|' || cast(connector_id as {{ dbt.type_string() }})
+        ) as connector_count
     from ports
     group by location_id
 )

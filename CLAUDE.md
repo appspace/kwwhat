@@ -63,6 +63,7 @@ Marts (tables, incremental)
 - trailing commas
 - CTEs for readability
 - meaningful CTE names
+- **all SQL keywords lowercase**: `select`, `from`, `where`, `null`, `true`, `false`, `case`, `when`, `then`, `else`, `end`, etc.
 
 ### Macros
 - For cross-platform SQL compatibility, use `adapter.dispatch` instead of `{% if target.type == '...' %}` branches — it keeps each adapter's implementation separate and allows overrides by downstream projects.
