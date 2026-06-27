@@ -155,7 +155,7 @@ models:
               - meter_15min_interval_start
 
   - name: fact_downtime_daily
-    description: "Daily aggregation of charge point downtime derived from offline outages. Splits outages across calendar days and aggregates per charge point and port. Currently only OFFLINE type; FAULT can be added later."
+    description: "Daily aggregation of downtime at Port grain (charge_point_id + port_id + date_id). Splits outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types."
     columns:
       - name: date_id
         description: "Calendar date for the downtime aggregation"
@@ -302,15 +302,19 @@ models:
         granularity: day
   
   - name: dim_charge_points
-    description: "Charge point dimension. One row per charge point. Use for offline outages, charger-level uptime and availability, charger inventory, and visit attribution at charger level."
+    description: >
+      Charger (Charging Station) dimension. One row per Charger.
+      A Charger is the physical system a driver perceives as a single charger — it has one or more Ports.
+      Use for charger inventory, offline outage attribution, and visit attribution at charger level.
+      Sanity check: if a driver says "I went to charger #3", they mean this entity.
     columns:
       - name: charge_point_key
-        description: "Surrogate key for the charge point, generated from charge_point_id."
+        description: "Surrogate key for the Charger, generated from charge_point_id."
         data_tests:
           - not_null
           - unique
       - name: charge_point_id
-        description: "Natural key. Unique identifier for the charge point."
+        description: "Natural key. Unique identifier for the Charger (Charging Station)."
         data_tests:
           - not_null
           - unique
@@ -344,23 +348,27 @@ models:
                 min_value: 1
 
   - name: dim_ports
-    description: "Port dimension. One row per (charge_point_id, port_id). Use for faulted outages, port-level uptime, port inventory, operational analysis."
+    description: >
+      Port (EVSE) dimension. One row per Port (charge_point_id + port_id).
+      A Port is an independently operated part of a Charger that can deliver energy to one EV at a time.
+      Reliability and utilisation metrics (uptime, downtime, charge attempts) are tracked at Port grain.
+      Sanity check: the number of Ports at a location answers "how many vehicles can charge simultaneously?".
     columns:
       - name: port_key
-        description: "Surrogate key for the port, generated from charge_point_id and port_id."
+        description: "Surrogate key for the Port, generated from charge_point_id and port_id."
         data_tests:
           - not_null
           - unique
       - name: charge_point_id
-        description: "Charge point this port belongs to."
+        description: "Charger (Charging Station) this Port belongs to."
         data_tests:
           - not_null
       - name: location_id
-        description: "Location where this port is installed."
+        description: "Location where this Port is installed."
         data_tests:
           - not_null
       - name: port_id
-        description: "Port identifier within the charge point."
+        description: "Port (EVSE) identifier within the Charger."
         data_tests:
           - not_null
       - name: connector_count
@@ -378,7 +386,12 @@ models:
               - port_id
 
   - name: dim_connectors
-    description: "Connector dimension. One row per (charge_point_id, port_id, connector_id). Use for connector-type analysis, current inventory, and connector-specific operational reporting if needed. Finest-grain hardware dimension."
+    description: >
+      Connector dimension. One row per Connector (charge_point_id + port_id + connector_id). Finest-grain hardware dimension.
+      A Connector is an independently operated electrical outlet on a Port. A Port may have multiple Connectors
+      (different socket types or tethered cables) to support different vehicle types (e.g. four-wheeled EVs and electric scooters).
+      Sanity check: the Connector type answers "what vehicle types can charge here?".
+      Use for connector-type analysis, current inventory, and connector-specific operational reporting.
     columns:
       - name: connector_key
         description: "Surrogate key for the connector, generated from charge_point_id, port_id, and connector_id."
@@ -548,7 +561,7 @@ models:
               - date_id
 
   - name: fact_uptime
-    description: "One row per charge point, port, and day. Uptime = (minutes commissioned that day minus total outage minutes) / minutes commissioned that day."
+    description: "Port-level daily uptime. One row per Port per day (charge_point_id + port_id + date_id). Uptime = (commissioned minutes that day − outage minutes) / commissioned minutes. Reliability is tracked at Port grain because a Port is the independently operated unit that serves one EV at a time."
     columns:
       - name: uptime_id
         description: "Surrogate key for the row (charge_point_id, port_id, date_id)"
