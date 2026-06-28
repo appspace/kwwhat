@@ -35,8 +35,13 @@ This project is powered by public OCPP log data and is designed for AI engineers
 | `failed_rate` | Proportion of visits that failed |
 | `average_attempts_per_visit` | Total charge attempts divided by total visits |
 
+---
 
-Check Tableau dashboard [here](https://public.tableau.com/app/profile/daria.sukhareva1853/viz/WIPkwwhatdemo/Overview)
+## Try it yourself
+
+The fastest way to see what kwwhat can do is the self-contained [Chat BI demo](demo/README.md) — ask plain-English questions about EV charger reliabil
+ity and get answers grounded in real OCPP data. No cloud account needed, runs locally. Or explore a live [Tableau dashboard](https://public.tableau.com/app/profile/daria.sukhareva1853/viz/WIPkwwhatdemo/Overview) if you want to see the m
+etrics without running anything.
 
 ---
 
@@ -88,22 +93,6 @@ Together, these shift the question from "did this transaction complete?" to "did
   - energy transferred is above 0.1 kWh
   
  Success criteria are partially borrowed from https://github.com/chargex-consortium/OCPP-2.0.1-Interim-KPI-Calculator and/or are a modification of visit success when at least one charge attempt is successful here [Customer-Focused Key Performance Indicators (KPIs) for Electric Vehicle Charging](https://inl.gov/content/uploads/2024/05/chargex-Customer-Focused-KPIs-for-EV-Charging-6-24-24.pdf)
-
----
-
-## Try it locally (demo)
-
-The fastest way to explore kwwhat is the self-contained Docker demo — no cloud account needed.
-
-```bash
-cd demo
-cp .env.example .env   # add your Anthropic API key
-./run-demo.sh
-```
-
-This spins up three services: a local DuckDB database loaded with sample OCPP logs, the full dbt pipeline, and an AI chat interface where you can ask plain-English questions about your EV charger data.
-
-See [`demo/README.md`](demo/README.md) for details.
 
 ---
 
