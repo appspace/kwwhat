@@ -44,9 +44,13 @@ models:
       - name: next_status
         description: "Next status after 'Preparing' (e.g., 'Charging', 'Available', 'Faulted')"
       - name: id_tags
-        description: "Array of RFID tags or user identifiers merged from charge attempt and transaction events"
+        description: "Array of driver identifiers (id_tag) merged from charge attempt and transaction events. See id_tag for the scalar value."
       - name: id_tag_statuses
         description: "Array of authorization statuses merged from charge attempt and transaction events"
+      - name: id_tag
+        description: "Driver identifier (id_tag) for this attempt — first element from the id_tags array. Null for unauthorized attempts."
+      - name: id_tag_status
+        description: "Authorization status for the driver identifier (id_tag). Null when id_tag is null."
       - name: transaction_id
         description: "Transaction ID (from charge attempt or transaction data)"
         data_tests:
@@ -216,7 +220,7 @@ models:
         data_tests:
           - not_null
       - name: id_tag
-        description: "Driver identifier (RFID tag). Null for visits where authorization failed. May be inferred from subsequent authorized attempts within 2 minutes on the same charger."
+        description: "Driver identifier (id_tag) for this visit. Null for unauthorized visits. May be inferred from a subsequent authorized attempt within 2 minutes on the same charger."
       - name: driver_key
         description: "Foreign key to dim_drivers. Computed as dbt_utils.generate_surrogate_key(coalesce(id_tag, 'UNKNOWN')) so unauthorized visits resolve to the UNKNOWN sentinel."
         tests:
@@ -448,7 +452,7 @@ models:
           - not_null
           - unique
       - name: id_tag
-        description: "Natural key. RFID tag string observed in OCPP messages, or the literal 'UNKNOWN' for the sentinel row aggregating all unauthorized visits."
+        description: "Natural key. Driver identifier (id_tag) observed in OCPP messages, or the literal 'UNKNOWN' for the sentinel row aggregating all unauthorized visits."
         tests:
           - not_null
           - unique

@@ -221,6 +221,14 @@ select
     next_status,
     id_tags,
     id_tag_statuses,
+    case
+        when id_tags is not null and {{ array_size('id_tags') }} > 0
+            then cast({{ array_first('id_tags') }} as {{ dbt.type_string() }})
+    end as id_tag,
+    case
+        when id_tag_statuses is not null and {{ array_size('id_tag_statuses') }} > 0
+            then cast({{ array_first('id_tag_statuses') }} as {{ dbt.type_string() }})
+    end as id_tag_status,
     transaction_id,
     transaction_ingested_ts,
     transaction_start_ts,
