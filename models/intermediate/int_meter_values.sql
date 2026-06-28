@@ -7,7 +7,11 @@
     )
 }}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% set relation_exists = adapter.get_relation(
+    database=this.database, schema=this.schema, identifier=this.identifier
+) %}
+
+{% if is_incremental() and relation_exists %}
     with incremental_date_range as (
             select
                 from_timestamp,
@@ -24,12 +28,16 @@
         select
             from_timestamp,
             {{ dbt.dateadd("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
+            {{ dbt.dateadd(
+                var("incremental_window").unit,
+                var("incremental_window").length,
+                "from_timestamp"
+            ) }} as to_timestamp
         from
             (
                     select
                     greatest(
-                        cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}),
+                        cast('{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}),
                         (select min(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
                     ) as from_timestamp
                 )
@@ -99,8 +107,8 @@
             l.connector_id,
             l.transaction_id,
             l.meter_values
-        from meter_value_logs l
-        left join transactions t on l.charge_point_id = t.charge_point_id
+        from meter_value_logs as l
+        left join transactions as t on l.charge_point_id = t.charge_point_id
             and l.connector_id = t.connector_id
             and l.transaction_id = t.transaction_id
             and l.ingested_ts >= t.ingested_ts
@@ -114,7 +122,10 @@
             connector_id,
             ingested_ts,
             -- Extract timestamp from the meter value object
-            cast({{ json_extract(string="mv.value", string_path="timestamp") }} as {{ dbt.type_timestamp() }}) as meter_timestamp,
+            cast(
+                {{ json_extract(string="mv.value", string_path="timestamp") }}
+                as {{ dbt.type_timestamp() }}
+            ) as meter_timestamp,
             -- Keep the full meter value object for now
             {{ json_extract(string="mv.value", string_path="sampledValue") }} as sample_values
         from meter_value_messages
@@ -142,8 +153,15 @@
             connector_id,
             ingested_ts,
             meter_timestamp,
-            {{ dbt.dateadd("minute", '-(minute(meter_timestamp) % 15)', dbt.date_trunc("minute", 'meter_timestamp')) }} as meter_15min_interval_start,
-            {{ fivetran_utils.pivot_json_extract(string="sample_values", list_of_properties=["measurand", "value", "unit", "phase"]) }}
+            {{ dbt.dateadd(
+                "minute",
+                '-(minute(meter_timestamp) % 15)',
+                dbt.date_trunc("minute", 'meter_timestamp')
+            ) }} as meter_15min_interval_start,
+            {{ fivetran_utils.pivot_json_extract(
+                string="sample_values",
+                list_of_properties=["measurand", "value", "unit", "phase"]
+            ) }}
         from sample_values
     ),
 
@@ -178,7 +196,7 @@
     ),
 
     final as (
-    {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+    {% if is_incremental() and relation_exists %}
 
         select
             n.charge_point_id,
@@ -188,29 +206,29 @@
             n.measurand,
             n.unit,
             n.phase,
-            case 
+            case
                 when b.first_measurement_ts is null then n.first_measurement_ts
-                else least(n.first_measurement_ts, b.first_measurement_ts) 
+                else least(n.first_measurement_ts, b.first_measurement_ts)
             end as first_measurement_ts,
-            case 
+            case
                 when b.last_measurement_ts is null then n.last_measurement_ts
-                else greatest(n.last_measurement_ts, b.last_measurement_ts) 
+                else greatest(n.last_measurement_ts, b.last_measurement_ts)
             end as last_measurement_ts,
-            case 
+            case
                 when b.min_value is null then n.min_value
-                else least(n.min_value, b.min_value) 
+                else least(n.min_value, b.min_value)
             end as min_value,
-            case 
+            case
                 when b.max_value is null then n.max_value
-                else greatest(n.max_value, b.max_value) 
+                else greatest(n.max_value, b.max_value)
             end as max_value,
-            case 
+            case
                 when b.avg_value is null then n.avg_value
-                else (n.avg_value*n._count + b.avg_value*b._count) / (n._count + b._count) 
+                else (n.avg_value*n._count + b.avg_value*b._count) / (n._count + b._count)
             end as avg_value,
             case
                 when b._count is null then n._count
-                else n._count + b._count 
+                else n._count + b._count
             end as _count
         from agg_transaction n
         left join {{ this }} b

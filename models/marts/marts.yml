@@ -174,15 +174,15 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0
-      - name: type
-        description: "Downtime type. Currently always 'OFFLINE'."
+      - name: reason
+        description: "Downtime reason: FAULTED or OFFLINE."
         data_tests:
           - not_null
           - accepted_values:
               arguments:
                 values: ['OFFLINE', 'FAULTED']
       - name: downtime_id
-        description: "Surrogate key for the downtime record, generated from date_id, charge_point_id, port_id, and type"
+        description: "Surrogate key for the downtime record, generated from date_id, charge_point_id, port_id, and reason"
         data_tests:
           - unique
           - not_null
@@ -193,7 +193,7 @@ models:
               - date_id
               - charge_point_id
               - port_id
-              - type
+              - reason
 
   - name: fact_visits
     description: "Incremental marts model that groups charge attempts into visits. A visit is a sequence of charge attempts by the same driver (same idTag) on co-located chargers close in time. Uses two-step grouping: Step 1 groups attempts by charge_point_id within 2 minutes (inferring idTag if any attempt in the group has one). Step 2 groups these groups by location_id and idTag within 30 minutes (if idTag exists) or by charge_point_id within 2 minutes (if no idTag). Time gaps are measured from charge_attempt_stop_ts of one attempt to charge_attempt_start_ts of the next attempt."

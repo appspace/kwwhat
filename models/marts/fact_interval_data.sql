@@ -7,6 +7,10 @@
     )
 }}
 
+{% set relation_exists = adapter.get_relation(
+    database=this.database, schema=this.schema, identifier=this.identifier
+) %}
+
 {%- if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
 {%- else -%}
@@ -45,8 +49,16 @@ with incremental_date_range as (
             measurand,
             unit,
             phase,
-            {{ dbt.dateadd("minute", '-(minute(first_measurement_ts) % 15)', dbt.date_trunc("minute", 'first_measurement_ts')) }} as first_interval,
-            {{ dbt.dateadd("minute", '-(minute(last_measurement_ts) % 15)', dbt.date_trunc("minute", 'last_measurement_ts')) }} as last_interval,
+            {{ dbt.dateadd(
+                "minute",
+                '-(minute(first_measurement_ts) % 15)',
+                dbt.date_trunc("minute", 'first_measurement_ts')
+            ) }} as first_interval,
+            {{ dbt.dateadd(
+                "minute",
+                '-(minute(last_measurement_ts) % 15)',
+                dbt.date_trunc("minute", 'last_measurement_ts')
+            ) }} as last_interval,
             first_measurement_ts,
             last_measurement_ts
         from {{ ref("int_meter_values") }}
@@ -77,7 +89,10 @@ with incremental_date_range as (
             transaction_id,
             connector_id,
             -- Extract timestamp from the meter value object
-            cast({{ json_extract(string="mv.value", string_path="timestamp") }} as {{ dbt.type_timestamp() }}) as meter_timestamp,
+            cast(
+                {{ json_extract(string="mv.value", string_path="timestamp") }}
+                as {{ dbt.type_timestamp() }}
+            ) as meter_timestamp,
             -- Keep the full meter value object for now
             {{ json_extract(string="mv.value", string_path="sampledValue") }} as sample_values
         from meter_value_logs
@@ -103,8 +118,15 @@ with incremental_date_range as (
             transaction_id,
             connector_id,
             meter_timestamp,
-            {{ dbt.dateadd("minute", '-(minute(meter_timestamp) % 15)', dbt.date_trunc("minute", 'meter_timestamp')) }} as meter_15min_interval_start,
-            {{ fivetran_utils.pivot_json_extract(string="sample_values", list_of_properties=["measurand", "value", "unit", "phase"]) }}
+            {{ dbt.dateadd(
+                "minute",
+                '-(minute(meter_timestamp) % 15)',
+                dbt.date_trunc("minute", 'meter_timestamp')
+            ) }} as meter_15min_interval_start,
+            {{ fivetran_utils.pivot_json_extract(
+                string="sample_values",
+                list_of_properties=["measurand", "value", "unit", "phase"]
+            ) }}
         from sample_values
     ),
 
@@ -124,8 +146,8 @@ with incremental_date_range as (
             m.unit,
             m.phase,
             m.value
-        from measurements m
-        left join meter_values mv on m.charge_point_id = mv.charge_point_id
+        from measurements as m
+        left join meter_values as mv on m.charge_point_id = mv.charge_point_id
             and m.connector_id = mv.connector_id
             and m.transaction_id = mv.transaction_id
             and m.measurand = mv.measurand
@@ -143,14 +165,14 @@ with incremental_date_range as (
             ingested_ts,
             -- Rebates reporting requires 15-minute interval data (e.g., 10:00, 10:15, 10:30).
             -- The first and last intervals correspond to when energy transfer starts and stops.
-            case 
+            case
                 when meter_15min_interval_start = first_interval then first_measurement_ts
-                else meter_15min_interval_start 
+                else meter_15min_interval_start
             end as meter_15min_interval_start,
-            case 
-                when meter_15min_interval_start = last_interval then last_measurement_ts 
+            case
+                when meter_15min_interval_start = last_interval then last_measurement_ts
                 else {{ dbt.dateadd("minute", 15, "meter_15min_interval_start") }}
-            end as meter_15min_interval_stop,            
+            end as meter_15min_interval_stop,
             measurand,
             unit,
             phase,
@@ -170,7 +192,7 @@ with incremental_date_range as (
             measurand,
             unit,
             phase,
-            
+
             -- interval avg value
             avg(cast(value as {{ dbt.type_float() }})) as avg_value,
             count(*) as _count
@@ -188,7 +210,7 @@ with incremental_date_range as (
     ),
 
     final as (
-    {% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+    {% if is_incremental() and relation_exists %}
 
         select
             n.charge_point_id,
@@ -200,16 +222,16 @@ with incremental_date_range as (
             n.phase,
             n.meter_15min_interval_start,
             n.meter_15min_interval_stop,
-            case 
+            case
                 when b.avg_value is null then n.avg_value
-                else (n.avg_value*n._count + b.avg_value*b._count) / (n._count + b._count) 
+                else (n.avg_value*n._count + b.avg_value*b._count) / (n._count + b._count)
             end as avg_value,
-            case 
+            case
                 when b._count is null then n._count
                 else (n._count + b._count)
             end as _count
-        from agg_15min n
-        left join {{ this }} b
+        from agg_15min as n
+        left join {{ this }} as b
             on n.charge_point_id = b.charge_point_id
             and n.connector_id = b.connector_id
             and n.transaction_id = b.transaction_id
@@ -240,6 +262,9 @@ with incremental_date_range as (
         avg_value,
         _count,
         -- Generate a deterministic unique ID from the composite key
-        {{ dbt_utils.generate_surrogate_key(['charge_point_id', 'transaction_id', 'ingested_ts', 'connector_id', 'measurand', 'unit', 'phase', 'meter_15min_interval_start']) }} as interval_data_id,
+        {{ dbt_utils.generate_surrogate_key([
+            'charge_point_id', 'transaction_id', 'ingested_ts',
+            'connector_id', 'measurand', 'unit', 'phase', 'meter_15min_interval_start'
+        ]) }} as interval_data_id,
         (select incremental_ts from incremental) as incremental_ts
     from final

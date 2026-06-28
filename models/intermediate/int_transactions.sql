@@ -1,19 +1,30 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "connector_id", "ingested_ts"], 
+    unique_key=["charge_point_id", "connector_id", "ingested_ts"],
     incremental_strategy="merge",
     cluster_by="ingested_ts"
   )
 }}
 
-{% set transaction_related_actions = ['StartTransaction', 'StopTransaction', 'RemoteStartTransaction', 'RemoteStopTransaction', 'MeterValues'] %}
+{% set transaction_related_actions = [
+    'StartTransaction', 'StopTransaction',
+    'RemoteStartTransaction', 'RemoteStopTransaction', 'MeterValues'
+] %}
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% set relation_exists = adapter.get_relation(
+    database=this.database, schema=this.schema, identifier=this.identifier
+) %}
+
+{% if is_incremental() and relation_exists %}
     with incremental_date_range as (
         select
             from_timestamp,
-            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
+            {{ dbt.dateadd(
+                var("incremental_window").unit,
+                var("incremental_window").length,
+                "from_timestamp"
+            ) }} as to_timestamp
         from
             (
                 select (select max(incremental_ts) from {{ this }}) as from_timestamp
@@ -24,10 +35,14 @@
     with incremental_date_range as (
         select
             from_timestamp,
-            {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
+            {{ dbt.dateadd(
+                var("incremental_window").unit,
+                var("incremental_window").length,
+                "from_timestamp"
+            ) }} as to_timestamp
         from
             (
-                select cast( '{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
+                select cast('{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
             )
     ),
 {% endif %}
@@ -68,8 +83,8 @@ transaction_events as (
 transaction_events_conf as (
     select req.*,
         conf.payload as conf_payload
-    from transaction_events req
-    left join ocpp_logs conf on req.unique_id = conf.unique_id
+    from transaction_events as req
+    left join ocpp_logs as conf on req.unique_id = conf.unique_id
         and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
         and conf.ingested_ts >= req.ingested_ts
         and conf.ingested_ts <= {{ dbt.dateadd("second", 15, "req.ingested_ts") }}
@@ -95,8 +110,8 @@ transaction_details as (
         -- Meter details
         {{ payload_extract_meter_start('action', 'payload') }} as meter_start,
         {{ payload_extract_meter_stop('action', 'payload') }} as meter_stop,
-        {{ payload_extract_meter_value('action', 'payload') }} as meter_value,
-    from transaction_events_conf e
+        {{ payload_extract_meter_value('action', 'payload') }} as meter_value
+    from transaction_events_conf as e
 ),
 
 -- Group by transaction_id and extract transaction-level details
@@ -106,25 +121,25 @@ transactions as (
         charge_point_id,
 
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="connector_id") }}) as connector_ids,
-        
+
         -- Transaction timing details
         min(ingested_ts) as ingested_ts,
         min(transaction_start_ts) as transaction_start_ts,
         max(transaction_stop_ts) as transaction_stop_ts,
         max(ingested_ts) as last_ingested_ts,
         min(transaction_stop_reason) as transaction_stop_reason,
-        
+
         --Authentication details
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag") }}) as id_tags,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag_status") }}) as id_tag_statuses,
-        
+
         -- Energy transfer details
         min(meter_start) as meter_start_wh,
         max(meter_stop) as meter_stop_wh
-        
+
     from transaction_details
     where transaction_id is not null
-    group by 
+    group by
         transaction_id,
         charge_point_id
 ),
@@ -146,18 +161,18 @@ transaction_status_notifications as (
         t.transaction_id,
         t.charge_point_id,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="sn.error_code") }}) as error_codes
-    from transactions t
-    left join status_notifications sn
+    from transactions as t
+    left join status_notifications as sn
         on t.charge_point_id = sn.charge_point_id
         and sn.ingested_ts >= t.transaction_start_ts
         and sn.ingested_ts <= coalesce(t.transaction_stop_ts, t.last_ingested_ts)
         and {{ array_contains('t.connector_ids', 'sn.connector_id') }}
-    group by 
+    group by
         t.transaction_id,
         t.charge_point_id
 )
 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
+{% if is_incremental() and relation_exists %}
 ,
 
 combined_transactions as (
@@ -177,47 +192,45 @@ combined_transactions as (
         array_distinct({{ array_concat('n.id_tag_statuses', 'b.id_tag_statuses') }}) as id_tag_statuses,
         array_distinct({{ array_concat('n.connector_ids', 'b.connector_ids') }}) as connector_ids
 
-    from transactions n
-    left join {{ this }} b
+    from transactions as n
+    left join {{ this }} as b
         on n.charge_point_id = b.charge_point_id
         and n.transaction_id = b.transaction_id
         and b.transaction_stop_ts is null
 )
 {% endif %}
 
-select 
+select
     t.*,
     tsn.error_codes,
-        
+
     -- Calculate energy transferred from meterStart and meterStop values
     cast(
-        case 
+        case
             when t.meter_start_wh is not null and t.meter_stop_wh is not null
-            then (t.meter_stop_wh - t.meter_start_wh)/1000.0
-            else null
+            then (t.meter_stop_wh - t.meter_start_wh) / 1000.0
         end as {{ dbt.type_numeric() }}
     ) as energy_transferred_kwh,
-    case 
+    case
         when t.connector_ids is not null and {{ array_size('t.connector_ids') }} > 0
             then {{ array_first('t.connector_ids') }}
-        else null
     end as connector_id,
 
     -- Count aggregations for testing
-    case 
-        when t.connector_ids is not null 
+    case
+        when t.connector_ids is not null
             then {{ array_size('t.connector_ids') }}
         else 0
     end as _unique_connectors_count,
 
     (select incremental_ts from incremental) as incremental_ts
 
-from 
-{% if is_incremental() and adapter.get_relation(database=this.database, schema=this.schema, identifier=this.identifier) %}
-    combined_transactions t
+from
+{% if is_incremental() and relation_exists %}
+    combined_transactions as t
 {% else %}
-    transactions t
+    transactions as t
 {% endif %}
-left join transaction_status_notifications tsn
+left join transaction_status_notifications as tsn
     on t.transaction_id = tsn.transaction_id
     and t.charge_point_id = tsn.charge_point_id

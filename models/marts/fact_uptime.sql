@@ -18,8 +18,8 @@ span_port_days as (
         p.port_id,
         s.date_id,
         s.minutes as minutes_commissioned
-    from {{ ref('charge_point_span_daily') }} s
-    join ports p on s.charge_point_id = p.charge_point_id
+    from {{ ref('charge_point_span_daily') }} as s
+    inner join ports as p on s.charge_point_id = p.charge_point_id
 ),
 
 downtime_agg as (
@@ -39,8 +39,8 @@ with_downtime as (
         s.date_id,
         s.minutes_commissioned,
         coalesce(d.total_downtime_minutes, 0) as total_downtime_minutes
-    from span_port_days s
-    left join downtime_agg d
+    from span_port_days as s
+    left join downtime_agg as d
         on s.charge_point_id = d.charge_point_id
        and s.port_id = d.port_id
        and s.date_id = d.date_id
