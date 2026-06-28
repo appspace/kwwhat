@@ -8,6 +8,7 @@ style="width: 100%; height: auto;"
 from raw OCPP logs to automated reliability/utilization reporting [here](https://github.com/appspace/kwwhat)
 
 ---
+
 **kwwhat** is an open-source dbt project that models reliability and utilization metrics from EV charger logs based on the OCPP 1.6 and 2.0.1 protocols. Starting from raw OCPP logs, the project builds a transparent path toward meaningful metrics like uptime, session success, and visit-level outcomes.
 
 This project is powered by public OCPP log data and is designed for CSMS providers, utilities, researchers, and data practitioners aiming to build their own charger analytics stack.
@@ -53,18 +54,19 @@ Reliability and utilisation metrics are tracked at **Port grain**.
 
 Source: OCPP 2.1 Edition 1 — © Open Charge Alliance 2025, Definitions
 
-#### Success criteria
-Charge attempt is successful when:
+---
+
+## Success criteria
+
+**Visit** is successful when the last charge attempt is successful.
+
+**Charge attempt** is successful when:
   - there is a transaction (energy transfer)
   - next connector status is not ‘Faulted'
   - transaction stop reason is 'Local’ or ‘Remote’ or ‘EVDisconnected'
   - energy transferred is above 0.1 kWh
   
-  partially borrowed from https://github.com/chargex-consortium/OCPP-2.0.1-Interim-KPI-Calculator
-
-Visits is successful when the last attempt of the visit is successful.
-
-  a modification of visit success when at least one charge attempt is successful here [Customer-Focused Key Performance Indicators (KPIs) for Electric Vehicle Charging](https://inl.gov/content/uploads/2024/05/chargex-Customer-Focused-KPIs-for-EV-Charging-6-24-24.pdf)
+ Success criteria are partially borrowed from https://github.com/chargex-consortium/OCPP-2.0.1-Interim-KPI-Calculator and/or are a modification of visit success when at least one charge attempt is successful here [Customer-Focused Key Performance Indicators (KPIs) for Electric Vehicle Charging](https://inl.gov/content/uploads/2024/05/chargex-Customer-Focused-KPIs-for-EV-Charging-6-24-24.pdf)
 
 ---
 
