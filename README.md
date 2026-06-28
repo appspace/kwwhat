@@ -4,14 +4,14 @@
 style="width: 100%; height: auto;"
 />
 
-# kWwhat: open-source data analytics pipeline for EV charging
-from raw OCPP logs to automated reliability/utilization reporting [here](https://github.com/appspace/kwwhat)
+# kWwhat: open-source EV charging context layer
+the data foundation you plug into an agentic stack to give it EV charging awareness out of the box [here](https://github.com/appspace/kwwhat)
 
 ---
 
-**kwwhat** is an open-source dbt project that models reliability and utilization metrics from EV charger logs based on the OCPP 1.6 and 2.0.1 protocols. Starting from raw OCPP logs, the project builds a transparent path toward meaningful metrics like uptime, session success, and visit-level outcomes.
+**kwwhat** is an open-source dbt project that transforms raw OCPP logs into a structured, queryable context layer for EV charging. It models charge attempts, visits, uptime, and session outcomes — so whatever agentic use case you are building has reliable, grounded domain knowledge from day one.
 
-This project is powered by public OCPP log data and is designed for CSMS providers, utilities, researchers, and data practitioners aiming to build their own charger analytics stack.
+This project is powered by public OCPP log data and is designed for AI engineers, data practitioners, and CSMS providers building support agents, analytics agents, or agentic ops workflows who want to give their agents a deep understanding of charger behavior without building the data layer from scratch.
 
 ---
 
