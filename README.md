@@ -16,20 +16,24 @@ This project is powered by public OCPP log data and is designed for CSMS provide
 
 ## What’s included
 
-**kwwhat** includes:
-
 - Source modeling for raw OCPP logs (StatusNotification, Heartbeat, Start/StopTransaction)
-- Session and visit grouping logic
-- Core metrics like:
-  - [x] Outages: from, to, type
-  - [x] Port uptime (% of commissioned time a Port was online and not faulted — a solid base for calculating uptime by adding maintenance and exclusion rules)
-  - [x] Attempt success
-  - [x] Visit success
-  - [x] First attempt success rate
-  - [x] Troubled success rate
-- Public OCPP logs for realistic examples
-- Modular dbt structure to plug into your existing stack
+- Charge attempt and visit models
 - Interval data for other reporting use cases that require energy delivery by 15-min time slices
+- Core metrics:
+  
+| Metric | Description |
+|---|---|
+| `uptime` | Average fraction of commissioned time a Port was online and not in a Faulted state |
+| `total_visits` | Total number of charging visits |
+| `total_charge_attempts` | Total charge attempts across all visits |
+| `first_attempt_success` | Count of visits where the first attempt succeeded |
+| `troubled_success` | Count of visits that succeeded but required more than one attempt |
+| `failed_visits` | Count of visits that did not end in a successful charge |
+| `first_attempt_success_rate` | Proportion of visits where the first attempt succeeded |
+| `troubled_success_rate` | Proportion of visits that were troubled success |
+| `failed_rate` | Proportion of visits that failed |
+| `average_attempts_per_visit` | Total charge attempts divided by total visits |
+
 
 Check Tableau dashboard [here](https://public.tableau.com/app/profile/daria.sukhareva1853/viz/WIPkwwhatdemo/Overview)
 
@@ -88,23 +92,6 @@ cd kwwhat
 ````
 
 Then update your `profiles.yml` to point to your raw data location (e.g., DuckDB, BigQuery, Snowflake, Redshift, etc.).
-
----
-
-## Example metrics
-
-| Metric | Description |
-|---|---|
-| `uptime` | Average fraction of commissioned time a Port was online and not in a Faulted state |
-| `total_visits` | Total number of charging visits |
-| `total_charge_attempts` | Total charge attempts across all visits |
-| `first_attempt_success` | Count of visits where the first attempt succeeded |
-| `troubled_success` | Count of visits that succeeded but required more than one attempt |
-| `failed_visits` | Count of visits that did not end in a successful charge |
-| `first_attempt_success_rate` | Proportion of visits where the first attempt succeeded |
-| `troubled_success_rate` | Proportion of visits that were troubled success |
-| `failed_rate` | Proportion of visits that failed |
-| `average_attempts_per_visit` | Total charge attempts divided by total visits |
 
 ---
 
