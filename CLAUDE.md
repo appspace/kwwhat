@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **Charger** (Charging Station) | Physical system where EVs can be charged. Has one or more Ports. | What a driver perceives as a single charger |
 | **Port** (EVSE) | Independently operated part of a Charger that delivers energy to one EV at a time | "How many vehicles can charge simultaneously?" = number of Ports |
 | **Connector** | Independently operated electrical outlet on a Port. A Port may have multiple Connectors (socket types or tethered cables) for different vehicle types | "What vehicle types can charge here?" = Connector types |
+| **Visit** | One driver trip to a charging location. May span multiple charge attempts (e.g., a failed plug-in followed by a retry). Authenticated visits (idTag present) group attempts by driver + location within 30 min; unauthenticated visits group by port within 2 min. | "Did this driver successfully charge?" = visit outcome |
 
 Reliability and utilisation metrics (uptime, downtime, charge attempts) are tracked at **Port grain**.
 

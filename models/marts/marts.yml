@@ -196,7 +196,7 @@ models:
               - reason
 
   - name: fact_visits
-    description: "Incremental marts model that groups charge attempts into visits. A visit is a sequence of charge attempts by the same driver (same idTag) on co-located chargers close in time. Uses two-step grouping: Step 1 groups attempts by charge_point_id within 2 minutes (inferring idTag if any attempt in the group has one). Step 2 groups these groups by location_id and idTag within 30 minutes (if idTag exists) or by charge_point_id within 2 minutes (if no idTag). Time gaps are measured from charge_attempt_stop_ts of one attempt to charge_attempt_start_ts of the next attempt."
+    description: "One row per driver visit — a single trip to a charging location that may span multiple charge attempts (e.g., a failed plug-in followed by a retry). Authenticated visits (idTag present) group attempts by driver + location within a 30-minute window; unauthenticated visits group by port within a 2-minute window. Implementation uses two-step grouping: Step 1 groups attempts by charge_point_id within 2 minutes, inferring idTag from any attempt in the group that has one. Step 2 groups by location_id + idTag within 30 minutes (authenticated) or by charge_point_id + port_id within 2 minutes (unauthenticated). Time gaps are measured from charge_attempt_stop_ts of one attempt to charge_attempt_start_ts of the next."
     columns:
       - name: visit_id
         description: "Unique identifier for the visit, generated from location_id, first_charge_point_id, and visit_start_ts"
