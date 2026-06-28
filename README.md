@@ -54,6 +54,24 @@ Reliability and utilisation metrics are tracked at **Port grain**.
 
 Source: OCPP 2.1 Edition 1 — © Open Charge Alliance 2025, Definitions
 
+#### Analytical concepts
+
+A **charge attempt** captures intent to charge on a Port. It begins when bay occupancy changes or a driver plugs in, and ends when the connector is no longer performing any charging related tasks. If all prerequisites align, a charge attempt wraps around a transaction. A charge attempt may or may not result in energy transfer — if the transaction was successful, there was meaningful energy transfer (more than 0.1 kWh).
+
+A **visit** is a single driver trip to a charging location. It may span multiple charge attempts — for example, when a driver unplugs and retries on the same or a nearby port.
+
+Operational models reconstruct individual charge attempts from OCPP logs. But a driver's experience at a charging site is rarely a single attempt. They park, plug in, face an error, unplug, try another port, eventually get a charge. Visit modeling turns that sequence of technical events into a single, coherent unit of analysis: one driver, one stop, one outcome.
+
+Two grouping strategies are used depending on whether the driver successfully authorised.
+
+For authenticated drivers, all charge attempts by the same driver at the same location within a 30-minute window belong to the same visit. A gap of 30 or more minutes, or a different location, starts a new visit.
+
+For unauthenticated drivers, attempts on the same port within a 2-minute window belong to the same visit. Different ports always start a new visit. When an anonymous attempt immediately precedes an authorized attempt on the same port within 2 minutes, the driver identity is inferred retroactively.
+
+This model unlocks four driver-centric metrics: first attempt success rate (charging worked on the first try), troubled success rate (succeeded after retrying), failure rate (no successful charge in the visit), and average attempts per visit (a guardrail for how much effort drivers expend).
+
+Together, these shift the question from "did this transaction complete?" to "did this driver get a charge?" — a behavioral measure of real impact of reliability improvements on driver outcomes. It is behavioral in the sense that in the absence of a clear failure signal, a driver who keeps retrying is telling you they have not reached success yet. Repeated attempts within a visit are evidence of friction, not ambiguity.
+
 ---
 
 ## Success criteria
