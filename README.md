@@ -11,7 +11,7 @@ the data foundation you plug into an agentic stack to give it EV charging awaren
 
 **kwwhat** is an open-source data pipeline that transforms raw OCPP logs into a structured, queryable context layer for EV charging. It models charge attempts, visits, uptime, and session outcomes — so whatever agentic use case you are building has reliable, grounded domain knowledge from day one.
 
-This project is powered by public OCPP log data and is designed for AI engineers, data practitioners, and CSMS providers building support agents, analytics agents, or agentic ops workflows who want to give their agents a deep understanding of charger behavior without building the data layer from scratch.
+This project is designed for AI engineers, data practitioners, and CSMS providers building support agents, analytics agents, or agentic ops workflows who want to give their agents a deep understanding of charger behavior.
 
 ---
 
@@ -39,9 +39,7 @@ This project is powered by public OCPP log data and is designed for AI engineers
 
 ## Try it yourself
 
-The fastest way to see what kwwhat can do is the self-contained [Chat BI demo](demo/README.md) — ask plain-English questions about EV charger reliabil
-ity and get answers grounded in real OCPP data. No cloud account needed, runs locally. Or explore a live [Tableau dashboard](https://public.tableau.com/app/profile/daria.sukhareva1853/viz/WIPkwwhatdemo/Overview) if you want to see the m
-etrics without running anything.
+The fastest way to see what kwwhat can do is the self-contained [Chat BI demo](demo/README.md) — ask plain-English questions about EV charger reliability and get answers grounded in real OCPP data. No cloud account needed, runs locally. Or explore a live [Tableau dashboard](https://public.tableau.com/app/profile/daria.sukhareva1853/viz/WIPkwwhatdemo/Overview) if you want to see the metrics without running anything.
 
 ---
 
