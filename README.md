@@ -67,6 +67,9 @@ Two grouping strategies are used depending on whether the driver successfully au
 For authenticated drivers, all charge attempts by the same driver at the same location within a 30-minute window belong to the same visit. A gap of 30 or more minutes, or a different location, starts a new visit.
 
 For unauthenticated drivers, attempts on the same port within a 2-minute window belong to the same visit. Different ports always start a new visit. When an anonymous attempt immediately precedes an authorized attempt on the same port within 2 minutes, the driver identity is inferred retroactively.
+    
+<img alt="visit same driver" src="https://github.com/user-attachments/assets/f0f4c775-4aeb-43a1-9e91-00dc73df5f0e" width="48%" />
+<img alt="visit unknown driver" src="https://github.com/user-attachments/assets/905e79e9-b5c3-4c42-8801-5c5c9b24cb79" width="48%" />
 
 This model unlocks four driver-centric metrics: first attempt success rate (charging worked on the first try), troubled success rate (succeeded after retrying), failure rate (no successful charge in the visit), and average attempts per visit (a guardrail for how much effort drivers expend).
 
