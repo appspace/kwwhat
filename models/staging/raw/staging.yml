@@ -28,7 +28,11 @@ sources:
       
       - name: ports
         identifier: "{{ var('ports_identifier') }}"
-        description: Charger/port/connector data. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE). Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time.
+        description: >
+          Reference data describing the physical hardware hierarchy: Charger → Port → Connector.
+          A Charger (or Charging Station) is the physical system where EVs can be charged; it has one or more Ports.
+          A Port (or EVSE) is an independently operated part of the Charger that can deliver energy to one EV at a time — the answer to "how many vehicles can charge simultaneously?" is the number of Ports.
+          A Connector is an independently operated electrical outlet on a Port; a Port may have multiple Connectors (socket types or tethered cables) to facilitate different vehicle types — the answer to "what vehicle types can charge?" is determined by the Connector.
         columns:
           - name: charge_point_id
             description: "Charger identifier"
@@ -67,22 +71,26 @@ models:
           - not_null
 
   - name: stg_ports
-    description: "Staging model for ports/connectors data. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE). Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time."
+    description: >
+      Staging model for the hardware reference table. One row per Connector (the finest-grain hardware unit).
+      Charger (Charging Station): the physical system a driver perceives as a charger — has one or more Ports.
+      Port (EVSE): independently operated part of a Charger that delivers energy to one EV at a time. Reliability and utilisation metrics are tracked at Port grain.
+      Connector: an independently operated electrical outlet on a Port, determining which vehicle types can charge (e.g. CCS, NACS, CHAdeMO).
     columns:
       - name: charge_point_id
-        description: "Charger identifier. Charger means a device with one or more charging ports and connectors for charging EVs, also referred to as Electric Vehicle Supply Equipment (EVSE)."
+        description: "Identifier for the Charger (Charging Station) — the physical unit a driver perceives as a single charger."
         data_tests:
           - not_null
       - name: location_id
-        description: "Location identifier where the charge point is located"
+        description: "Location identifier where the Charger is installed."
         data_tests:
           - not_null
       - name: port_id
-        description: "Port identifier within the charge point. Charging port means the system within a charger that charges one EV. A charging port may have multiple connectors, but it can provide power to charge only one EV through one connector at a time."
+        description: "Identifier for the Port (EVSE) within the Charger. Each Port can serve one EV at a time; the Port count answers 'how many vehicles can charge simultaneously?'. Reliability and utilisation metrics are tracked at this grain."
         data_tests:
           - not_null
       - name: connector_id
-        description: "Connector identifier within the port"
+        description: "Identifier for the Connector within the Port. The Connector type (socket standard) determines which vehicle types can charge."
         data_tests:
           - not_null
       - name: connector_type

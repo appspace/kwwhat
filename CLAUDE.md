@@ -6,6 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **kwwhat** is a dbt project that transforms raw OCPP (Open Charge Point Protocol) 1.6 logs into EV charger reliability and utilization metrics. It models uptime, charge attempt success, and driver visit outcomes.
 
+## Domain terminology
+
+| Term | Definition | Sanity check |
+|---|---|---|
+| **Charger** (Charging Station) | Physical system where EVs can be charged. Has one or more Ports. | What a driver perceives as a single charger |
+| **Port** (EVSE) | Independently operated part of a Charger that delivers energy to one EV at a time | "How many vehicles can charge simultaneously?" = number of Ports |
+| **Connector** | Independently operated electrical outlet on a Port. A Port may have multiple Connectors (socket types or tethered cables) for different vehicle types | "What vehicle types can charge here?" = Connector types |
+
+Reliability and utilisation metrics (uptime, downtime, charge attempts) are tracked at **Port grain**.
+
 ## Architecture
 
 ### Data flow
