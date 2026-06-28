@@ -9,7 +9,7 @@ the data foundation you plug into an agentic stack to give it EV charging awaren
 
 ---
 
-**kwwhat** is an open-source dbt project that transforms raw OCPP logs into a structured, queryable context layer for EV charging. It models charge attempts, visits, uptime, and session outcomes — so whatever agentic use case you are building has reliable, grounded domain knowledge from day one.
+**kwwhat** is an open-source data pipeline that transforms raw OCPP logs into a structured, queryable context layer for EV charging. It models charge attempts, visits, uptime, and session outcomes — so whatever agentic use case you are building has reliable, grounded domain knowledge from day one.
 
 This project is powered by public OCPP log data and is designed for AI engineers, data practitioners, and CSMS providers building support agents, analytics agents, or agentic ops workflows who want to give their agents a deep understanding of charger behavior without building the data layer from scratch.
 
