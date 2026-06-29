@@ -109,7 +109,6 @@ It mirrors `/api/agent` but:
    what to read next, not to compose its answer. Including them dilutes Contextual Relevancy
    with path listings that have no semantic relationship to the question.
 4. Accepts an optional `model: { provider, modelId }` body field to override the project default
-5. Protected by the same `authMiddleware` as every other route — no additional gate needed
 
 No changes to existing routes or agent internals. `generate()` is already exercised by automations.
 
@@ -147,8 +146,7 @@ cli/nao_core/commands/evals/
 ```
 
 `runner.py` is both orchestration and eval engine — same pattern as `nao test`. It reads the
-dataset, calls the backend, runs DeepEval metrics, writes the JSON report, and exits. No pytest
-subprocess, no separate conftest or test files.
+dataset, calls the backend, runs DeepEval metrics, writes the JSON report, and exits.
 
 The `/api/evals/chat` call happens once per record regardless of how many metrics are active —
 all metrics share the same `LLMTestCase` built from that single response.
@@ -158,8 +156,8 @@ all metrics share the same `LLMTestCase` built from that single response.
 ## Golden Dataset Schema
 
 ```jsonl
-{"id": "q001", "input": "What were total sales by region last quarter?", "expected_output": "..."}
-{"id": "q002", "input": "Which customers churned in May?", "expected_output": "..."}
+{"id": "q001", "input": "How many ports are currently decommissioned?", "expected_output": "There is 1 decommissioned port."}
+{"id": "q002", "input": "What is the overall uptime percentage of my EV charging network for the full history?", "expected_output": "The overall uptime percentage of the EV charging network is 98.55%."}
 ```
 
 No `curated_context` field. Context is captured live.
@@ -190,7 +188,7 @@ after all records:
 All three metrics measure the same `LLMTestCase`. DeepEval reports each score and reason
 independently — a failure in one does not suppress the others.
 
-**Tool result serialization** (in `runner.py`, not backend logic):
+**Tool result serialization**:
 
 | Tool | Returns | Included | Reason |
 |---|---|---|---|
@@ -334,8 +332,8 @@ Without `-v`, only the score line is printed. Results are always written to
       "passed": true,
       "metrics": [
         { "name": "Faithfulness",          "score": 0.8889, "threshold": 0.7, "passed": true,  "reason": "The score is 0.89 because the actual output incorrectly states total commissioned minutes as 1,722,240 when the retrieval context specifies 1,716,480." },
-        { "name": "Contextual Relevancy",  "score": 0.507,  "threshold": 0.5, "passed": true,  "reason": "The score is 0.51 because while a significant portion of the retrieval context is irrelevant (empty SQL results, database metadata, schema config), the context contains the direct answer '99.71% uptime' and supporting breakdowns. The large volume of irrelevant context dilutes the score." },
-        { "name": "Answer Relevancy",      "score": 0.8182, "threshold": 0.7, "passed": true,  "reason": "The score is 0.82 because the output addresses overall uptime but includes unnecessary detail about which chargers caused the downtime events — not directly relevant to the question asked." }
+        { "name": "ContextualRelevancy",  "score": 0.507,  "threshold": 0.5, "passed": true,  "reason": "The score is 0.51 because while a significant portion of the retrieval context is irrelevant (empty SQL results, database metadata, schema config), the context contains the direct answer '99.71% uptime' and supporting breakdowns. The large volume of irrelevant context dilutes the score." },
+        { "name": "AnswerRelevancy",      "score": 0.8182, "threshold": 0.7, "passed": true,  "reason": "The score is 0.82 because the output addresses overall uptime but includes unnecessary detail about which chargers caused the downtime events — not directly relevant to the question asked." }
       ]
     }
   ],
@@ -347,10 +345,7 @@ Without `-v`, only the score line is printed. Results are always written to
 }
 ```
 
-Both records pass. q001 is a clean 1.0 across all metrics — the agent found the exact SQL and answer.
-q002 passes but reveals two signals worth tracking: Faithfulness at 0.89 (the agent misreported
-one number) and Contextual Relevancy just above threshold at 0.51 (broad schema context still
-diluting the score, consistent with the structural dilution described above).
+Both records pass. ContextualRelevancy in both cases is flagged as diluted.
 
 ---
 
