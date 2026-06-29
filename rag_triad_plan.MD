@@ -138,33 +138,20 @@ assets.
 
 ```
 # nao_core package (framework — shipped with nao)
-cli/nao_core/evals/
-  conftest.py              # ALL shared fixtures
-  test_evals_triad.py      # all metrics in one file
+cli/nao_core/commands/evals/
+  runner.py                # full eval engine + CLI command
 
 # User's project (data — owned by the team)
 {project}/tests/evals/
   golden_dataset.jsonl     # {id, input, expected_output} — no context field
 ```
 
-This mirrors how `nao test` works: `nao_core` contains the runner logic; the user's `tests/` folder
-contains the test cases. Running `nao evals` from the project directory discovers
-`tests/evals/golden_dataset.jsonl` via `Path.cwd()`, exactly as `nao test` discovers
-`tests/*.yml`.
+`runner.py` is both orchestration and eval engine — same pattern as `nao test`. It reads the
+dataset, calls the backend, runs DeepEval metrics, writes the JSON report, and exits. No pytest
+subprocess, no separate conftest or test files.
 
-**One file, one test function, all metrics together.** DeepEval's `assert_test(test_case,
-metrics=[m1, m2, ...])` runs all metrics concurrently on the same test case. This means the
-`/api/evals/chat` API call happens once per record regardless of how many metrics are active.
-Separate files per metric would repeat that call once per metric per record — 4× the cost once all
-four metrics are in place.
-
-The file is named `test_evals_triad.py` after the established RAG triad (faithfulness, context
-relevance, answer relevance), with completeness as a fourth extension. The context here is not
-retrieved but captured from the agent's own tool outputs at runtime — the triad is re-purposed for
-curated context rather than retrieval.
-
-Adding a metric later = one new fixture in `conftest.py` + one new entry in the `metrics=[]` list.
-Nothing else changes.
+The `/api/evals/chat` call happens once per record regardless of how many metrics are active —
+all metrics share the same `LLMTestCase` built from that single response.
 
 ---
 
@@ -190,17 +177,20 @@ for each record in golden_dataset.jsonl:
        input             = record.input,
        actual_output     = response.text,
        retrieval_context = curated_context,
-       expected_output   = record.expected_output   # used by completeness later
+       expected_output   = record.expected_output
      )
-  5. for each metric: metric.measure(test_case)   # direct call — owns the instance, reads score/reason
-     record result in session_results
-     raise AssertionError if any metric failed
+  5. for each metric: metric.measure(test_case)   # populates .score and .reason on the same instance
+     collect MetricResult(name, score, threshold, passed, reason)
+
+after all records:
+  6. save_results() → evals_{timestamp}.json with results + summary
+  7. sys.exit(1) if any record failed
 ```
 
-All three metrics run concurrently on the same test case. DeepEval reports each score and reason
+All three metrics measure the same `LLMTestCase`. DeepEval reports each score and reason
 independently — a failure in one does not suppress the others.
 
-**Tool result serialization** (pure Python in `conftest.py`, not backend logic):
+**Tool result serialization** (in `runner.py`, not backend logic):
 
 | Tool | Returns | Included | Reason |
 |---|---|---|---|
@@ -220,7 +210,7 @@ Relevancy without adding grounding signal.
 ## DeepEval Metric Configuration
 
 The judge model is read from the `/api/evals/chat` response `model_id` field — whatever ran the
-agent. `conftest.py` instantiates the judge from that model ID:
+agent. `make_judge()` in `runner.py` instantiates the judge from that model ID:
 
 - **Claude models** (`model_id.startswith("claude")`) — wrapped in a custom `_ClaudeJudge`
   subclass of `DeepEvalBaseLLM` using the `anthropic` SDK directly
@@ -258,25 +248,21 @@ response `model_id`. No code changes needed.
 
 ---
 
-## `conftest.py` Fixtures
+## `runner.py` Functions
 
-- **`nao_client`** — `httpx.Client` pointed at `http://localhost:5005` (or `NAO_EVAL_URL` env
-  var). Session-scoped. Cookie set from `NAO_AUTH_COOKIE` env var (injected by `nao evals` runner).
-- **`pytest_generate_tests`** — parametrizes over records in `golden_dataset.jsonl`. Dataset path
-  comes from `NAO_EVALS_DIR` env var (set by runner to `{cwd}/tests/evals`).
-- **`eval_response`** — calls `POST /api/evals/chat` for each record. Passes `model` body field if
-  `NAO_EVAL_MODEL` is set.
-- **`judge_model`** — builds a `_ClaudeJudge` instance for Claude models; returns plain string for
-  OpenAI (DeepEval native).
-- **`llm_test_case`** — serializes tool results into `retrieval_context`, returns `LLMTestCase`.
-- **`faithfulness_metric`**, **`context_relevance_metric`**, **`answer_relevance_metric`** — metric
-  instances using the judge model.
-- **`session_results`** — session-scoped list collecting `{id, input, actual_output, passed, metrics}`
-  for each record. Populated in `test_evals_triad.py` after each `metric.measure()` call.
-- **`pytest_sessionfinish`** — writes `session_results` plus a `summary: { total, passed, failed }`
-  to `NAO_EVALS_OUTPUT_FILE` (set by the runner to `{project}/tests/outputs/evals_{timestamp}.json`)
-  at the end of the session.
-- **`completeness_metric`** — add later; `GEval` with custom rubric (see below).
+- **`serialize_tool_result(tool_name, args, output)`** — converts a raw tool call result into a
+  plain string for `retrieval_context`. Formats `read` as `[File: path]\ncontent`, `execute_sql`
+  as a column/row table, everything else as JSON.
+- **`make_judge(model_id)`** — returns a `_ClaudeJudge` (`DeepEvalBaseLLM` subclass) for Claude
+  models, or a plain string for OpenAI (DeepEval handles those natively). deepeval is imported
+  lazily inside this function so the module loads without it installed.
+- **`run_eval(record, client, model, verbose)`** — single eval loop for one record: POST to
+  `/api/evals/chat`, build `LLMTestCase`, instantiate metrics, call `metric.measure()` on each,
+  collect `MetricResult` dataclasses, return `EvalResult`.
+- **`save_results(results, output_dir)`** — writes `evals_{timestamp}.json` with `results` list
+  and `summary: { total, passed, failed }`.
+- **`evals(...)`** — CLI entry point; reads dataset, authenticates, iterates records via
+  `run_eval()`, saves results, prints summary, calls `sys.exit(1)` if any failed.
 
 ---
 
@@ -307,7 +293,24 @@ Install eval deps once with `uv sync --extra evals` from `cli/`. The `evals` ext
 
 Add `make evals` to the root `Makefile` for consistency with `make lint`.
 
-Results are written to `{project}/tests/outputs/evals_{timestamp}.json`:
+**Example output (`-v`):**
+
+```
+Running: q001 How many ports are currently decommissioned?
+  ✓ Faithfulness: 1.0
+    The score is 1.00 because the actual output is perfectly faithful to the retrieval context with no contradictions found!
+  ✓ ContextualRelevancy: 0.8333
+    The score is 0.83 because most of the retrieval context is highly relevant, directly addressing the question with key
+    details such as the SQL query filtering 'decommissioned_ts IS NOT NULL', the result alias 'decommissioned_ports', and
+    the concrete answer of '4 decommissioned ports'. However, one statement about 'COUNT(DISTINCT port_id)' counting total
+    ports without any decommissioned filtering is irrelevant and slightly reduces the overall score.
+  ✓ AnswerRelevancy: 1.0
+    The score is 1.00 because the response directly and completely addresses the question about the number of currently
+    decommissioned ports, with no irrelevant statements whatsoever. Great job!
+```
+
+Without `-v`, only the score line is printed. Results are always written to
+`{project}/tests/outputs/evals_{timestamp}.json`:
 
 ```json
 {
@@ -316,12 +319,12 @@ Results are written to `{project}/tests/outputs/evals_{timestamp}.json`:
     {
       "id": "q001",
       "input": "How many ports are currently decommissioned?",
-      "actual_output": "There are currently 4 decommissioned ports (i.e., ports with a non-null decommissioned_ts).",
+      "actual_output": "There are currently <citation-number id=\"query_47c75c22\" column=\"decommissioned_ports\">4</citation-number> decommissioned ports (those with a non-null `decommissioned_ts`).",
       "passed": true,
       "metrics": [
-        { "name": "Faithfulness",          "score": 1.0,  "threshold": 0.7, "passed": true,  "reason": "The score is 1.00 because the actual output is perfectly faithful to the retrieval context with no contradictions found!" },
-        { "name": "Contextual Relevancy",  "score": 1.0,  "threshold": 0.5, "passed": true,  "reason": "The score is 1.00 because the retrieval context is perfectly relevant, directly addressing the question with a specific SQL query counting decommissioned ports and providing the exact answer: 'There are 4 decommissioned ports.'" },
-        { "name": "Answer Relevancy",      "score": 1.0,  "threshold": 0.7, "passed": true,  "reason": "The score is 1.00 because the response directly and completely addresses the question. Great job staying on topic!" }
+        { "name": "Faithfulness",         "score": 1.0,    "threshold": 0.7, "passed": true, "reason": "The score is 1.00 because the actual output is perfectly faithful to the retrieval context with no contradictions found!" },
+        { "name": "ContextualRelevancy",  "score": 0.8333, "threshold": 0.5, "passed": true, "reason": "The score is 0.83 because most of the retrieval context is highly relevant, directly addressing the question with key details such as the SQL query filtering 'decommissioned_ts IS NOT NULL', the result alias 'decommissioned_ports', and the concrete answer of '4 decommissioned ports'. However, one statement about 'COUNT(DISTINCT port_id)' counting total ports without any decommissioned filtering is irrelevant and slightly reduces the overall score." },
+        { "name": "AnswerRelevancy",      "score": 1.0,    "threshold": 0.7, "passed": true, "reason": "The score is 1.00 because the response directly and completely addresses the question about the number of currently decommissioned ports, with no irrelevant statements whatsoever. Great job!" }
       ]
     },
     {
@@ -360,35 +363,27 @@ Do not block PRs on evals — they are slow (~5–10 s per LLM judge call) and c
 ## Implementation Sequence
 
 1. **Add `POST /api/evals/chat` Fastify route** — ~40 lines in `apps/backend/src/routes/evals.ts`;
-   calls existing `agent.generate()`, returns `{ text, model_id, tool_results }`, accepts optional
-   `model` override
+   calls existing `testAgentService.runTest()`, returns `{ text, model_id, tool_results }`, accepts
+   optional `model` override
 2. **Register route** in `apps/backend/src/app.ts` under `/api/evals`
-3. **Write `cli/nao_core/evals/conftest.py`** — fixtures, judge model factory, tool result
-   serializer, dataset loader via `NAO_EVALS_DIR`
-4. **Write `cli/nao_core/evals/test_evals_triad.py`** — single parametrized test; calls
-   `metric.measure(test_case)` per metric directly (not `assert_test`) so scores and reasons are
-   readable on the same instances; appends to `session_results`; raises `AssertionError` on failure
-   so that `nao evals` exits non-zero and pytest reports `FAILED` when thresholds aren't met —
-   consistent with `nao test`, which calls `sys.exit(1)` on any test failure. The JSON output
-   is always written regardless of pass/fail.
-5. **Write `cli/nao_core/commands/evals/runner.py`** — `nao evals` command mirroring `nao test`;
-   `-m`, `-u`, `--password`, `-v`, `-s` flags; authenticates via `get_auth_session`, sets env vars,
-   invokes pytest; after pytest exits, reads `summary` from the JSON output and calls `sys.exit(1)`
-   if `failed > 0` — same pattern as `nao test`
-6. **Register command** in `cli/nao_core/commands/__init__.py` and `cli/nao_core/main.py`
-7. **Add `evals` extra** to `cli/pyproject.toml` — `deepeval>=2.0` only
-8. **Populate `{project}/tests/evals/golden_dataset.jsonl`** — Q&A pairs from golden dataset
+3. **Write `cli/nao_core/commands/evals/runner.py`** — full eval engine mirroring `nao test`;
+   `EvalResult` / `MetricResult` dataclasses; `serialize_tool_result`, `make_judge`, `run_eval`,
+   `save_results` functions; `evals()` CLI entry point with `-m`, `-u`, `--password`, `-v`, `-s`
+   flags; deepeval imported lazily so the module loads without it installed; `sys.exit(1)` if any
+   record fails
+4. **Register command** in `cli/nao_core/commands/__init__.py` and `cli/nao_core/main.py`
+5. **Add `evals` extra** to `cli/pyproject.toml` — `deepeval>=2.0` only
+6. **Populate `{project}/tests/evals/golden_dataset.jsonl`** — Q&A pairs from golden dataset
 
 ---
 
 ## Adding Completeness Later
 
 The full triad ships from day one. Completeness is the only metric deferred — it has no
-first-class DeepEval class yet. When ready, adding it is two steps:
+first-class DeepEval class yet. When ready, adding it is one step:
 
-1. Add a `completeness_metric` fixture in `conftest.py` using `GEval` with a rubric such as
+1. Add a `GEval` instance to the `metrics=[]` list in `run_eval()` with a rubric such as
    "does the answer fully address all parts of the question, given the expected output?"
-2. Add it to the `metrics=[]` list in `test_evals_triad.py`
 
 No new files, no API changes, no dataset changes — `expected_output` is already in every
 `LLMTestCase` from day one.
