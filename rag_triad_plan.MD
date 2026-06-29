@@ -239,10 +239,20 @@ AnswerRelevancyMetric(threshold=0.7, ...)       # answer quality: strict
 
 Calibrate from observed baselines as the dataset grows, not from RAG benchmarks.
 
+**Self-serving bias and `--judge-model`**
+
 Using the same model as judge introduces self-serving bias — a model tends to score its own outputs
-higher. To use an independent judge, pass `-m` with a different model than the one configured in
-project settings — the agent runs with that model, and the judge uses the same model from the
-response `model_id`. No code changes needed.
+higher. To use an independent judge, pass `--judge-model` with a different model. The agent runs
+with its configured model; the judge runs with the override:
+
+```bash
+nao evals -j openai:gpt-4.1
+nao evals -m anthropic:claude-sonnet-4-6 -j openai:gpt-4.1
+```
+
+Without `--judge-model`, the judge defaults to whatever model the agent used (`model_id` from the
+response). `-m` alone does not give you an independent judge — it changes the agent model, and the
+judge follows it.
 
 ---
 
@@ -254,9 +264,10 @@ response `model_id`. No code changes needed.
 - **`make_judge(model_id)`** — returns a `_ClaudeJudge` (`DeepEvalBaseLLM` subclass) for Claude
   models, or a plain string for OpenAI (DeepEval handles those natively). deepeval is imported
   lazily inside this function so the module loads without it installed.
-- **`run_eval(record, client, model, verbose)`** — single eval loop for one record: POST to
-  `/api/evals/chat`, build `LLMTestCase`, instantiate metrics, call `metric.measure()` on each,
-  collect `MetricResult` dataclasses, return `EvalResult`.
+- **`run_eval(record, client, model, judge_model, verbose)`** — single eval loop for one record:
+  POST to `/api/evals/chat`, build `LLMTestCase`, instantiate metrics with `judge_model` (or agent
+  model if not set), call `metric.measure()` on each, collect `MetricResult` dataclasses, return
+  `EvalResult`.
 - **`save_results(results, output_dir)`** — writes `evals_{timestamp}.json` with `results` list
   and `summary: { total, passed, failed }`.
 - **`evals(...)`** — CLI entry point; reads dataset, authenticates, iterates records via
@@ -276,7 +287,13 @@ nao evals
 # Specify the agent model (mirrors nao test -m)
 nao evals -m anthropic:claude-sonnet-4-6
 
-# Verbose output
+# Use an independent judge model
+nao evals -j openai:gpt-4.1
+
+# Agent and judge on different models
+nao evals -m anthropic:claude-sonnet-4-6 -j openai:gpt-4.1
+
+# Verbose output (prints metric reasons)
 nao evals -v
 
 # Run a single record by ID
