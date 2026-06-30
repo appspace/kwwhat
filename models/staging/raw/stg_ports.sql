@@ -11,11 +11,13 @@ with source as (
 renamed as (
     select
         cast(charge_point_id as {{ dbt.type_string() }}) as charger_id,
-        cast(port_id as {{ dbt.type_string() }}) as port_id
+        cast(port_id as {{ dbt.type_string() }}) as port_id,
+        cast(max_power_kw as numeric) as max_power_kw
     from source
 )
 
 select distinct
     charger_id,
-    port_id
+    port_id,
+    max_power_kw
 from renamed
