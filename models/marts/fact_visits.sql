@@ -36,12 +36,7 @@ charge_attempts_with_location as (
         att.energy_transferred_kwh,
         att.is_successful,
         att.preparing_ingested_ts,
-        -- Extract first idTag from array (or null if empty)
-        case
-            when att.id_tags is not null and {{ array_size('att.id_tags') }} > 0
-            then {{ array_first('att.id_tags') }}
-            else null
-        end as id_tag
+        att.id_tag
     from {{ ref("fact_charge_attempts") }} as att
     inner join {{ ref("dim_connectors") }} as p
         on att.charge_point_id = p.charge_point_id

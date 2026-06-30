@@ -132,7 +132,7 @@ models:
       - name: confirmation_ingested_ts
         description: "Timestamp when the status change confirmation was received"
       - name: id_tags
-        description: "Array of RFID tags or user identifiers from Authorize/StartTransaction messages"
+        description: "Array of driver identifiers (id_tag) from Authorize/StartTransaction messages"
       - name: id_tag_statuses
         description: "Array of authorization statuses (e.g., 'Accepted', 'Blocked')"
       - name: transaction_id
@@ -181,7 +181,7 @@ models:
       - name: transaction_stop_reason
         description: "Reason for stopping the transaction (e.g., 'EVDisconnected', 'DeAuthorized', 'Local')"
       - name: id_tags
-        description: "Array of RFID tags or user identifiers from Authorize/StartTransaction messages"
+        description: "Array of driver identifiers (id_tag) from Authorize/StartTransaction messages"
       - name: id_tag_statuses
         description: "Array of authorization statuses (e.g., 'Accepted', 'Blocked', 'Expired')"
       - name: meter_start_wh
@@ -209,7 +209,7 @@ models:
     description: "Incremental per-driver aggregation over fact_charge_attempts. Maintains running first/last timestamps and authorization statuses per id_tag. Also tracks unauthorized attempts (null id_tag) under the sentinel id_tag '__UNKNOWN__'. Consumed by dim_drivers so that dim_drivers never scans fact_charge_attempts directly."
     columns:
       - name: id_tag
-        description: "RFID tag string observed in OCPP messages. Natural key; null id_tag rows (unauthorized attempts) are excluded."
+        description: "Driver identifier (id_tag) observed in OCPP messages. Natural key; null rows (unauthorized attempts) are excluded."
         tests:
           - not_null
           - unique

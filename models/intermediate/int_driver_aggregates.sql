@@ -21,16 +21,8 @@ with incremental_date_range as (
 
 attempts as (
     select
-        case
-            when att.id_tags is not null and {{ array_size('att.id_tags') }} > 0
-                then cast({{ array_first('att.id_tags') }} as {{ dbt.type_string() }})
-            else null
-        end as id_tag,
-        case
-            when att.id_tag_statuses is not null and {{ array_size('att.id_tag_statuses') }} > 0
-                then cast({{ array_first('att.id_tag_statuses') }} as {{ dbt.type_string() }})
-            else null
-        end as id_tag_status,
+        att.id_tag,
+        att.id_tag_status,
         att.charge_attempt_start_ts,
         att.incremental_ts
     from {{ ref('fact_charge_attempts') }} as att
