@@ -238,6 +238,25 @@ AnswerRelevancyMetric(threshold=0.7, ...)       # answer quality: strict
 
 Calibrate from observed baselines as the dataset grows, not from RAG benchmarks.
 
+**Per-project threshold configuration**
+
+The right Contextual Relevancy threshold depends on the project's data scope. A single-domain
+project (only EV charger data) will have tighter, more focused context than a multi-domain one
+(sales + HR + finance) — so 0.5 might be too strict for a broad deployment and too loose for a
+narrow one. Thresholds should be tunable per project via `nao.yml`:
+
+```yaml
+evals:
+  thresholds:
+    faithfulness: 0.7
+    contextual_relevancy: 0.3
+    answer_relevancy: 0.7
+```
+
+`runner.py` reads `nao.yml` via the existing `NaoConfig` loader (same as `nao test`), falling back
+to the hardcoded defaults if the section is absent. Not yet implemented — add when the first
+project needs a different threshold.
+
 **Self-serving bias and `--judge-model`**
 
 Using the same model as judge introduces self-serving bias — a model tends to score its own outputs
