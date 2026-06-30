@@ -4,7 +4,6 @@
 
 **Goal** — implement an evals framework that quantifies the impact of context changes on the nao Chat BI tool. We are not testing the LLM or general chat performance. We are testing one specific thing: did a change to the context — RULES.md, semantic model definitions, or similar input files — make the assistant's answers better or worse? The eval score is a signal for context quality, not model quality. Nao already has SQL tests in place that guard against schema linking failures and semantic gaps. We are looking to add non-deterministic evals that catch failures when the SQL and even the number is correct.
 
-
 ## Open questions
 
 - [ ] Referenceless (RAG triad) or reference-based (Correctness), or both?
@@ -17,17 +16,19 @@
 - [ ] `nao evals` runs from a project directory and produces a JSON report in `tests/outputs/`
 - [ ] Report includes pass/fail per test case, per-metric scores and reasons, and a summary
 - [ ] Exit code is non-zero when any case fails — `nao evals` is CI-friendly
-- [ ] Golden dataset lives in `tests/evals/golden_dataset.jsonl` — no boilerplate beyond `id`, `input`, `expected_output`
+- [ ] Golden dataset lives in `tests/evals/golden_dataset.jsonl` — no boilerplate beyond `id` and `input`
 
 ---
 
 ## Design choices
 
-We are adding **LLM-as-a-judge, single-turn, reference-based evals** to this project. Here is what each term means:
+We are adding **LLM-as-a-judge, single-turn, referenceless evals** to this project. Here is what each term means:
 
 **LLM-as-a-judge** — instead of checking outputs with deterministic rules or exact string matches, a second LLM (the "judge") reads the assistant's response and scores it against expected answer. This handles the inherent non-determinism of Chat BI.
 
 **Single-turn** — each eval entry is a single, atomic unit of interaction with the LLM app: one user input, one assistant response, no conversation history. The assistant is evaluated on what it says in that one reply, in isolation.
+
+**Referenceless** — no expected answer is required. The judge scores the response based on the agent's own reasoning — whether it used relevant context, grounded its answer in that context, and addressed the question. This makes it possible to run evals without curating correct answers upfront. Assumes correctness flows downstream: if the right context was used, the answer was grounded in it, and it addressed the question — a correct answer is likely. It never verifies this directly.
 
 **End-to-end** — we evaluate the observable input and output of the Chat BI system and treat it as a black box. We do not instrument internal steps — no retrieval spans, no tool call traces, no sub-agent scoring. We care about the result the user sees, not the path the system took to produce it. This is the right fit for context-change evals: if the answer improved, the context change worked, regardless of what happened inside.
 

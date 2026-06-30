@@ -59,7 +59,7 @@ dataset.
 - If nao's prompt changes, the agent reads different files, or the database is updated, the eval
   automatically reflects the new reality — it measures faithfulness of what nao actually said
   against what nao actually saw.
-- The golden dataset stays lean: only `input` and `expected_output`. No manual context curation.
+- The golden dataset stays lean: only `input`. No manual context curation.
 - It also enables a future regression signal: if faithfulness drops after a prompt or tool change,
   you know the model started making claims not grounded in its own context.
 
@@ -142,7 +142,7 @@ cli/nao_core/commands/evals/
 
 # User's project (data — owned by the team)
 {project}/tests/evals/
-  golden_dataset.jsonl     # {id, input, expected_output} — no context field
+  golden_dataset.jsonl     # {id, input} — no context, no expected output
 ```
 
 `runner.py` is both orchestration and eval engine — same pattern as `nao test`. It reads the
@@ -156,11 +156,11 @@ all metrics share the same `LLMTestCase` built from that single response.
 ## Golden Dataset Schema
 
 ```jsonl
-{"id": "q001", "input": "How many ports are currently decommissioned?", "expected_output": "There is 1 decommissioned port."}
-{"id": "q002", "input": "What is the overall uptime percentage of my EV charging network for the full history?", "expected_output": "The overall uptime percentage of the EV charging network is 98.55%."}
+{"id": "q001", "input": "How many ports are currently decommissioned?"}
+{"id": "q002", "input": "What is the overall uptime percentage of my EV charging network for the full history?"}
 ```
 
-No `curated_context` field. Context is captured live.
+No `curated_context` or `expected_output` field. Context is captured live. `expected_output` is only needed if Correctness (`GEval`) is added later — add it back to the dataset at that point.
 
 ---
 
@@ -175,7 +175,6 @@ for each record in golden_dataset.jsonl:
        input             = record.input,
        actual_output     = response.text,
        retrieval_context = curated_context,
-       expected_output   = record.expected_output
      )
   5. for each metric: metric.measure(test_case)   # populates .score and .reason on the same instance
      collect MetricResult(name, score, threshold, passed, reason)
@@ -397,8 +396,7 @@ first-class DeepEval class yet. When ready, adding it is one step:
 1. Add a `GEval` instance to the `metrics=[]` list in `run_eval()` with a rubric such as
    "does the answer fully address all parts of the question, given the expected output?"
 
-No new files, no API changes, no dataset changes — `expected_output` is already in every
-`LLMTestCase` from day one.
+Requires adding `expected_output` back to the golden dataset records and passing it to `LLMTestCase`. No other changes.
 
 | Metric | DeepEval class | Ships | Fields used |
 |---|---|---|---|
