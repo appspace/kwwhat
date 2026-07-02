@@ -3,213 +3,211 @@
 Reference-based correctness evals for nao chat answers, proposed for
 [getnao/nao#727](https://github.com/getnao/nao/issues/727).
 
-This is the **Plan B** specification. It is meant to be read side by side with the
-**[Plan A](rag_triad_plan.MD)** proposal.
+This plan is meant to be read side by side with the
+[RAG triad plan](rag_triad_plan.MD). Both plans use the same three kwwhat EV charging
+questions so their signals and implementation trade-offs are easier to compare.
 
 ---
 
-## 1. Background & Problem
+## 1. Background and Problem
 
 nao's SQL tests check deterministic answers and query correctness. They cannot catch
-**context drift**: the chat agent can return a numerically correct answer while
-ignoring configured context (`rules.md`, semantic model/layer, framing, terminology).
+**context drift** in the final answer: the agent can return a numerically correct
+result while ignoring configured context (`rules.md`, semantic definitions, framing,
+or terminology).
 
-As a nao user curating project context, I want to know when a change to my `rules.md`
-or semantic model makes the agent hallucinate, use the wrong terminology, or ignore my
-configuration — even when the SQL result is correct.
+As a nao user curating project context, I want to know when a context change makes the
+agent hallucinate, use the wrong terminology, or ignore my configuration, even when
+the SQL result is correct.
 
-Plan B adds context-quality evals alongside SQL tests using a **reference-based**
-check:
+Plan B adds a **reference-based** check alongside existing SQL tests:
 
 ```text
-input → nao agent → actual_output ↔ expected_output → DeepEval GEval → score / pass / reason
+input -> nao agent -> actual_output <-> expected_output -> Correctness judge
+                                                        -> score / pass / reason
 ```
 
-Exact numeric correctness stays in deterministic SQL tests. `nao evals` covers
-semantic/context failures in the final answer. This is the same problem Plan A
-targets; the two plans differ in *how* they measure it (see §2).
+Exact numeric assertions remain in deterministic SQL tests. `nao evals` covers
+semantic and context-related failures in the final answer.
 
 ---
 
-## 2. Approach: reference-based Correctness
+## 2. Approach: Reference-Based Correctness
 
-Plan A is **referenceless** (RAG triad over captured context). Plan B is
-**reference-based**: it compares the final answer directly with a golden
-`expected_output` using DeepEval `GEval`.
+Plan B compares the final answer directly with a user-maintained `expected_output`
+using DeepEval `GEval`.
 
-The current metric is **Correctness**:
+The Correctness rubric checks that the answer:
 
-- Compare `actual_output` with `expected_output` for factual accuracy.
-- Check that required facts, entities, values, and relationships are present.
-- Check required terminology and framing.
-- Penalize contradictions, unsupported additions, and misleading details.
+- is factually consistent with the reference;
+- contains the required facts, entities, values, and relationships;
+- uses the required terminology and framing;
+- does not add contradictions, unsupported claims, or misleading details.
 
-**Assumption:** if the final answer matches the reference, the context the agent used
-was probably good.
+**Assumption:** if the final answer matches the reference, the configured context was
+probably good.
 
-**What Plan B does not do:**
+**Strength:** Correctness directly tests whether the user-visible result matches the
+expected answer. It does not need tool-result or retrieval-context capture.
 
-- It does not verify *which* context the agent actually used.
-- It does not explain whether a failure came from missing context, hallucination, or
-  another cause.
-- It cannot distinguish **grounded additions** from **hallucinated additions**. A real
-  run (`q001`, see §10 and [correctness_example_outputs.md](correctness_example_outputs.md)) demonstrated this: details that were
-  present in project docs read by the agent were still penalized as "unsupported"
-  because they were not in the reference.
+**Limitations:**
 
-**Cost:** every eval case needs a maintained `expected_output`.
+- It does not verify which context the agent used.
+- It gives less insight into whether a failure came from irrelevant context,
+  grounding, or answer relevance.
+- It can penalize extra details because it cannot determine whether they are grounded
+  in context that was not passed to the judge.
+- Every case requires a reviewed and maintained `expected_output`.
 
 ---
 
-## 3. Architecture — what exists today
+## 3. Architecture: What Exists Today
 
 `nao test` already runs the agent through the backend and returns the final answer:
 
 - `POST /api/test/run` runs the agent non-streaming and returns
   `{ text, usage, cost, duration, tool_calls }`.
-- The Python `AgentClient` (`cli/nao_core/commands/test/client.py`) already wraps this
-  call, handles auth, and returns a typed `TestResult`.
+- `AgentClient` in `cli/nao_core/commands/test/client.py` already wraps the request,
+  handles authentication, and returns a typed result.
 
-Everything needed to obtain `actual_output`, token usage, cost, duration, and tool
-counts already exists. Plan B reuses it.
+Plan B reuses this path to obtain `actual_output` and run one Correctness metric.
 
 ---
 
-## 4. What Changes in the Backend — nothing
+## 4. Backend Changes: None
 
-**Plan B requires zero backend changes.**
+Plan B requires no new backend route and no changes to agent internals:
 
-Eval cases are sent through the existing `POST /api/test/run` with an empty `sql`
-field, using the same `AgentClient` as `nao test`. There is:
+- no tool-result extraction or serialization;
+- no content-bearing tool allowlist to maintain;
+- no retrieval/context field in the response;
+- no changes to existing SQL tests.
 
-- **no** new Fastify route (Plan A adds `POST /api/evals/chat`);
-- **no** tool-result extraction or serialization;
-- **no** content-bearing tool allowlist (`CONTEXT_TOOLS`) to maintain;
-- **no** change to existing agent internals.
+The runner sends each eval through the existing `POST /api/test/run` with an empty
+`sql` field. An optional request timeout can be added to the existing client without
+changing current `nao test` behavior.
 
-The only backend-adjacent change is an **optional** request timeout added to the
-existing client (`timeout: float | None = None`), which is backward-compatible with
-`nao test`.
-
-This is the core reason Plan B is less invasive than Plan A.
+This is the main implementation advantage of Plan B: the change is contained in the
+CLI and user-owned eval data.
 
 ---
 
 ## 5. Directory Layout
 
 ```text
-# nao_core package (framework — shipped with nao)
+# nao_core package (framework, shipped with nao)
 cli/nao_core/commands/evals/
-  case.py          # dataset discovery + JSONL validation
-  correctness.py   # GEval Correctness metric + judge resolution
-  runner.py        # execution, reporting, CLI entry point
+  case.py          # dataset discovery and JSONL validation
+  correctness.py   # Correctness rubric and judge resolution
+  runner.py        # execution, reporting, CLI command
 
-# User's project (data — owned by the team)
+# User project (data, owned by the team)
 {project}/tests/evals/
-  golden_dataset.jsonl     # {id, input, expected_output}
+  golden_dataset.jsonl
 {project}/tests/outputs/
-  evals_results_<ts>.json  # generated reports
+  evals_results_<timestamp>.json
 ```
 
-Eval cases live alongside existing `tests/*.yml` SQL tests.
+Eval cases live in the project alongside existing `tests/*.yml` SQL tests.
 
 ---
 
-## 6. Golden Dataset Schema
+## 6. Golden Dataset
 
-Each JSONL row has exactly three fields:
+Plan B uses the same IDs and questions as the RAG triad plan, adding only the
+`expected_output` required by Correctness:
 
-```json
-{"id": "q001", "input": "Did we decommission the wrong port?", "expected_output": "Yes, we decommissioned CH001 that was the only functional charger."}
+```jsonl
+{"id": "q001", "input": "How many ports are currently decommissioned?", "expected_output": "There are currently 4 decommissioned ports."}
+{"id": "q002", "input": "What is the overall uptime percentage of my EV charging network for the full history?", "expected_output": "The overall uptime is 99.71% for the full available history."}
+{"id": "q003", "input": "What is the charge point availability index?", "expected_output": "The metric \"charge point availability index\" is not defined in the semantic model. The closest available metric is uptime. Would you like that instead?"}
 ```
 
-No SQL, context, or metric boilerplate.
-
-Comparison with Plan A:
-
-- Plan A requires `id`, `input` (context captured at runtime).
-- Plan B requires `id`, `input`, **`expected_output`**.
+Dataset quality is part of the eval design. Reference answers should be reviewed and
+versioned like code; vague or stale references make the score unreliable.
 
 ---
 
-## 7. Eval Harness Flow (per case)
+## 7. Eval Flow
 
 ```text
 for each record in golden_dataset.jsonl:
-  1. run agent via AgentClient.run_test(input, sql="", model, timeout)
-       → actual_output (+ tokens, cost, duration, tool_calls)
-  2. LLMTestCase(input, actual_output, expected_output)
-  3. GEval(Correctness).measure(test_case)   → score, reason
-  4. collect MetricResult(name, score, passed, reason, threshold)
+  1. AgentClient.run_test(input, sql="", model, timeout)
+       -> actual_output + usage metadata
+  2. LLMTestCase(actual_output, expected_output)
+  3. GEval(Correctness).measure(test_case)
+       -> score / pass / reason
+  4. collect result
 
 after all records:
-  5. save_results() → evals_results_<ts>.json with results + summary
-  6. sys.exit(1) if any case failed
+  5. write evals_results_<timestamp>.json
+  6. exit non-zero if any case failed or errored
 ```
 
-Error handling short-circuits the judge:
+Errors are separated from answer-quality failures:
 
-- **timeout** → case recorded `failed`, `error_type: "timeout"`, judge **not** run.
-- **backend error** → `failed`, `error_type: "backend_error"`, judge **not** run.
-- **unexpected error** during the agent run → `failed`, `error_type: "unexpected_error"`.
-- **judge error** (agent answered, metric raised) → `failed`, `error_type: "metric_error"`.
+- agent timeout -> `error_type: "timeout"`; judge is not called;
+- backend error -> `error_type: "backend_error"`; judge is not called;
+- judge error -> `error_type: "metric_error"`;
+- completed judge result below threshold -> normal eval failure.
 
 ---
 
-## 8. Correctness Metric Configuration
+## 8. Correctness Metric
 
 The metric is a DeepEval `GEval` instance named `Correctness`.
 
-**Evaluation steps** (aligned with the #727 rubric):
+```python
+correctness_metric = GEval(
+    name="Correctness",
+    evaluation_steps=[
+        "Compare the actual output directly with the expected output for factual accuracy.",
+        "Verify that every required fact, entity, value, and relationship is present and correctly represented.",
+        "Verify that the required naming, terminology, and framing are used.",
+        "Penalize contradictions, unsupported additions, and misleading details.",
+    ],
+    evaluation_params=[
+        SingleTurnParams.ACTUAL_OUTPUT,
+        SingleTurnParams.EXPECTED_OUTPUT,
+    ],
+)
+```
 
-1. Compare the actual output directly with the expected output for factual accuracy.
-2. Verify that every required fact, entity, value, and relationship in the expected
-   output is present and correctly represented.
-3. Verify that the actual output uses the required naming, terminology, and framing.
-4. Penalize contradictions, unsupported additions, and misleading details, even when
-   the core answer is present.
+`INPUT` and retrieval/context fields are intentionally excluded. This is a
+reference-based result check, not a grounding check.
 
-**Evaluation params:** limited to `ACTUAL_OUTPUT` and `EXPECTED_OUTPUT` only. `INPUT`
-and any captured context are intentionally excluded — this is a reference-based check,
-not a grounding check.
+### Threshold
 
-**Threshold:** `--threshold` defaults to `0.5`. This is a prototype default and must be
-calibrated on repeated real runs before it is used as a blocking gate.
+The initial threshold is `0.5`. It must be calibrated through repeated runs and human
+review before it becomes a blocking gate.
 
-**Judge model (`--judge-model`):**
+### Judge Model
 
-- Passed directly to `GEval`.
-- Claude model strings (`claude-*` or `anthropic:claude-*`) are resolved through
-  DeepEval's `AnthropicModel` adapter. Without this, DeepEval `4.0.7` treats a raw
-  Claude string as an OpenAI model and the run fails.
-- Other providers (OpenAI, etc.) are passed through as plain strings.
-- Using the same model for agent and judge introduces self-serving bias; pass a
-  different `--judge-model` for an independent judge.
-
-Configured project LLM credentials are exported to DeepEval's expected env vars at
-runtime (`configure_deepeval_env`) without overwriting an existing shell environment.
+`--judge-model` selects the model used by DeepEval. It may be the same as the chat
+model or an independent judge. Using the same model introduces self-evaluation bias,
+so the runner should keep these model choices separate.
 
 ---
 
 ## 9. Runner Components
 
 - **`case.py`**
-  - `EvalCase` dataclass + `EvalCase.from_jsonl()` — parse and validate one row.
-  - `discover_evals()` — load `tests/evals/golden_dataset.jsonl`, enforce required
-    string fields (`id`, `input`, `expected_output`), reject duplicate ids, aggregate
-    row-level errors.
+  - parse and validate `id`, `input`, and `expected_output`;
+  - reject duplicate IDs and report row-level errors.
 - **`correctness.py`**
-  - `CorrectnessEvaluator` — builds the `GEval` metric and `LLMTestCase`, returns a
-    `MetricResult`.
-  - `CORRECTNESS_STEPS` — the four evaluation steps above.
-  - `_resolve_judge_model()` — Claude → `AnthropicModel`, else pass-through.
-  - deepeval is imported lazily so the module loads without it installed.
+  - define the Correctness evaluation steps;
+  - build `LLMTestCase` and `GEval`;
+  - resolve the requested judge model.
 - **`runner.py`**
-  - `run_eval_case()` — single case: run agent, handle timeout/error, run metric.
-  - `filter_eval_cases()` — `--select` id filter with de-duplication.
-  - `save_results()` — write `evals_results_<ts>.json` with results + summary totals.
-  - `evals()` — CLI entry point (`-m`, `-s`, `--dataset`, `--threshold`,
-    `--judge-model`, `--timeout`, `-u`, `--password`, `-t`), non-zero exit on failure.
+  - discover and filter cases;
+  - run the agent once per case;
+  - handle timeout/backend/judge errors;
+  - save score, pass/fail, and reason;
+  - return a non-zero exit code when any case fails.
+
+DeepEval should be imported lazily so normal nao commands do not require it at module
+load time. Whether it is a core dependency or an optional `nao-core[evals]` extra is a
+maintainer decision.
 
 ---
 
@@ -217,117 +215,171 @@ runtime (`configure_deepeval_env`) without overwriting an existing shell environ
 
 ```bash
 # All cases
-nao evals -m anthropic:claude-sonnet-4-6 --judge-model claude-sonnet-4-6 --timeout 120
+nao evals \
+  -m anthropic:claude-sonnet-4-6 \
+  --judge-model claude-sonnet-4-6 \
+  --timeout 300
 
 # One case
-nao evals -s q001 -m anthropic:claude-sonnet-4-6 --judge-model claude-sonnet-4-6 --timeout 30
+nao evals \
+  -s q001 \
+  -m anthropic:claude-sonnet-4-6 \
+  --judge-model claude-sonnet-4-6 \
+  --timeout 120
 ```
 
-Parameters:
+Relevant parameters:
 
-- `-m`, `--model`: chat model being evaluated (`provider:model_id`).
-- `--judge-model`: DeepEval GEval judge model.
-- `--timeout`: max seconds for each agent request.
-- `-s`, `--select`: eval id filter (e.g. `q001` or `q001,q002`).
-- `--threshold`: minimum correctness score to pass (default `0.5`).
+- `-m`, `--model`: chat model being evaluated (`provider:model_id`);
+- `--judge-model`: DeepEval judge model;
+- `--timeout`: maximum seconds for each agent request;
+- `-s`, `--select`: eval ID filter;
+- `--threshold`: minimum Correctness score required to pass.
 
-**Sample report** (excerpt from a real prototype run; full evidence in
-[correctness_example_outputs.md](correctness_example_outputs.md)):
+The proposed report stores `input`, `actual_output`, `expected_output`, score,
+threshold, pass/fail, reason, usage metadata, and any error type. Judge usage should be
+reported separately when the selected DeepEval adapter exposes it.
 
-```json
-{
-  "results": [
-    {
-      "id": "q001",
-      "input": "What business does this project represent?",
-      "actual_output": "Jaffle Shop is a cafe and eatery specializing in jaffles...",
-      "expected_output": "This project represents Jaffle Shop, a company that sells products to its customers.",
-      "passed": false,
-      "metrics": [
-        { "name": "Correctness", "score": 0.3, "threshold": 0.5, "passed": false, "reason": "... adds extensive unsupported details not present in the expected output ..." }
-      ],
-      "tokens": 21759,
-      "cost": 0.0322533,
-      "duration_ms": 17576,
-      "tool_call_count": 8
-    }
-  ],
-  "summary": { "total": 2, "passed": 1, "failed": 1 }
-}
+---
+
+## 11. Example Outputs on the Shared RAG Cases
+
+The following dry run uses the same `q001`-`q003` questions as the RAG plan:
+
+- chat model: `anthropic:claude-sonnet-4-6`;
+- judge model: `claude-sonnet-4-6`;
+- Correctness threshold: `0.5`.
+
+### q001: Decommissioned Ports
+
+**Input**
+
+> How many ports are currently decommissioned?
+
+**Expected output**
+
+> There are currently 4 decommissioned ports.
+
+**Actual output**
+
+```text
+There are currently <citation-number id="query_ff4f05a4" column="decommissioned_ports">4</citation-number> ports that have been decommissioned (i.e., have a non-null `decommissioned_ts`).
 ```
 
-Reporting notes:
+**Correctness:** `0.90`, pass.
 
-- `duration_ms` is **agent-reported** duration, not end-to-end wall-clock and not judge
-  time.
-- Judge token usage and cost are **not** currently reported separately; the result
-  model only carries agent usage.
+The count matches. The citation markup and schema explanation do not contradict the
+reference.
 
-Exit code: `0` when all cases pass; non-zero when any case fails, errors, or times out.
+### q002: Full-History Uptime
+
+**Input**
+
+> What is the overall uptime percentage of my EV charging network for the full
+> history?
+
+**Expected output**
+
+> The overall uptime is 99.71% for the full available history.
+
+**Actual output**
+
+```text
+Your EV charging network has an **overall uptime of <citation-number id="query_9e9a8fad" column="overall_uptime_pct">99.7</citation-number>%** across its full history.
+
+Here's the context behind that figure:
+
+| Metric | Value |
+|---|---|
+| Overall Uptime | **99.7%** |
+| Period | Oct 1, 2025 – Jul 2, 2026 |
+| Charge Points | 2 |
+| Ports Monitored | 2 |
+| Port-Day Records | 578 |
+
+**Methodology:** Uptime is calculated as *(commissioned minutes − outage minutes) / commissioned minutes* per port per day, then averaged across all port-days — consistent with the `fact_uptime` semantic model definition. Only OFFLINE-type outages are currently tracked in the downtime data.
+```
+
+**Correctness:** `0.70`, pass.
+
+The judge treated `99.7%` as a rounded form of the expected `99.71%`. However, this
+run used a later data snapshot than the RAG example, so the difference may also show
+reference staleness rather than answer error. The first attempt exceeded a 120-second
+request timeout; the completed retry used a 300-second limit. The timeout is an
+execution issue, not a metric failure.
+
+### q003: Undefined Availability Index
+
+**Input**
+
+> What is the charge point availability index?
+
+**Expected output**
+
+> The metric "charge point availability index" is not defined in the semantic model.
+> The closest available metric is uptime. Would you like that instead?
+
+**Actual output**
+
+```text
+The metric **"charge point availability index"** is not defined in the semantic model. The closest defined metric is **`uptime`** — which measures the average fraction of commissioned time that charge points were not in an outage (i.e., availability at the port level).
+
+Here's what is defined and relevant:
+
+| Metric | Definition |
+|---|---|
+| **uptime** | Average port uptime = (commissioned minutes − outage minutes) / commissioned minutes. Ranges from 0 to 1 (0% = fully down, 100% = fully up). Sourced from `fact_uptime`. |
+
+There is no metric explicitly named "charge point availability index" in the semantic model. If you're looking for something specific — such as the percentage of charge points that were available (not faulted/unavailable) at a point in time, or a composite index — that metric would need to be defined or derived.
+
+Would you like me to:
+1. **Report on uptime** (the closest existing availability metric) for the last 7 days?
+2. **Build a custom availability index** based on `dim_ports` latest statuses or downtime data?
+```
+
+**Correctness:** `0.70`, pass.
+
+The core refusal, terminology, and uptime redirect match the reference. The score is
+reduced because the response adds substantial explanation and extra follow-up options.
+
+### Comparison with the RAG Triad Plan
+
+| Case | RAG triad result | Correctness result | Difference in signal |
+|---|---|---|---|
+| `q001` | Pass: Faithfulness `1.0`, Contextual Relevancy `0.8333`, Answer Relevancy `1.0` | Pass: `0.90` | Both approaches accept the answer. The triad describes the context-to-answer path; Correctness confirms the expected count. |
+| `q002` | Pass: Faithfulness `0.8889`, Contextual Relevancy `0.507`, Answer Relevancy `0.8182` | Pass: `0.70` | The triad surfaces context dilution; Correctness surfaces a reference mismatch that may be rounding or reference staleness. |
+| `q003` | Fail: Faithfulness `1.0`, Contextual Relevancy `0.0`, Answer Relevancy `0.5714` | Pass: `0.70` | The triad rejects the context/relevance path, while Correctness accepts that the final answer follows the expected refusal and uptime redirect. |
+
+These are **illustrative**, not controlled A/B results. The plans use the same
+questions, model family, and project, but the agent generated a separate response for
+each run and `q002` used a later data snapshot. A controlled comparison would apply
+both metric strategies to the same saved agent response and data snapshot.
+
+The key design trade-off is visible in `q003`: the RAG triad provides context-path
+diagnostics, while Correctness directly checks the required user-visible behavior.
 
 ---
 
-## 11. CI
+## 12. CI
 
-Do not block every PR on LLM evals by default — they are slower and cost money. Use the
-non-zero exit code for optional or scheduled runs instead.
-
----
-
-## 12. Implementation Status & Sequence
-
-1. **`cli/nao_core/commands/evals/{case,correctness,runner}.py`** — dataset discovery,
-   Correctness metric, execution + reporting. — **Done, unit-tested.**
-2. **Register command** in `cli/nao_core/commands/__init__.py` and
-   `cli/nao_core/main.py`. — **Done.**
-3. **Optional timeout** on the existing `AgentClient`. — **Done, backward-compatible.**
-4. **`golden_dataset.jsonl`** in the target project. — **Done for `example` and
-   kwwhat `demo/chat-bi`.**
-5. **[correctness_example_outputs.md](correctness_example_outputs.md)** from real runs. — **Done (prototype runs).**
-
-**Verified:**
-
-- 24 focused unit tests (dataset validation, duplicate ids, rubric/params,
-  score/pass/reason, timeout & backend errors skip the judge, non-zero exit).
-- One real end-to-end run on the `example` project (agent + Claude judge, exit `1`).
-- End-to-end run on the kwwhat demo (`q002`, availability-index case): score `0.7`,
-  passed, exit `0`.
-- `--judge-model claude-sonnet-4-6` resolved through `AnthropicModel`.
-
-**Pending:**
-
-- Timeout smoke test (confirm a hanging agent becomes a timeout result).
-- **Dependency decision:** `deepeval` is currently a **core** dependency of
-  `nao-core`. An optional `nao-core[evals]` extra would keep normal installs smaller
-  and match the lazy imports, at the cost of extra install/docs/CI steps. Not yet
-  decided.
-- Regenerate `uv.lock` after the dependency decision.
+LLM evals should not block every PR by default because they are slower,
+non-deterministic, and cost money. The runner should remain CI-friendly through a
+non-zero exit code, while teams choose whether to run it manually, on a schedule, or
+as a calibrated gate.
 
 ---
 
-## 13. Extending Later (→ Plan A / Plan C)
+## 13. Proposed Implementation Sequence
 
-The golden dataset (`id`, `input`, `expected_output`) is forward-compatible with the
-context metrics in Plan A. [Plan C](plan_c.md) (both) can add Correctness to the same
-`metrics=[]` list that runs the RAG triad on a single `LLMTestCase`, reusing one agent
-response.
-Correctness explains *whether the answer matches the reference*; the triad explains
-*why* an answer was or was not grounded.
-
----
-
-## 14. Prototype Evidence
-
-**[correctness_example_outputs.md](correctness_example_outputs.md):** the design PR should carry this real Plan B
-prototype evidence (single run per case). A future side-by-side `example_outputs.md`
-still requires real Plan A / Plan C runs on the same cases, model, and environment.
-Report the median of three runs where practical; label a single run as a prototype,
-not a production benchmark. The number of underlying judge-model calls is not
-currently instrumented and must not be inferred from the number of metrics.
-
-kwwhat `q002` (availability index; Plan A `q003`) scored `0.7` and passed. See the
-[kwwhat run](correctness_example_outputs.md#kwwhat-demo-chat-bi--availability-index-case).
-
-
-An operational runbook has been prepared separately and can be added after the design
-direction is approved; it is not part of this decision.
+1. Add `case.py`, `correctness.py`, and `runner.py` under
+   `cli/nao_core/commands/evals/`.
+2. Register `nao evals` without changing existing `nao test` behavior.
+3. Reuse `AgentClient` and add an optional backward-compatible request timeout.
+4. Add lazy DeepEval imports and decide whether eval dependencies are core or
+   optional.
+5. Validate JSONL cases and write stable JSON results with score, pass/fail, reason,
+   and error type.
+6. Add focused tests for dataset validation, selection, timeout/backend errors,
+   metric failures, and exit codes.
+7. Calibrate the rubric and threshold on reviewed project cases before enabling any
+   blocking CI gate.

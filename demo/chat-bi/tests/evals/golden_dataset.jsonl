@@ -1,2 +1,0 @@
-{"id": "q001", "input": "Did we decommission the wrong port?", "expected_output": "Yes, we decommissioned CH001 that was the only functional charger."}
-{"id": "q002", "input": "What is the charge point availability index?", "expected_output": "The metric \"charge point availability index\" is not defined in the semantic model. The closest available metric is **uptime**. Would you like that instead?"}
