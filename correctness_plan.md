@@ -110,6 +110,15 @@ cli/nao_core/commands/evals/
 
 Eval cases live in the project alongside existing `tests/*.yml` SQL tests.
 
+### Why validate the dataset before running
+
+Current `nao test` discovery does not perform a separate schema-validation pass; a
+malformed YAML test fails when it is parsed. Plan B proposes preflight validation
+because eval runs invoke paid agent and judge calls. `case.py` validates every JSONL
+row, required field, and duplicate ID before the first model call, then reports all
+file/line errors together. This prevents a malformed later row from wasting an
+otherwise valid partial run.
+
 ---
 
 ## 6. Golden Dataset
@@ -173,6 +182,11 @@ correctness_metric = GEval(
 )
 ```
 
+Plan B supplies explicit `evaluation_steps` instead of asking DeepEval to generate
+them from broad `criteria` on each run. This makes the project-specific definition of
+Correctness visible, reviewable, and stable; changes to the steps can be versioned
+like other test logic.
+
 `INPUT` and retrieval/context fields are intentionally excluded. This is a
 reference-based result check, not a grounding check.
 
@@ -204,6 +218,10 @@ so the runner should keep these model choices separate.
   - handle timeout/backend/judge errors;
   - save score, pass/fail, and reason;
   - return a non-zero exit code when any case fails.
+
+The initial implementation uses one default Correctness rubric. `correctness.py`
+owns rubric construction and selection so the runner does not need question-type
+conditionals if reviewed cases later justify more than one rubric.
 
 DeepEval should be imported lazily so normal nao commands do not require it at module
 load time. Whether it is a core dependency or an optional `nao-core[evals]` extra is a
@@ -237,8 +255,14 @@ Relevant parameters:
 - `--threshold`: minimum Correctness score required to pass.
 
 The proposed report stores `input`, `actual_output`, `expected_output`, score,
-threshold, pass/fail, reason, usage metadata, and any error type. Judge usage should be
-reported separately when the selected DeepEval adapter exposes it.
+threshold, pass/fail, reason, `judge_model`, `rubric_version`, usage metadata, and any
+error type. Recording the judge and rubric versions prevents scores produced by
+different evaluation configurations from being treated as directly comparable. Judge
+usage should be reported separately when the selected DeepEval adapter exposes it.
+
+`rubric_version` is a short content hash of the evaluation steps and parameters used
+for the score, so it changes whenever the rubric or its scoring interpretation
+changes.
 
 ---
 
@@ -378,8 +402,59 @@ as a calibrated gate.
 4. Add lazy DeepEval imports and decide whether eval dependencies are core or
    optional.
 5. Validate JSONL cases and write stable JSON results with score, pass/fail, reason,
-   and error type.
+   judge model, rubric version, and error type.
 6. Add focused tests for dataset validation, selection, timeout/backend errors,
    metric failures, and exit codes.
 7. Calibrate the rubric and threshold on reviewed project cases before enabling any
    blocking CI gate.
+
+### Possible later extension: rubric profiles
+
+The initial implementation keeps one default rubric. If observed cases later require
+different criteria, the dataset can add an optional `rubric_profile`, for example:
+
+```jsonl
+{"id":"q002","input":"What is the overall uptime?","expected_output":"The overall uptime is 99.71%.","rubric_profile":"reported_value"}
+{"id":"q003","input":"What is the charge point availability index?","expected_output":"The metric is not defined; offer uptime instead.","rubric_profile":"semantic"}
+```
+
+The corresponding metrics would differ in their evaluation steps:
+
+```python
+reported_value_correctness = GEval(
+    name="Reported Value Correctness",
+    evaluation_steps=[
+        "Compare every reported numeric value with the expected output.",
+        "Require the expected precision and penalize contradictory values.",
+    ],
+    evaluation_params=[
+        SingleTurnParams.ACTUAL_OUTPUT,
+        SingleTurnParams.EXPECTED_OUTPUT,
+    ],
+)
+
+semantic_correctness = GEval(
+    name="Semantic Correctness",
+    evaluation_steps=[
+        "Verify that the answer preserves the expected intent, terminology, and framing.",
+        "Allow equivalent wording; penalize contradictions and unsupported additions.",
+    ],
+    evaluation_params=[
+        SingleTurnParams.ACTUAL_OUTPUT,
+        SingleTurnParams.EXPECTED_OUTPUT,
+    ],
+)
+```
+
+`correctness.py` would select the metric from `rubric_profile`; dataset loading and
+runner orchestration would remain unchanged. Each result would record the selected
+profile and rubric version. This extension should be driven by calibrated cases rather
+than added upfront.
+
+The reported-value profile would check whether the final answer preserves a verified
+number and its required precision. Deterministic SQL tests remain the factual source
+of truth and are not replaced by this semantic check.
+
+After the eval schema is approved, a `create-evals` skill could generate and validate
+Plan B golden records (`id`, `input`, and `expected_output`), similar to
+`create-context-tests`. I can contribute this follow-up if useful.
