@@ -167,7 +167,7 @@ all metrics share the same `LLMTestCase` built from that single response.
 {"id": "q003", "input": "What is the charge point availability index?"}
 ```
 
-No `curated_context` or `expected_output` field. Context is captured live. `expected_output` is only needed if Correctness (`GEval`) is added later — add it back to the dataset at that point.
+No `curated_context` or `expected_output` field. Context is captured live. `expected_output` is only needed if Completeness (`GEval`) is added later — add it back to the dataset at that point.
 
 ---
 
