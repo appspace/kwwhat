@@ -213,13 +213,6 @@ Relevancy without adding grounding signal.
 
 ## DeepEval Metric Configuration
 
-The judge model is read from the `/api/evals/chat` response `model_id` field — whatever ran the
-agent. `make_judge()` in `runner.py` instantiates the judge from that model ID:
-
-- **Claude models** (`model_id.startswith("claude")`) — wrapped in a custom `_ClaudeJudge`
-  subclass of `DeepEvalBaseLLM` using the `anthropic` SDK directly
-- **OpenAI and other providers** — passed as a plain string; DeepEval handles them natively
-
 ```python
 FaithfulnessMetric(threshold=0.7, model=judge, include_reason=True)
 ContextualRelevancyMetric(threshold=0.5, model=judge, include_reason=True)
@@ -234,23 +227,17 @@ correct answer. Much of that context is genuinely necessary for the agent to rea
 not directly about the specific question. The result is that Contextual Relevancy is structurally
 diluted compared to a purpose-built retrieval system — by design, not by failure.
 
+It addition to that, the right Contextual Relevancy threshold depends on the project's data scope. A single-domain
+project (only EV charger data) will have tighter, more focused context than a multi-domain one
+(sales + HR + finance) — so 0.5 might be too strict for a broad deployment and too loose for a
+narrow one.
+
 This means a score of 0.5–0.65 on Contextual Relevancy may reflect a well-functioning agent
-rather than a broken retrieval step. The practical threshold to start with:
-
-```python
-FaithfulnessMetric(threshold=0.7, ...)          # grounding: strict
-ContextualRelevancyMetric(threshold=0.5, ...)   # broad context: looser
-AnswerRelevancyMetric(threshold=0.7, ...)       # answer quality: strict
-```
-
-Calibrate from observed baselines as the dataset grows, not from RAG benchmarks.
+rather than a broken retrieval step and should be calibrated per project.
 
 **Per-project threshold configuration**
 
-The right Contextual Relevancy threshold depends on the project's data scope. A single-domain
-project (only EV charger data) will have tighter, more focused context than a multi-domain one
-(sales + HR + finance) — so 0.5 might be too strict for a broad deployment and too loose for a
-narrow one. Thresholds should be tunable per project via `nao.yml`:
+ Thresholds should be tunable per project via `nao.yml`:
 
 ```yaml
 evals:
