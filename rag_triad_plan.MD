@@ -18,18 +18,18 @@ decide what to read next, not to compose its answer.
 
 ## Two Approaches to Curated Context
 
-### Option A — Static: bake context into the golden dataset
+### Static: bake context into the golden dataset (rejected — not robust and hard to maintain)
 
 Pre-record the tool outputs when building the dataset. Each golden record carries:
 
 ```jsonl
 {
   "id": "q001",
-  "input": "What were total sales by region last quarter?",
+  "input": "How many ports are currently decommissioned?",
   "expected_output": "...",
   "curated_context": [
-    "[File: databases/.../columns.md]\n# users table...",
-    "[SQL result]\nColumns: region, total\n| North | 1200000 |..."
+    "[File: models/semantic/semantic_models.yml]\n# dim_ports\n- decommissioned_ts: timestamp when port was decommissioned, null if active",
+    "[SQL result]\nColumns: decommissioned_ports\n4"
   ]
 }
 ```
@@ -45,7 +45,7 @@ into the JSONL. This does not scale past a handful of records.
 
 ---
 
-### Option B — Dynamic: capture context at eval runtime (chosen approach)
+### Dynamic: capture context at eval runtime (chosen approach)
 
 At eval time, call a dedicated nao endpoint that runs the agent and returns **both** the final
 answer and the exact tool results that produced it, in a single response. The eval harness uses
@@ -64,12 +64,14 @@ dataset.
   you know the model started making claims not grounded in its own context.
 
 The only requirement is a running nao backend, which is already needed to get `actual_output`
-anyway. Option B adds zero extra infrastructure.
+anyway. The dynamic approach does require a dedicated eval endpoint (`POST /api/evals/chat`), tool output
+filtering logic, and ongoing maintenance of the `CONTEXT_TOOLS` list — but these are contained
+to one route file and one runner, rather than spreading context management into the dataset.
 
 **Maintenance burden:** `CONTEXT_TOOLS` in `apps/backend/src/routes/evals.ts` must be kept in sync
 as new agent tools are added. When a new tool is introduced, the nao team needs to decide whether
 its output is content-bearing (add it) or navigation-only (leave it out). This is a small but
-ongoing maintenance cost that Option A does not have.
+ongoing maintenance cost that the static approach does not have.
 
 ---
 
@@ -158,6 +160,7 @@ all metrics share the same `LLMTestCase` built from that single response.
 ```jsonl
 {"id": "q001", "input": "How many ports are currently decommissioned?"}
 {"id": "q002", "input": "What is the overall uptime percentage of my EV charging network for the full history?"}
+{"id": "q003", "input": "What is the charge point availability index?"}
 ```
 
 No `curated_context` or `expected_output` field. Context is captured live. `expected_output` is only needed if Correctness (`GEval`) is added later — add it back to the dataset at that point.
