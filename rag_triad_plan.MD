@@ -140,12 +140,16 @@ assets.
 ```
 # nao_core package (framework — shipped with nao)
 cli/nao_core/commands/evals/
+  case.py                  # dataset discovery and JSONL validation
   runner.py                # full eval engine + CLI command
 
 # User's project (data — owned by the team)
 {project}/tests/evals/
   golden_dataset.jsonl     # {id, input} — no context, no expected output
 ```
+
+`case.py` validates the dataset before any records are run — catching missing fields or duplicate
+IDs upfront avoids wasting 3 paid LLM judge calls per bad record.
 
 `runner.py` is both orchestration and eval engine — same pattern as `nao test`. It reads the
 dataset, calls the backend, runs DeepEval metrics, writes the JSON report, and exits.
