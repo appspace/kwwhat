@@ -111,7 +111,6 @@ It mirrors `/api/agent` but:
    what to read next, not to compose its answer. Including them dilutes Contextual Relevancy
    with path listings that have no semantic relationship to the question.
 4. Accepts an optional `model: { provider, modelId }` body field to override the project default
-5. Accepts an optional `judge_model: string` body field to counteract self-serving bias
 
 No changes to existing routes or agent internals. `generate()` is already exercised by automations.
 
