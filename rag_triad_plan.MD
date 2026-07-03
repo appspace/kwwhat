@@ -118,11 +118,11 @@ No changes to existing routes or agent internals. `generate()` is already exerci
 **Response shape:**
 ```json
 {
-  "text": "Total sales by region last quarter were: North $1.2M...",
+  "text": "There are currently 4 decommissioned ports (those with a non-null decommissioned_ts).",
   "model_id": "claude-sonnet-4-6",
   "tool_results": [
-    { "toolName": "read", "output": { "content": "# sales table\n..." } },
-    { "toolName": "execute_sql", "output": { "columns": ["region", "total"], "data": [...] } }
+    { "toolName": "read", "output": { "content": "# dim_ports\n- decommissioned_ts: timestamp when port was decommissioned, null if active\n- port_id: unique port identifier" } },
+    { "toolName": "execute_sql", "output": { "columns": ["decommissioned_ports"], "data": [[4]] } }
   ]
 }
 ```
