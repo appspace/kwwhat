@@ -12,7 +12,7 @@ nao's agent answers questions by reading file-based project context (schema docs
 The **curated context** for evals is the subset of tool outputs that carry actual
 content: `execute_sql`, `read`, `grep`.
 
-[Explain what this PR is for ]
+This plan adds evals that measure the quality of a nao project's curated context by borrowing the RAG triad framework — with one substitution: instead of retrieved context, the judge receives the tool outputs the agent actually used. This makes it referenceless: no expected answer is needed, and the golden dataset stays lean. The alternative reference-based approach in `correctness_plan.md` compares outputs against a maintained `expected_output` — fewer judge calls per record, but every entry requires a reviewed answer.
 
 ---
 
