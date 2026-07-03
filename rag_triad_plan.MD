@@ -385,7 +385,7 @@ Without `-v`, only the score line is printed. Results are always written to
 }
 ```
 
-Both records pass. ContextualRelevancy in both cases is flagged as diluted.
+q001 and q002 pass; both flag ContextualRelevancy as diluted. q003 fails: the correct agent behaviour was to redirect the user to defined metrics, but the judge scored context and answer as irrelevant — a limitation of the RAG triad approach, which cannot distinguish an intentional refusal from a failure to retrieve.
 
 ---
 
