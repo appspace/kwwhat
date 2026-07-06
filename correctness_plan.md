@@ -235,34 +235,35 @@ maintainer decision.
 # All cases
 nao evals \
   -m anthropic:claude-sonnet-4-6 \
-  --judge-model claude-sonnet-4-6 \
+  --judge-model anthropic:claude-sonnet-4-6 \
   --timeout 300
 
 # One case
 nao evals \
   -s q001 \
   -m anthropic:claude-sonnet-4-6 \
-  --judge-model claude-sonnet-4-6 \
+  --judge-model anthropic:claude-sonnet-4-6 \
   --timeout 120
 ```
 
 Relevant parameters:
 
 - `-m`, `--model`: chat model being evaluated (`provider:model_id`);
-- `--judge-model`: DeepEval judge model;
+- `--judge-model`: DeepEval judge model (`provider:model_id`);
 - `--timeout`: maximum seconds for each agent request;
 - `-s`, `--select`: eval ID filter;
 - `--threshold`: minimum Correctness score required to pass.
 
 The proposed report stores `input`, `actual_output`, `expected_output`, score,
-threshold, pass/fail, reason, `judge_model`, `rubric_version`, usage metadata, and any
-error type. Recording the judge and rubric versions prevents scores produced by
-different evaluation configurations from being treated as directly comparable. Judge
-usage should be reported separately when the selected DeepEval adapter exposes it.
+threshold, pass/fail, reason, `judge_model`, `rubric_version`, `deepeval_version`, usage
+metadata, and any error type. Recording the judge, rubric, and framework versions
+prevents scores produced by different evaluation configurations from being treated as
+directly comparable. Judge usage should be reported separately when the selected
+DeepEval adapter exposes it.
 
-`rubric_version` is a short content hash of the evaluation steps and parameters used
-for the score, so it changes whenever the rubric or its scoring interpretation
-changes.
+`rubric_version` is a short content hash of the nao-owned rubric profile, evaluation
+steps, and parameters. `deepeval_version` records the framework version separately
+because its internal scoring behavior may change without changing nao's rubric.
 
 ---
 
@@ -402,7 +403,7 @@ as a calibrated gate.
 4. Add lazy DeepEval imports and decide whether eval dependencies are core or
    optional.
 5. Validate JSONL cases and write stable JSON results with score, pass/fail, reason,
-   judge model, rubric version, and error type.
+   judge model, rubric version, DeepEval version, and error type.
 6. Add focused tests for dataset validation, selection, timeout/backend errors,
    metric failures, and exit codes.
 7. Calibrate the rubric and threshold on reviewed project cases before enabling any
@@ -448,8 +449,8 @@ semantic_correctness = GEval(
 
 `correctness.py` would select the metric from `rubric_profile`; dataset loading and
 runner orchestration would remain unchanged. Each result would record the selected
-profile and rubric version. This extension should be driven by calibrated cases rather
-than added upfront.
+profile, rubric version, and DeepEval version. This extension should be driven by
+calibrated cases rather than added upfront.
 
 The reported-value profile would check whether the final answer preserves a verified
 number and its required precision. Deterministic SQL tests remain the factual source
