@@ -364,7 +364,7 @@ Without `-v`, only the score line is printed. Results are always written to
         { "name": "ContextualRelevancy",  "score": 0.507,  "threshold": 0.5, "passed": true,  "reason": "The score is 0.51 because while a significant portion of the retrieval context is irrelevant (empty SQL results, database metadata, schema config), the context contains the direct answer '99.71% uptime' and supporting breakdowns. The large volume of irrelevant context dilutes the score." },
         { "name": "AnswerRelevancy",      "score": 0.8182, "threshold": 0.7, "passed": true,  "reason": "The score is 0.82 because the output addresses overall uptime but includes unnecessary detail about which chargers caused the downtime events — not directly relevant to the question asked." }
       ]
-    }
+    },
     {
       "id": "q003",
       "input": "What is the charge point availability index?",
