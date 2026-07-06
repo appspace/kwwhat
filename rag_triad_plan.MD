@@ -442,8 +442,10 @@ Do not block PRs on evals — they are slow (~5–10 s per LLM judge call) and c
 
 ## Adding Completeness Later
 
-The full triad ships from day one. Completeness is the only metric deferred — it has no
-first-class DeepEval class yet. When ready, adding it is one step:
+The full triad ships from day one. Completeness is the only metric deferred — DeepEval has
+completeness metrics, but they target RAG chunk coverage and multi-turn conversation scenarios, not
+single-turn reference-based answer completeness for this use case. `GEval` with a custom rubric is
+the right fit. When ready, adding it is one step:
 
 1. Add a `GEval` instance to the `metrics=[]` list in `run_eval()` with a rubric such as
    "does the answer fully address all parts of the question, given the expected output?"
