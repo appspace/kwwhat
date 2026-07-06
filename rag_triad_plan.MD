@@ -227,7 +227,7 @@ correct answer. Much of that context is genuinely necessary for the agent to rea
 not directly about the specific question. The result is that Contextual Relevancy is structurally
 diluted compared to a purpose-built retrieval system — by design, not by failure.
 
-It addition to that, the right Contextual Relevancy threshold depends on the project's data scope. A single-domain
+In addition to that, the right Contextual Relevancy threshold depends on the project's data scope. A single-domain
 project (only EV charger data) will have tighter, more focused context than a multi-domain one
 (sales + HR + finance) — so 0.5 might be too strict for a broad deployment and too loose for a
 narrow one.
