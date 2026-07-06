@@ -379,8 +379,8 @@ Without `-v`, only the score line is printed. Results are always written to
   ],
   "summary": {
     "total": 3,
-    "passed": 1,
-    "failed": 2
+    "passed": 2,
+    "failed": 1
   }
 }
 ```
