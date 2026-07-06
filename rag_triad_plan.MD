@@ -401,14 +401,17 @@ Do not block PRs on evals — they are slow (~5–10 s per LLM judge call) and c
    calls existing `testAgentService.runTest()`, returns `{ text, model_id, tool_results }`, accepts
    optional `model` override
 2. **Register route** in `apps/backend/src/app.ts` under `/api/evals`
-3. **Write `cli/nao_core/commands/evals/runner.py`** — full eval engine mirroring `nao test`;
+3. **Write `cli/nao_core/commands/evals/case.py`** — dataset discovery and JSONL validation;
+   parse and validate `id` and `input`; reject duplicate IDs and report row-level errors before
+   any judge calls are made
+4. **Write `cli/nao_core/commands/evals/runner.py`** — full eval engine mirroring `nao test`;
    `EvalResult` / `MetricResult` dataclasses; `serialize_tool_result`, `make_judge`, `run_eval`,
    `save_results` functions; `evals()` CLI entry point with `-m`, `-u`, `--password`, `-v`, `-s`
    flags; deepeval imported lazily so the module loads without it installed; `sys.exit(1)` if any
    record fails
-4. **Register command** in `cli/nao_core/commands/__init__.py` and `cli/nao_core/main.py`
-5. **Add `evals` extra** to `cli/pyproject.toml` — `deepeval>=2.0` only
-6. **Populate `{project}/tests/evals/golden_dataset.jsonl`** — Q&A pairs from golden dataset
+5. **Register command** in `cli/nao_core/commands/__init__.py` and `cli/nao_core/main.py`
+6. **Add `evals` extra** to `cli/pyproject.toml` — `deepeval>=2.0` only
+7. **Populate `{project}/tests/evals/golden_dataset.jsonl`** — Q&A pairs from golden dataset
 
 ---
 
