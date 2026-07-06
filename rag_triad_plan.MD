@@ -368,12 +368,12 @@ Without `-v`, only the score line is printed. Results are always written to
     {
       "id": "q003",
       "input": "What is the charge point availability index?",
-      "actual_output": "Charge Point Availability Index is not a defined metric in the semantic model. The closest metric is uptime — it measures the fraction of commissioned time that a port was operational. Would you like me to report on uptime, or define a new metric?",
+      "actual_output": "Charge Point Availability Index is not a defined metric in the semantic model. The closest metrics are uptime and charge attempt success — it measures the fraction of commissioned time that a port was operational. Would you like me to report on uptime, or define a new metric?",
       "passed": false,
       "metrics": [
         { "name": "Faithfulness",        "score": 1.0,    "threshold": 0.7, "passed": true,  "reason": "The score is 1.00 because the actual output is perfectly faithful to the retrieval context with no contradictions found!" },
         { "name": "ContextualRelevancy", "score": 0.0,    "threshold": 0.5, "passed": false, "reason": "The score is 0.00 because the retrieval context contains no relevant statements about a 'charge point availability index'. The context only covers unrelated semantic models such as 'visits' and 'charge_attempts'." },
-        { "name": "AnswerRelevancy",     "score": 0.5714, "threshold": 0.7, "passed": false, "reason": "The score is 0.57 because while the response attempts to address the charge point availability index, it includes several irrelevant metrics (total_visits, total_charge_attempts, etc.) that dilute the focus." }
+        { "name": "AnswerRelevancy",     "score": 0.5714, "threshold": 0.7, "passed": false, "reason": "The score is 0.57 because while the response attempts to address the charge point availability index, it includes several irrelevant metrics (uptime, charge_attempt_success, etc.) that dilute the focus." }
       ]
     }
   ],
