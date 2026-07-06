@@ -237,7 +237,7 @@ rather than a broken retrieval step and should be calibrated per project.
 
 **Per-project threshold configuration**
 
- Thresholds should be tunable per project via `nao.yml`:
+Thresholds should be tunable per project via `nao.yml`:
 
 ```yaml
 evals:
