@@ -326,14 +326,39 @@ Add `make evals` to the root `Makefile` for consistency with `make lint`.
 Running: q001 How many ports are currently decommissioned?
   ✓ Faithfulness: 1.0
     The score is 1.00 because the actual output is perfectly faithful to the retrieval context with no contradictions found!
-  ✓ ContextualRelevancy: 0.8333
-    The score is 0.83 because most of the retrieval context is highly relevant, directly addressing the question with key
-    details such as the SQL query filtering 'decommissioned_ts IS NOT NULL', the result alias 'decommissioned_ports', and
-    the concrete answer of '4 decommissioned ports'. However, one statement about 'COUNT(DISTINCT port_id)' counting total
-    ports without any decommissioned filtering is irrelevant and slightly reduces the overall score.
+  ✓ ContextualRelevancy: 1.0
+    The score is 1.00 because the retrieval context directly answers the input by confirming 'There are 4 decommissioned
+    ports' and provides supporting details about how this was determined through a SQL query on the
+    analytics.ANALYTICS.dim_ports table. Perfect retrieval!
   ✓ AnswerRelevancy: 1.0
     The score is 1.00 because the response directly and completely addresses the question about the number of currently
     decommissioned ports, with no irrelevant statements whatsoever. Great job!
+
+Running: q002 What is the overall uptime percentage of my EV charging network for the full history?
+  ✓ Faithfulness: 0.8889
+    The score is 0.89 because the actual output incorrectly implies that only November 2025 onwards (excluding October
+    2025) had 100% uptime, when in fact the retrieval context states that September 2025 also had 100% uptime.
+  ✗ ContextualRelevancy: 0.4444
+    The score is 0.44 because while some retrieved context is highly relevant — including the 'uptime' semantic model,
+    'fact_uptime' table, the overall uptime percentage of 99.72% covering 295 days, and monthly breakdowns — a large
+    portion of the retrieval context is entirely irrelevant. Many retrieved chunks contain empty SQL results, database
+    metadata, dbt configuration files, schema catalog metadata, and unrelated semantic models like 'visits' and
+    'charge_attempts'.
+  ✓ AnswerRelevancy: 1.0
+    The score is 1.00 because the response directly and completely addresses the question about the overall uptime
+    percentage of the EV charging network for its full history, with no irrelevant statements detected.
+
+Running: q003 What is the charge point availability index?
+  ✓ Faithfulness: 0.8182
+    The score is 0.82 because the actual output references metrics named 'total_visits' and 'total_charge_attempts',
+    which do not exist in the retrieval context. The correct metric names defined in the context are 'visits_count' and
+    'charge_attempts_count'/'attempts_count'.
+  ✗ ContextualRelevancy: 0.0
+    The score is 0.00 because none of the retrieved context defines or mentions a 'charge point availability index'.
+    The retrieval context only covers unrelated semantic models such as 'visits', 'charge_attempts', and 'uptime'.
+  ✗ AnswerRelevancy: 0.6
+    The score is 0.60 because while the response addresses the charge point availability index, it includes several
+    irrelevant metrics (total_visits, total_charge_attempts, average_attempts_per_visit, etc.) that dilute the focus.
 ```
 
 Without `-v`, only the score line is printed. Results are always written to
@@ -341,51 +366,51 @@ Without `-v`, only the score line is printed. Results are always written to
 
 ```json
 {
-  "timestamp": "2026-06-25T21:35:40.653031",
+  "timestamp": "2026-07-06T09:46:17.545854",
   "results": [
     {
       "id": "q001",
       "input": "How many ports are currently decommissioned?",
-      "actual_output": "There are currently <citation-number id=\"query_47c75c22\" column=\"decommissioned_ports\">4</citation-number> decommissioned ports (those with a non-null `decommissioned_ts`).",
+      "actual_output": "There are currently <citation-number id=\"query_7e33430b\" column=\"decommissioned_ports\">4</citation-number> decommissioned ports (i.e., ports with a non-null `decommissioned_ts`).",
       "passed": true,
       "metrics": [
-        { "name": "Faithfulness",         "score": 1.0,    "threshold": 0.7, "passed": true, "reason": "The score is 1.00 because the actual output is perfectly faithful to the retrieval context with no contradictions found!" },
-        { "name": "ContextualRelevancy",  "score": 0.8333, "threshold": 0.5, "passed": true, "reason": "The score is 0.83 because most of the retrieval context is highly relevant, directly addressing the question with key details such as the SQL query filtering 'decommissioned_ts IS NOT NULL', the result alias 'decommissioned_ports', and the concrete answer of '4 decommissioned ports'. However, one statement about 'COUNT(DISTINCT port_id)' counting total ports without any decommissioned filtering is irrelevant and slightly reduces the overall score." },
-        { "name": "AnswerRelevancy",      "score": 1.0,    "threshold": 0.7, "passed": true, "reason": "The score is 1.00 because the response directly and completely addresses the question about the number of currently decommissioned ports, with no irrelevant statements whatsoever. Great job!" }
+        { "name": "Faithfulness",        "score": 1.0, "threshold": 0.7, "passed": true, "reason": "The score is 1.00 because the actual output is perfectly faithful to the retrieval context with no contradictions found!" },
+        { "name": "ContextualRelevancy", "score": 1.0, "threshold": 0.5, "passed": true, "reason": "The score is 1.00 because the retrieval context directly answers the input by confirming 'There are 4 decommissioned ports' and provides supporting details about how this was determined through a SQL query on the analytics.ANALYTICS.dim_ports table. Perfect retrieval!" },
+        { "name": "AnswerRelevancy",     "score": 1.0, "threshold": 0.7, "passed": true, "reason": "The score is 1.00 because the response directly and completely addresses the question about the number of currently decommissioned ports, with no irrelevant statements whatsoever. Great job!" }
       ]
     },
     {
       "id": "q002",
       "input": "What is the overall uptime percentage of my EV charging network for the full history?",
-      "actual_output": "Overall Uptime: 99.71% across Sep 15, 2025 – Jun 26, 2026. All 4,986 downtime minutes were concentrated in October 2025. Every other month recorded 100% uptime.",
-      "passed": true,
+      "actual_output": "Overall network uptime is 99.72% across Sep 15, 2025 → Jul 6, 2026 (295 days). All 4,986 downtime minutes were concentrated in October 2025 (98.09%). Every month since November 2025 has been at 100% uptime.",
+      "passed": false,
       "metrics": [
-        { "name": "Faithfulness",          "score": 0.8889, "threshold": 0.7, "passed": true,  "reason": "The score is 0.89 because the actual output incorrectly states total commissioned minutes as 1,722,240 when the retrieval context specifies 1,716,480." },
-        { "name": "ContextualRelevancy",  "score": 0.507,  "threshold": 0.5, "passed": true,  "reason": "The score is 0.51 because while a significant portion of the retrieval context is irrelevant (empty SQL results, database metadata, schema config), the context contains the direct answer '99.71% uptime' and supporting breakdowns. The large volume of irrelevant context dilutes the score." },
-        { "name": "AnswerRelevancy",      "score": 0.8182, "threshold": 0.7, "passed": true,  "reason": "The score is 0.82 because the output addresses overall uptime but includes unnecessary detail about which chargers caused the downtime events — not directly relevant to the question asked." }
+        { "name": "Faithfulness",        "score": 0.8889, "threshold": 0.7, "passed": true,  "reason": "The score is 0.89 because the actual output incorrectly implies that only November 2025 onwards had 100% uptime, when in fact the retrieval context states that September 2025 also had 100% uptime." },
+        { "name": "ContextualRelevancy", "score": 0.4444, "threshold": 0.5, "passed": false, "reason": "The score is 0.44 because while some retrieved context is highly relevant — including the 'uptime' semantic model, 'fact_uptime' table, the overall uptime percentage of 99.72%, and monthly breakdowns — a large portion is entirely irrelevant: empty SQL results, database metadata, dbt configuration files, schema catalog metadata, and unrelated semantic models like 'visits' and 'charge_attempts'." },
+        { "name": "AnswerRelevancy",     "score": 1.0,    "threshold": 0.7, "passed": true,  "reason": "The score is 1.00 because the response directly and completely addresses the question about the overall uptime percentage for the full history, with no irrelevant statements detected." }
       ]
     },
     {
       "id": "q003",
       "input": "What is the charge point availability index?",
-      "actual_output": "Charge Point Availability Index is not a defined metric in the semantic model. The closest metrics are uptime and charge attempt success — it measures the fraction of commissioned time that a port was operational. Would you like me to report on uptime, or define a new metric?",
+      "actual_output": "The charge point availability index is not a defined metric in the semantic model. The closest concept is uptime — the average fraction of commissioned time that a port was not in outage. Would you like uptime figures, or to define a custom availability index?",
       "passed": false,
       "metrics": [
-        { "name": "Faithfulness",        "score": 1.0,    "threshold": 0.7, "passed": true,  "reason": "The score is 1.00 because the actual output is perfectly faithful to the retrieval context with no contradictions found!" },
-        { "name": "ContextualRelevancy", "score": 0.0,    "threshold": 0.5, "passed": false, "reason": "The score is 0.00 because the retrieval context contains no relevant statements about a 'charge point availability index'. The context only covers unrelated semantic models such as 'visits' and 'charge_attempts'." },
-        { "name": "AnswerRelevancy",     "score": 0.5714, "threshold": 0.7, "passed": false, "reason": "The score is 0.57 because while the response attempts to address the charge point availability index, it includes several irrelevant metrics (uptime, charge_attempt_success, etc.) that dilute the focus." }
+        { "name": "Faithfulness",        "score": 0.8182, "threshold": 0.7, "passed": true,  "reason": "The score is 0.82 because the actual output references metrics named 'total_visits' and 'total_charge_attempts', which do not exist in the retrieval context. The correct metric names are 'visits_count' and 'charge_attempts_count'/'attempts_count'." },
+        { "name": "ContextualRelevancy", "score": 0.0,    "threshold": 0.5, "passed": false, "reason": "The score is 0.00 because none of the retrieved context defines or mentions a 'charge point availability index'. The retrieval context only covers unrelated semantic models such as 'visits', 'charge_attempts', and 'uptime'." },
+        { "name": "AnswerRelevancy",     "score": 0.6,    "threshold": 0.7, "passed": false, "reason": "The score is 0.60 because while the response addresses the charge point availability index, it includes several irrelevant metrics (total_visits, total_charge_attempts, average_attempts_per_visit, etc.) that dilute the focus." }
       ]
     }
   ],
   "summary": {
     "total": 3,
-    "passed": 2,
-    "failed": 1
+    "passed": 1,
+    "failed": 2
   }
 }
 ```
 
-q001 and q002 pass; both flag ContextualRelevancy as diluted. q003 fails: the correct agent behaviour was to redirect the user to defined metrics, but the judge scored context and answer as irrelevant — a limitation of the RAG triad approach, which cannot distinguish an intentional refusal from a failure to retrieve.
+q001 passes with perfect scores. q002 fails on ContextualRelevancy (0.44) — the agent reads broad schema metadata beyond what the question requires, diluting the context score below threshold. q003 fails on ContextualRelevancy and AnswerRelevancy: the correct agent behaviour was to redirect the user to defined metrics, but the judge scored context and answer as irrelevant — a limitation of the RAG triad approach, which cannot distinguish an intentional refusal from a failure to retrieve.
 
 ---
 
