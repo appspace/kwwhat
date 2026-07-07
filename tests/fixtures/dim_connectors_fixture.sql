@@ -3,7 +3,7 @@
 select * from values
     ('key_ch001_1_1', 'CH-001', '1', '1', 'CCS',  150, 'Available', 'NoError', cast('2025-10-01 08:00:00.000' as timestamp)),
     ('key_ch001_1_2', 'CH-001', '1', '2', 'NACS', 150, 'Available', 'NoError', cast('2025-10-01 08:00:00.000' as timestamp)),
-    ('key_ch001_2_3', 'CH-001', '2', '3', 'CHAdeMO', 50,  'Available', 'NoError', cast('2025-10-01 08:00:00.000' as timestamp)),
+    ('key_ch001_2_3', 'CH-001', '2', '3', 'CCS',     150, 'Available', 'NoError', cast('2025-10-01 08:00:00.000' as timestamp)),
     ('key_ch001_2_4', 'CH-001', '2', '4', 'CHAdeMO', 50,  'Available', 'NoError', cast('2025-10-01 08:00:00.000' as timestamp)),
     ('key_ch002_1_1', 'CH-002', '1', '1', 'CCS',  350, 'Available', 'NoError', cast('2025-09-15 10:30:00.000' as timestamp)),
     ('key_ch002_1_2', 'CH-002', '1', '2', 'NACS', 350, 'Available', 'NoError', cast('2025-09-15 10:30:00.000' as timestamp)),
