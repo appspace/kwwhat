@@ -8,7 +8,8 @@
 with ports as (
     select
         charger_id,
-        port_id
+        port_id,
+        max_power_kw
     from {{ ref('stg_ports') }}
 ),
 
@@ -26,7 +27,8 @@ connector_counts as (
 select
     ports.charger_id,
     ports.port_id,
-    connector_counts.connector_count
+    connector_counts.connector_count,
+    max_power_kw
 from ports
 left join connector_counts
     on ports.charger_id = connector_counts.charger_id
