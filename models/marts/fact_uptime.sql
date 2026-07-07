@@ -18,7 +18,7 @@ span_port_days as (
         p.port_id,
         s.date_id,
         s.minutes as minutes_commissioned
-    from {{ ref('charge_point_span_daily') }} as s
+    from {{ ref('fact_charger_commissioned_daily') }} as s
     inner join ports as p on s.charger_id = p.charger_id
 ),
 
