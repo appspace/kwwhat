@@ -34,9 +34,9 @@ from RAW.SEED.PORTS;
 
 -- ── Grants: ensure TRANSFORMER can read the new tables ───────────────────────
 
-grant select on table RAW.SEED.CHARGERS    to role TRANSFORMER;
-grant select on table RAW.SEED.PORTS_NEW   to role TRANSFORMER;
-grant select on table RAW.SEED.CONNECTORS  to role TRANSFORMER;
+grant select on table RAW.SEED.CHARGERS to role TRANSFORMER;
+grant select on table RAW.SEED.PORTS_NEW to role TRANSFORMER;
+grant select on table RAW.SEED.CONNECTORS to role TRANSFORMER;
 
 -- ── Corrections: fix connector types that differ from the source data ────────
 
@@ -46,7 +46,7 @@ where CHARGE_POINT_ID = 'CH-001' and PORT_ID = '2' and CONNECTOR_ID = '4';
 
 -- ── Phase 2: swap ports (run after dbt build passes on the new tables) ───────
 
-alter table RAW.SEED.PORTS     rename to RAW.SEED.PORTS_LEGACY;
+alter table RAW.SEED.PORTS rename to RAW.SEED.PORTS_LEGACY;
 alter table RAW.SEED.PORTS_NEW rename to RAW.SEED.PORTS;
 
 -- ── Phase 3: cleanup (run after full validation) ─────────────────────────────
