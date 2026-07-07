@@ -6,13 +6,18 @@
 
 with ports as (
     select
-        charge_point_id,
-        port_id,
-        count(connector_id) as connector_count
-    from {{ ref('int_connectors') }}
+        p.charge_point_id,
+        p.port_id,
+        p.max_power_kw,
+        count(c.connector_id) as connector_count
+    from {{ ref('int_ports') }} as p
+    left join {{ ref('int_connectors') }} as c
+        on p.charge_point_id = c.charge_point_id
+        and p.port_id = c.port_id
     group by
-        charge_point_id,
-        port_id
+        p.charge_point_id,
+        p.port_id,
+        p.max_power_kw
 )
 
 select
@@ -22,5 +27,6 @@ select
         ]) }} as port_key,
     ports.charge_point_id,
     ports.port_id,
+    ports.max_power_kw,
     ports.connector_count
 from ports

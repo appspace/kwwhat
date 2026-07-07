@@ -8,11 +8,13 @@
 with ports as (
     select
         charge_point_id,
-        port_id
+        port_id,
+        max_power_kw
     from {{ ref('stg_ports') }}
 )
 
 select
     charge_point_id,
-    port_id
+    port_id,
+    max_power_kw
 from ports

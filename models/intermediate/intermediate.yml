@@ -342,6 +342,10 @@ models:
         description: "Port identifier within the Charger."
         data_tests:
           - not_null
+      - name: max_power_kw
+        description: "Maximum rated output power of the Port in kilowatts."
+        data_tests:
+          - not_null
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -371,6 +375,10 @@ models:
           - accepted_values:
               arguments:
                 values: ['CCS', 'CHAdeMO', 'NACS', 'Type 2', 'Type 1']
+      - name: max_power_kw
+        description: "Maximum rated output power of the Connector in kilowatts."
+        data_tests:
+          - not_null
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
