@@ -63,9 +63,8 @@ ports_count as (
     select
         charge_point_id,
         port_id,
-        count(distinct connector_id) as connector_count
-    from {{ ref("int_connectors") }}
-    group by 1, 2
+        connector_count
+    from {{ ref("int_ports") }}
 ),
 
 -- Identify when status changes TO Faulted (start of fault period)
