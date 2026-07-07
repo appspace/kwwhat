@@ -100,6 +100,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7}
@@ -172,6 +175,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
@@ -245,6 +251,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
@@ -318,6 +327,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
@@ -389,6 +401,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 2}
@@ -461,6 +476,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
@@ -534,6 +552,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2}
@@ -606,6 +627,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
@@ -735,6 +759,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 4}
@@ -804,6 +831,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7, visit_start_ts: '2025-10-02 10:00:00', visit_end_ts: '2025-10-02 10:20:00', visit_duration_minutes: 20, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charger_id: 'CH-001', last_charger_id: 'CH-002', first_port_id: '1', last_port_id: '1', incremental_ts: '2025-10-02 10:15:00'}
@@ -872,6 +902,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 2, total_energy_transferred_kwh: 5.5, visit_start_ts: '2025-10-02 11:00:00', visit_end_ts: '2025-10-02 11:01:30', visit_duration_minutes: 1, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', incremental_ts: '2025-10-02 11:01:00'} 
@@ -941,6 +974,9 @@ unit_tests:
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
     expect:
       rows:
         - {id_tag: 'TAG-001', charge_attempt_count: 2}
