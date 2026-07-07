@@ -1,5 +1,5 @@
 charge_point_id,port_id,max_power_kw
 CH-001,1,150
-CH-001,2,50
+CH-001,2,150
 CH-002,1,350
 CH-002,2,150
