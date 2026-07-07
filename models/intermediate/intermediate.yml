@@ -332,7 +332,7 @@ models:
         description: "Timestamp when the Charger was decommissioned (null if still commissioned)."
 
   - name: int_ports
-    description: "Materialized port reference table. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charge_point_id + port_id."
+    description: "Materialized port reference table with connector count. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charge_point_id + port_id."
     columns:
       - name: charge_point_id
         description: "Charger identifier."
@@ -342,6 +342,14 @@ models:
         description: "Port identifier within the Charger."
         data_tests:
           - not_null
+      - name: connector_count
+        description: "Number of Connectors on this Port."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
