@@ -32,6 +32,12 @@ select distinct
     CONNECTOR_TYPE
 from RAW.SEED.PORTS;
 
+-- ── Grants: ensure TRANSFORMER can read the new tables ───────────────────────
+
+grant select on table RAW.SEED.CHARGERS    to role TRANSFORMER;
+grant select on table RAW.SEED.PORTS_NEW   to role TRANSFORMER;
+grant select on table RAW.SEED.CONNECTORS  to role TRANSFORMER;
+
 -- ── Corrections: fix connector types that differ from the source data ────────
 
 update RAW.SEED.CONNECTORS
