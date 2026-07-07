@@ -26,8 +26,8 @@ charge_attempts_with_location as (
     select
         att.charge_attempt_id,
         att.charger_id,
-        p.location_id,
-        p.port_id,
+        ch.location_id,
+        c.port_id,
         att.connector_id,
         att.charge_attempt_start_ts,
         att.charge_attempt_stop_ts,
@@ -38,9 +38,11 @@ charge_attempts_with_location as (
         att.preparing_ingested_ts,
         att.id_tag
     from {{ ref("fact_charge_attempts") }} as att
-    inner join {{ ref("dim_connectors") }} as p
-        on att.charger_id = p.charger_id
-        and att.connector_id = p.connector_id
+    inner join {{ ref("dim_connectors") }} as c
+        on att.charger_id = c.charger_id
+        and att.connector_id = c.connector_id
+    inner join {{ ref("dim_chargers") }} as ch
+        on att.charger_id = ch.charger_id
     where att.incremental_ts > (select from_timestamp from incremental_date_range)
         and att.incremental_ts <= (select to_timestamp from incremental_date_range)
 ),
