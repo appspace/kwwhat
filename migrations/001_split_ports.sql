@@ -32,6 +32,12 @@ SELECT DISTINCT
     connector_type
 FROM RAW.SEED.ports;
 
+-- ── Corrections: fix connector types that differ from the source data ────────
+
+UPDATE RAW.SEED.connectors
+SET connector_type = 'CHAdeMO'
+WHERE charge_point_id = 'CH-001' AND port_id = '2' AND connector_id = '4';
+
 -- ── Phase 2: swap ports (run after dbt build passes on the new tables) ───────
 
 ALTER TABLE RAW.SEED.ports     RENAME TO RAW.SEED.ports_legacy;

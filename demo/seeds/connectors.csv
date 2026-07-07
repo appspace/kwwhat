@@ -2,7 +2,7 @@ charge_point_id,port_id,connector_id,connector_type
 CH-001,1,1,CCS
 CH-001,1,2,NACS
 CH-001,2,3,CCS
-CH-001,2,4,NACS
+CH-001,2,4,CHAdeMO
 CH-002,1,1,CCS
 CH-002,1,2,NACS
 CH-002,2,3,CCS
