@@ -402,10 +402,6 @@ models:
         description: "Charge point this connector belongs to."
         data_tests:
           - not_null
-      - name: location_id
-        description: "Location where this connector is installed."
-        data_tests:
-          - not_null
       - name: port_id
         description: "Port this connector belongs to."
         data_tests:
