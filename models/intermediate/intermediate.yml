@@ -319,7 +319,7 @@ models:
             severity: error
 
   - name: int_chargers
-    description: "Materialized charger reference table. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charge_point_id."
+    description: "Materialized charger reference table with port count. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charge_point_id."
     columns:
       - name: charge_point_id
         description: "Charger identifier."
@@ -334,6 +334,10 @@ models:
         description: "Timestamp when the Charger was commissioned (null if not yet commissioned)."
       - name: decommissioned_ts
         description: "Timestamp when the Charger was decommissioned (null if still commissioned)."
+      - name: port_count
+        description: "Number of Ports on this Charger."
+        data_tests:
+          - not_null
 
   - name: int_ports
     description: "Materialized port reference table with connector count. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charge_point_id + port_id."

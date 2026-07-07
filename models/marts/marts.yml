@@ -305,7 +305,7 @@ models:
         description: "Date at day granularity; used as time spine standard granularity column"
         granularity: day
   
-  - name: dim_charge_points
+  - name: dim_chargers
     description: >
       Charger (Charging Station) dimension. One row per Charger.
       A Charger is the physical system a driver perceives as a single charger — it has one or more Ports.

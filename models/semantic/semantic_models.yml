@@ -3,7 +3,7 @@ version: 2
 semantic_models:
   - name: charge_points
     description: "Charge point dimension. Use to slice metrics by charger lifecycle attributes (active/decommissioned, port count, connector count)."
-    model: ref('dim_charge_points')
+    model: ref('dim_chargers')
     entities:
       - name: charge_point
         type: primary
