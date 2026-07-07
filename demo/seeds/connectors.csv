@@ -1,7 +1,7 @@
 charge_point_id,port_id,connector_id,connector_type,max_power_kw
 CH-001,1,1,CCS,150
 CH-001,1,2,NACS,150
-CH-001,2,3,CHAdeMO,50
+CH-001,2,3,CCS,150
 CH-001,2,4,CHAdeMO,50
 CH-002,1,1,CCS,350
 CH-002,1,2,NACS,350
