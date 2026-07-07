@@ -26,7 +26,7 @@ connector_counts as (
 select
     ports.charge_point_id,
     ports.port_id,
-    coalesce(connector_counts.connector_count, 0) as connector_count
+    connector_counts.connector_count
 from ports
 left join connector_counts
     on ports.charge_point_id = connector_counts.charge_point_id
