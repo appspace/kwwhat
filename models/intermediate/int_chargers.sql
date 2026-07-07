@@ -1,13 +1,13 @@
 {{
   config(
     materialized='table',
-    description='Materialized charger reference table with port count. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charge_point_id.'
+    description='Materialized charger reference table with port count. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charger_id.'
   )
 }}
 
 with chargers as (
     select
-        charge_point_id,
+        charger_id,
         location_id,
         commissioned_ts,
         decommissioned_ts
@@ -16,18 +16,18 @@ with chargers as (
 
 port_counts as (
     select
-        charge_point_id,
+        charger_id,
         count(port_id) as port_count
     from {{ ref('int_ports') }}
-    group by charge_point_id
+    group by charger_id
 )
 
 select
-    chargers.charge_point_id,
+    chargers.charger_id,
     chargers.location_id,
     chargers.commissioned_ts,
     chargers.decommissioned_ts,
     port_counts.port_count
 from chargers
 left join port_counts
-    on chargers.charge_point_id = port_counts.charge_point_id
+    on chargers.charger_id = port_counts.charger_id

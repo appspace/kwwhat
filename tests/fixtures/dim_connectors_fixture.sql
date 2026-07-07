@@ -13,4 +13,4 @@ select * from values
     ('CH-003', 'LOC-002', '1', '2', 'NACS', cast('2025-10-01 08:00:00.000' as timestamp), cast(null as timestamp)),
     ('CH-003', 'LOC-002', '2', '3', 'CCS', cast('2025-10-01 08:00:00.000' as timestamp), cast(null as timestamp)),
     ('CH-003', 'LOC-002', '2', '4', 'NACS', cast('2025-10-01 08:00:00.000' as timestamp), cast(null as timestamp))
-as t(charge_point_id, location_id, port_id, connector_id, connector_type, commissioned_ts, decommissioned_ts)
+as t(charger_id, location_id, port_id, connector_id, connector_type, commissioned_ts, decommissioned_ts)

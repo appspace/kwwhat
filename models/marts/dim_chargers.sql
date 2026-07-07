@@ -7,7 +7,7 @@
 
 with chargers as (
     select
-        charge_point_id,
+        charger_id,
         location_id,
         commissioned_ts,
         decommissioned_ts,
@@ -16,8 +16,8 @@ with chargers as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['chargers.charge_point_id']) }} as charge_point_key,
-    chargers.charge_point_id,
+    {{ dbt_utils.generate_surrogate_key(['chargers.charger_id']) }} as charger_key,
+    chargers.charger_id,
     chargers.location_id,
     chargers.commissioned_ts,
     chargers.decommissioned_ts,

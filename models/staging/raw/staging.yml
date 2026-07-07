@@ -63,9 +63,9 @@ sources:
 
 models:
   - name: stg_ocpp_logs
-    description: "Staging model for raw OCPP logs. Each row is one OCPP message (CALL or CALLRESULT). Grain: one row per charge_point_id + message_type_id + unique_id."
+    description: "Staging model for raw OCPP logs. Each row is one OCPP message (CALL or CALLRESULT). Grain: one row per charger_id + message_type_id + unique_id."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Charge point identifier"
         data_tests:
           - not_null
@@ -83,9 +83,9 @@ models:
           - not_null
 
   - name: stg_chargers
-    description: "One row per Charger (Charging Station) — the physical system a driver perceives as a single charger. Grain: charge_point_id."
+    description: "One row per Charger (Charging Station) — the physical system a driver perceives as a single charger. Grain: charger_id."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Identifier for the Charger (Charging Station)."
         data_tests:
           - not_null
@@ -106,9 +106,9 @@ models:
             severity: error
 
   - name: stg_ports
-    description: "One row per Port (EVSE) within a Charger. Each Port can serve one EV at a time. Reliability and utilisation metrics are tracked at this grain. Grain: charge_point_id + port_id."
+    description: "One row per Port (EVSE) within a Charger. Each Port can serve one EV at a time. Reliability and utilisation metrics are tracked at this grain. Grain: charger_id + port_id."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Identifier for the Charger that contains this Port."
         data_tests:
           - not_null
@@ -120,13 +120,13 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - port_id
 
   - name: stg_connectors
-    description: "One row per Connector within a Port. The Connector type (socket standard) determines which vehicle types can charge. Grain: charge_point_id + port_id + connector_id."
+    description: "One row per Connector within a Port. The Connector type (socket standard) determines which vehicle types can charge. Grain: charger_id + port_id + connector_id."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Identifier for the Charger that contains this Connector."
         data_tests:
           - not_null
@@ -149,6 +149,6 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - port_id
               - connector_id

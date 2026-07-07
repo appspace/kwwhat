@@ -7,7 +7,7 @@
 
 with chargers as (
     select
-        charge_point_id,
+        charger_id,
         commissioned_ts,
         decommissioned_ts
     from {{ ref('int_chargers') }}
@@ -16,7 +16,7 @@ with chargers as (
 
 charge_point_span as (
     select
-        charge_point_id,
+        charger_id,
         commissioned_ts,
         coalesce(decommissioned_ts, {{ dbt.current_timestamp() }}) as decommissioned_ts
     from chargers
@@ -29,7 +29,7 @@ calendar as (
 
 commissioned_days as (
     select
-        c.charge_point_id,
+        c.charger_id,
         d.date_id,
         c.commissioned_ts,
         c.decommissioned_ts
@@ -41,7 +41,7 @@ commissioned_days as (
 
 span_bounds as (
     select
-        charge_point_id,
+        charger_id,
         date_id,
         greatest(commissioned_ts, date_id) as span_start,
         least(decommissioned_ts, {{ dbt.dateadd('day', 1, 'date_id') }}) as span_end
@@ -50,14 +50,14 @@ span_bounds as (
 
 per_day_minutes as (
     select
-        charge_point_id,
+        charger_id,
         date_id,
         greatest(0, {{ dbt.datediff('span_start', 'span_end', 'minute') }}) as minutes
     from span_bounds
 )
 
 select
-    charge_point_id,
+    charger_id,
     date_id,
     minutes
 from per_day_minutes

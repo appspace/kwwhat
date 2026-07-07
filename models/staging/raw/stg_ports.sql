@@ -10,12 +10,12 @@ with source as (
 
 renamed as (
     select
-        cast(charge_point_id as {{ dbt.type_string() }}) as charge_point_id,
+        cast(charge_point_id as {{ dbt.type_string() }}) as charger_id,
         cast(port_id as {{ dbt.type_string() }}) as port_id
     from source
 )
 
 select distinct
-    charge_point_id,
+    charger_id,
     port_id
 from renamed

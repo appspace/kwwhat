@@ -44,7 +44,7 @@ unit_tests:
         rows: |
           select 
               'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 10:10:00' as timestamp) as charge_attempt_stop_ts,
@@ -72,7 +72,7 @@ unit_tests:
           union all
           select 
               'CH-002' || '1' || '2025-10-02 10:15:00' as charge_attempt_id,
-              'CH-002' as charge_point_id,
+              'CH-002' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 10:25:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 10:35:00' as timestamp) as charge_attempt_stop_ts,
@@ -116,7 +116,7 @@ unit_tests:
         rows: |
           select 
               'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 10:10:00' as timestamp) as charge_attempt_stop_ts,
@@ -144,7 +144,7 @@ unit_tests:
           union all
           select 
               'CH-003' || '1' || '2025-10-02 10:25:00' as charge_attempt_id,
-              'CH-003' as charge_point_id,
+              'CH-003' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 10:25:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 10:35:00' as timestamp) as charge_attempt_stop_ts,
@@ -189,7 +189,7 @@ unit_tests:
         rows: |
           select 
               'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 10:05:00' as timestamp) as charge_attempt_stop_ts,
@@ -217,7 +217,7 @@ unit_tests:
           union all
           select 
               'CH-001' || '1' || '2025-10-02 10:40:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 10:40:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 10:41:00' as timestamp) as charge_attempt_stop_ts,
@@ -251,7 +251,7 @@ unit_tests:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
 
   - name: test_unauthorized_visits_15min_apart_same_port
-    description: "Two unauthorized attempts on the same port 15 minutes apart should result in two separate visits (unauthorized visits group by charge_point_id within 2 minutes)"
+    description: "Two unauthorized attempts on the same port 15 minutes apart should result in two separate visits (unauthorized visits group by charger_id within 2 minutes)"
     model: fact_visits
     overrides:
       macros:
@@ -262,7 +262,7 @@ unit_tests:
         rows: |
           select 
               'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:10:00' as timestamp) as charge_attempt_stop_ts,
@@ -290,7 +290,7 @@ unit_tests:
           union all
           select 
               'CH-001' || '1' || '2025-10-02 11:25:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '2' as connector_id,
               cast('2025-10-02 11:25:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:35:00' as timestamp) as charge_attempt_stop_ts,
@@ -335,7 +335,7 @@ unit_tests:
         rows: |
           select 
               'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:00:30' as timestamp) as charge_attempt_stop_ts,
@@ -362,7 +362,7 @@ unit_tests:
           union all
           select 
               'CH-001' || '1' || '2025-10-02 11:01:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '2' as connector_id,
               cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:01:35' as timestamp) as charge_attempt_stop_ts,
@@ -394,7 +394,7 @@ unit_tests:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 2}
 
   - name: test_unauthorized_visits_1min_apart_different_ports_same_charger
-    description: "Two unauthorized attempts 1 minute apart on different ports, same chargershould result in two separate visits (unauthorized visits group by charge_point_id within 2 minutes)"
+    description: "Two unauthorized attempts 1 minute apart on different ports, same chargershould result in two separate visits (unauthorized visits group by charger_id within 2 minutes)"
     model: fact_visits
     overrides:
       macros:
@@ -405,7 +405,7 @@ unit_tests:
         rows: |
           select 
               'CH-001' || '1' || '2025-10-02 12:00:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 12:00:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 12:00:30' as timestamp) as charge_attempt_stop_ts,
@@ -433,7 +433,7 @@ unit_tests:
           union all
           select 
               'CH-001' || '1' || '2025-10-02 12:01:30' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '3' as connector_id,
               cast('2025-10-02 12:01:30' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 12:01:35' as timestamp) as charge_attempt_stop_ts,
@@ -478,7 +478,7 @@ unit_tests:
         rows: |
           select 
               'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:00:30' as timestamp) as charge_attempt_stop_ts,
@@ -506,7 +506,7 @@ unit_tests:
           union all
           select 
               'CH-001' || '1' || '2025-10-02 11:01:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:01:35' as timestamp) as charge_attempt_stop_ts,
@@ -550,7 +550,7 @@ unit_tests:
         rows: |
           select 
               'CH-001' || '1' || '2025-10-02 13:00:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 13:00:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 13:00:30' as timestamp) as charge_attempt_stop_ts,
@@ -578,7 +578,7 @@ unit_tests:
           union all
           select 
               'CH-001' || '1' || '2025-10-02 13:03:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 13:03:30' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 13:03:35' as timestamp) as charge_attempt_stop_ts,
@@ -623,7 +623,7 @@ unit_tests:
         rows: |
           select 
               'CH-001' || '1' || '2025-10-02 10:58:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 10:58:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 10:58:30' as timestamp) as charge_attempt_stop_ts,
@@ -651,7 +651,7 @@ unit_tests:
           union all        
           select           
               'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:00:30' as timestamp) as charge_attempt_stop_ts,
@@ -679,7 +679,7 @@ unit_tests:
           union all
           select 
               'CH-001' || '1' || '2025-10-02 11:01:00' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 11:01:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_stop_ts,
@@ -707,7 +707,7 @@ unit_tests:
           union all
           select 
               'CH-002' || '1' || '2025-10-02 11:20:00' as charge_attempt_id,
-              'CH-002' as charge_point_id,
+              'CH-002' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 11:20:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:20:30' as timestamp) as charge_attempt_stop_ts,
@@ -754,7 +754,7 @@ unit_tests:
           select
               'VISIT-001' as visit_id,
               'LOC-001' as location_id,
-              ['CH-001'] as charge_point_ids,
+              ['CH-001'] as charger_ids,
               'TAG-001' as id_tag,
               cast('2025-10-02 10:00:00' as timestamp) as visit_start_ts,
               cast('2025-10-02 10:10:00' as timestamp) as visit_end_ts,
@@ -764,8 +764,8 @@ unit_tests:
               5.5 as total_energy_transferred_kwh,
               'CHA1' as first_charge_attempt_id,
               'CHA1' as last_charge_attempt_id,
-              'CH-001' as first_charge_point_id,
-              'CH-001' as last_charge_point_id,
+              'CH-001' as first_charger_id,
+              'CH-001' as last_charger_id,
               '1' as first_port_id,
               '1' as last_port_id,
               true as is_successful,
@@ -776,7 +776,7 @@ unit_tests:
         rows: |
           select 
               'CHA2' as charge_attempt_id,
-              'CH-002' as charge_point_id,
+              'CH-002' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 10:15:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 10:20:00' as timestamp) as charge_attempt_stop_ts,
@@ -806,7 +806,7 @@ unit_tests:
         fixture: dim_connectors_fixture
     expect:
       rows:
-        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7, visit_start_ts: '2025-10-02 10:00:00', visit_end_ts: '2025-10-02 10:20:00', visit_duration_minutes: 20, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charge_point_id: 'CH-001', last_charge_point_id: 'CH-002', first_port_id: '1', last_port_id: '1', incremental_ts: '2025-10-02 10:15:00'}
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7, visit_start_ts: '2025-10-02 10:00:00', visit_end_ts: '2025-10-02 10:20:00', visit_duration_minutes: 20, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charger_id: 'CH-001', last_charger_id: 'CH-002', first_port_id: '1', last_port_id: '1', incremental_ts: '2025-10-02 10:15:00'}
   
   - name: test_incremental_unauthorized_visit_merge
     description: "An unauthorized visit from a previous batch that continues in a new batch should merge into one visit"
@@ -823,7 +823,7 @@ unit_tests:
           select
               'VISIT-002' as visit_id,
               'LOC-001' as location_id,
-              ['CH-001'] as charge_point_ids,
+              ['CH-001'] as charger_ids,
               cast(null as string) as id_tag,
               cast('2025-10-02 11:00:00' as timestamp) as visit_start_ts,
               cast('2025-10-02 11:00:30' as timestamp) as visit_end_ts,
@@ -833,8 +833,8 @@ unit_tests:
               3.0 as total_energy_transferred_kwh,
               'CHA1' as first_charge_attempt_id,
               'CHA1' as last_charge_attempt_id,
-              'CH-001' as first_charge_point_id,
-              'CH-001' as last_charge_point_id,
+              'CH-001' as first_charger_id,
+              'CH-001' as last_charger_id,
               '1' as first_port_id,
               '1' as last_port_id,
               false as is_successful,
@@ -845,7 +845,7 @@ unit_tests:
         rows: |
           select 
               'CHA2' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 11:01:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_stop_ts,
@@ -874,7 +874,7 @@ unit_tests:
         fixture: dim_connectors_fixture
     expect:
       rows:
-        - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 2, total_energy_transferred_kwh: 5.5, visit_start_ts: '2025-10-02 11:00:00', visit_end_ts: '2025-10-02 11:01:30', visit_duration_minutes: 1, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charge_point_id: 'CH-001', last_charge_point_id: 'CH-001', first_port_id: '1', last_port_id: '1', incremental_ts: '2025-10-02 11:01:00'} 
+        - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 2, total_energy_transferred_kwh: 5.5, visit_start_ts: '2025-10-02 11:00:00', visit_end_ts: '2025-10-02 11:01:30', visit_duration_minutes: 1, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', incremental_ts: '2025-10-02 11:01:00'} 
 
   - name: test_incremental_unauthorized_to_authorized_id_tag_inference
     description: "An unauthorized visit from a previous batch that continues with an authorized visit in a new batch should have its id_tag inferred and merge into one visit"
@@ -891,7 +891,7 @@ unit_tests:
           select
               'VISIT-003' as visit_id,
               'LOC-001' as location_id,
-              ['CH-001'] as charge_point_ids,
+              ['CH-001'] as charger_ids,
               cast(null as string) as id_tag,
               cast('2025-10-02 12:00:00' as timestamp) as visit_start_ts,
               cast('2025-10-02 12:00:30' as timestamp) as visit_end_ts,
@@ -901,8 +901,8 @@ unit_tests:
               3.0 as total_energy_transferred_kwh,
               'CHA1' as first_charge_attempt_id,
               'CHA1' as last_charge_attempt_id,
-              'CH-001' as first_charge_point_id,
-              'CH-001' as last_charge_point_id,
+              'CH-001' as first_charger_id,
+              'CH-001' as last_charger_id,
               '1' as first_port_id,
               '1' as last_port_id,
               false as is_successful,
@@ -913,7 +913,7 @@ unit_tests:
         rows: |
           select 
               'CHA2' as charge_attempt_id,
-              'CH-001' as charge_point_id,
+              'CH-001' as charger_id,
               '1' as connector_id,
               cast('2025-10-02 12:01:00' as timestamp) as charge_attempt_start_ts,
               cast('2025-10-02 12:05:00' as timestamp) as charge_attempt_stop_ts,
@@ -962,7 +962,7 @@ unit_tests:
         format: sql
         rows: |
           select
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             'UID-001'                                  as preparing_unique_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
@@ -986,7 +986,7 @@ unit_tests:
         rows: |
           select
             'TXN-001'                                  as transaction_id,
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
             cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
@@ -1020,7 +1020,7 @@ unit_tests:
         format: sql
         rows: |
           select
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             'UID-001'                                  as preparing_unique_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
@@ -1044,7 +1044,7 @@ unit_tests:
         rows: |
           select
             'TXN-001'                                  as transaction_id,
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
             cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
@@ -1077,7 +1077,7 @@ unit_tests:
         format: sql
         rows: |
           select
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             'UID-001'                                  as preparing_unique_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
@@ -1119,7 +1119,7 @@ unit_tests:
         format: sql
         rows: |
           select
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             'UID-001'                                  as preparing_unique_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
@@ -1143,7 +1143,7 @@ unit_tests:
         rows: |
           select
             'TXN-001'                                  as transaction_id,
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
             cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
@@ -1177,7 +1177,7 @@ unit_tests:
         format: sql
         rows: |
           select
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             'UID-001'                                  as preparing_unique_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
@@ -1201,7 +1201,7 @@ unit_tests:
         rows: |
           select
             'TXN-001'                                  as transaction_id,
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             cast('2025-10-01 10:00:00' as timestamp)   as ingested_ts,
             cast('2025-10-01 10:01:00' as timestamp)   as transaction_start_ts,
@@ -1238,7 +1238,7 @@ unit_tests:
         format: sql
         rows: |
           select
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             cast('2025-10-01 10:00:00' as timestamp)  as charge_attempt_start_ts,
             cast(null as timestamp)                    as charge_attempt_stop_ts,
@@ -1268,7 +1268,7 @@ unit_tests:
         format: sql
         rows: |
           select
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             'UID-001'                                  as preparing_unique_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
@@ -1292,7 +1292,7 @@ unit_tests:
         rows: |
           select
             'TXN-001'                                  as transaction_id,
-            'CH-001'                                   as charge_point_id,
+            'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
             cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
@@ -1325,22 +1325,22 @@ unit_tests:
       - input: ref('int_faulted_outages')
         format: sql
         rows: |
-          select 'CH-001' as charge_point_id, 'PORT-001' as port_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 12:00:00' as timestamp) as to_ts, 120 as duration_minutes, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
+          select 'CH-001' as charger_id, 'PORT-001' as port_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 12:00:00' as timestamp) as to_ts, 120 as duration_minutes, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
       - input: ref('int_offline_outages')
         format: sql
         rows: |
-          select 'CH-001' as charge_point_id, cast('2025-10-01 10:30:00' as timestamp) as from_ts, cast('2025-10-01 12:30:00' as timestamp) as to_ts, 120 as duration_minutes, cast('2025-10-01 12:30:00' as timestamp) as incremental_ts
+          select 'CH-001' as charger_id, cast('2025-10-01 10:30:00' as timestamp) as from_ts, cast('2025-10-01 12:30:00' as timestamp) as to_ts, 120 as duration_minutes, cast('2025-10-01 12:30:00' as timestamp) as incremental_ts
       - input: ref('dim_ports')
         format: sql
         rows: |
-          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+          select 'CH-001' as charger_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
       - input: ref('dim_dates')
         format: sql
         rows: |
           select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
     expect:
       rows:
-        - {charge_point_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120}
 
   - name: test_downtime_daily_multi_day_outage_split_across_days
     description: >
@@ -1354,15 +1354,15 @@ unit_tests:
       - input: ref('int_faulted_outages')
         format: sql
         rows: |
-          select cast(null as string) as charge_point_id, cast(null as string) as port_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as timestamp) as incremental_ts where false
+          select cast(null as string) as charger_id, cast(null as string) as port_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as timestamp) as incremental_ts where false
       - input: ref('int_offline_outages')
         format: sql
         rows: |
-          select 'CH-001' as charge_point_id, cast('2025-10-01 22:00:00' as timestamp) as from_ts, cast('2025-10-02 04:00:00' as timestamp) as to_ts, 360 as duration_minutes, cast('2025-10-02 12:00:00' as timestamp) as incremental_ts
+          select 'CH-001' as charger_id, cast('2025-10-01 22:00:00' as timestamp) as from_ts, cast('2025-10-02 04:00:00' as timestamp) as to_ts, 360 as duration_minutes, cast('2025-10-02 12:00:00' as timestamp) as incremental_ts
       - input: ref('dim_ports')
         format: sql
         rows: |
-          select 'CH-001' as charge_point_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
+          select 'CH-001' as charger_id, 'LOC-001' as location_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts
       - input: ref('dim_dates')
         format: sql
         rows: |
@@ -1371,5 +1371,5 @@ unit_tests:
           select cast('2025-10-02' as date), cast('2025-10-02' as date)
     expect:
       rows:
-        - {charge_point_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 120}
-        - {charge_point_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 240}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 120}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 240}

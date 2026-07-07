@@ -8,21 +8,21 @@
 with connectors as (
     select
         ch.location_id,
-        c.charge_point_id,
+        c.charger_id,
         c.port_id,
         c.connector_id
     from {{ ref('int_connectors') }} as c
     left join {{ ref('int_chargers') }} as ch
-        on c.charge_point_id = ch.charge_point_id
+        on c.charger_id = ch.charger_id
 ),
 
 capacity as (
     select
         location_id,
-        count(distinct charge_point_id) as charge_point_count,
-        count(distinct charge_point_id || '|' || cast(port_id as {{ dbt.type_string() }})) as port_count,
+        count(distinct charger_id) as charge_point_count,
+        count(distinct charger_id || '|' || cast(port_id as {{ dbt.type_string() }})) as port_count,
         count(
-            distinct charge_point_id
+            distinct charger_id
                 || '|' || cast(port_id as {{ dbt.type_string() }})
                 || '|' || cast(connector_id as {{ dbt.type_string() }})
         ) as connector_count

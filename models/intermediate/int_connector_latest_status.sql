@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "connector_id", "port_id"],
+    unique_key=["charger_id", "connector_id", "port_id"],
     incremental_strategy="merge",
     cluster_by="latest_status_ts"
   )
@@ -21,7 +21,7 @@ with incremental_date_range as (
 
 source_window as (
     select
-        charge_point_id,
+        charger_id,
         connector_id,
         port_id,
         status,
@@ -35,7 +35,7 @@ source_window as (
 )
 
 select
-    charge_point_id,
+    charger_id,
     connector_id,
     port_id,
     status as latest_status,
