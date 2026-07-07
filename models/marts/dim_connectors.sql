@@ -1,7 +1,7 @@
 {{
   config(
     materialized='table',
-    description='Connector dimension; full refresh from int_connectors'
+    description='Connector dimension. One row per Connector (charge_point_id + port_id + connector_id). Finest-grain hardware dimension. A Connector is an independently operated electrical outlet on a Port. A Port may have multiple Connectors (different socket types or tethered cables) to support different vehicle types (e.g. four-wheeled EVs and electric scooters). Sanity check: the Connector type answers "what vehicle types can charge here?".'
   )
 }}
 

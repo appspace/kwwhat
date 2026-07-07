@@ -1,7 +1,7 @@
 {{
   config(
     materialized='table',
-    description='Charger dimension; one row per charger.'
+    description='Charger (Charging Station) dimension. One row per Charger. A Charger is the physical system a driver perceives as a single charger — it has one or more Ports. Use for charger inventory, offline outage attribution, and visit attribution at charger level. Sanity check: if a driver says "I went to charger #3", they mean this entity.'
   )
 }}
 
