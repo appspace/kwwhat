@@ -62,7 +62,7 @@ with incremental_date_range as (
             -- Request details
             req.charge_point_id,
             req.connector_id,
-            p.port_id,
+            c.port_id,
             req.ingested_timestamp as ingested_ts,
             req.unique_id,
             req.status,
@@ -74,9 +74,9 @@ with incremental_date_range as (
             conf.ingested_timestamp as confirmation_ingested_ts
 
         from status_notification_events as req
-        left join {{ ref("int_connectors") }} as p
-            on req.charge_point_id = p.charge_point_id
-            and req.connector_id = p.connector_id
+        left join {{ ref("int_connectors") }} as c
+            on req.charge_point_id = c.charge_point_id
+            and req.connector_id = c.connector_id
         left join ocpp_logs as conf
             on req.unique_id = conf.unique_id
             and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}

@@ -54,6 +54,10 @@ models:
         description: "Identifier for the connector"
         data_tests:
           - not_null
+      - name: port_id
+        description: "Identifier for the port, resolved from int_connectors"
+        data_tests:
+          - not_null
       - name: ingested_ts
         description: "Timestamp when the status notification was ingested"
         data_tests:
