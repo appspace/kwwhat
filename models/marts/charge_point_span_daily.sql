@@ -5,14 +5,13 @@
   )
 }}
 
-with ports as (
+with chargers as (
     select
         charge_point_id,
-        min(commissioned_ts) as commissioned_ts,
-        max(decommissioned_ts) as decommissioned_ts
-    from {{ ref('int_ports') }}
+        commissioned_ts,
+        decommissioned_ts
+    from {{ ref('int_chargers') }}
     where commissioned_ts is not null
-    group by charge_point_id
 ),
 
 charge_point_span as (
@@ -20,7 +19,7 @@ charge_point_span as (
         charge_point_id,
         commissioned_ts,
         coalesce(decommissioned_ts, {{ dbt.current_timestamp() }}) as decommissioned_ts
-    from ports
+    from chargers
 ),
 
 calendar as (

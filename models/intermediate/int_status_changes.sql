@@ -74,7 +74,7 @@ with incremental_date_range as (
             conf.ingested_timestamp as confirmation_ingested_ts
 
         from status_notification_events as req
-        left join {{ ref("int_ports") }} as p
+        left join {{ ref("int_connectors") }} as p
             on req.charge_point_id = p.charge_point_id
             and req.connector_id = p.connector_id
         left join ocpp_logs as conf

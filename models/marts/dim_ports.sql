@@ -8,13 +8,11 @@ with ports as (
     select
         charge_point_id,
         port_id,
-        location_id,
         count(connector_id) as connector_count
-    from {{ ref('int_ports') }}
+    from {{ ref('int_connectors') }}
     group by
         charge_point_id,
-        port_id,
-        location_id
+        port_id
 )
 
 select
@@ -23,7 +21,6 @@ select
         'ports.port_id'
         ]) }} as port_key,
     ports.charge_point_id,
-    ports.location_id,
     ports.port_id,
     ports.connector_count
 from ports

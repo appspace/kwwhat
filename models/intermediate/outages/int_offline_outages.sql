@@ -32,18 +32,17 @@ charger_context as (
     select
         charge_point_id,
         greatest(
-            min(commissioned_ts),
+            commissioned_ts,
             (select from_timestamp from incremental_date_range)
         ) as monitoring_start_ts,
         least(
-            coalesce(max(decommissioned_ts), (select to_timestamp from incremental_date_range)),
+            coalesce(decommissioned_ts, (select to_timestamp from incremental_date_range)),
             (select to_timestamp from incremental_date_range)
         ) as monitoring_end_ts
-    from {{ ref("int_ports") }}
+    from {{ ref("int_chargers") }}
     where commissioned_ts is not null
         and commissioned_ts < (select to_timestamp from incremental_date_range)
         and (decommissioned_ts is null or decommissioned_ts > (select from_timestamp from incremental_date_range))
-    group by charge_point_id
 ),
 
 -- Charger messages: OCPP logs filtered for charge point initiated messages (CALL messages) joined with charger context

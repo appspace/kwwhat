@@ -314,23 +314,63 @@ models:
           config:
             severity: error
 
-  - name: int_ports
-    description: "Materialized snapshot of stg_ports. Breaks the live RAW catalog dependency for downstream views and incremental models. Grain: one row per charge_point_id + port_id + connector_id."
+  - name: int_chargers
+    description: "Materialized charger reference table. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charge_point_id."
     columns:
       - name: charge_point_id
-        description: "Charger identifier"
+        description: "Charger identifier."
+        data_tests:
+          - not_null
+          - unique
       - name: location_id
-        description: "Location identifier where the charge point is located"
-      - name: port_id
-        description: "Port identifier within the charge point"
-      - name: connector_id
-        description: "Connector identifier within the port"
-      - name: connector_type
-        description: "Type of connector (e.g., CCS, NACS)"
+        description: "Location identifier where the Charger is installed."
+        data_tests:
+          - not_null
       - name: commissioned_ts
-        description: "Timestamp when the charge point was commissioned (null if not commissioned yet)"
+        description: "Timestamp when the Charger was commissioned (null if not yet commissioned)."
       - name: decommissioned_ts
-        description: "Timestamp when the charge point was decommissioned (null if still active)"
+        description: "Timestamp when the Charger was decommissioned (null if still commissioned)."
+
+  - name: int_ports
+    description: "Materialized port reference table. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charge_point_id + port_id."
+    columns:
+      - name: charge_point_id
+        description: "Charger identifier."
+        data_tests:
+          - not_null
+      - name: port_id
+        description: "Port identifier within the Charger."
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - port_id
+
+  - name: int_connectors
+    description: "Materialized connector reference table. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charge_point_id + port_id + connector_id."
+    columns:
+      - name: charge_point_id
+        description: "Charger identifier."
+        data_tests:
+          - not_null
+      - name: port_id
+        description: "Port identifier within the Charger."
+        data_tests:
+          - not_null
+      - name: connector_id
+        description: "Connector identifier within the Port."
+        data_tests:
+          - not_null
+      - name: connector_type
+        description: "Type of connector (e.g., CCS, NACS, CHAdeMO)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['CCS', 'CHAdeMO', 'NACS', 'Type 2', 'Type 1']
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

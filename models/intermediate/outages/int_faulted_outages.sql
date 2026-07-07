@@ -64,7 +64,7 @@ ports_count as (
         charge_point_id,
         port_id,
         count(distinct connector_id) as connector_count
-    from {{ ref("int_ports") }}
+    from {{ ref("int_connectors") }}
     group by 1, 2
 ),
 

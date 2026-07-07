@@ -498,7 +498,7 @@ models:
           - not_null
           - unique
       - name: location_id
-        description: "Natural key. Location identifier sourced from stg_ports."
+        description: "Natural key. Location identifier sourced from stg_chargers via int_chargers."
         data_tests:
           - not_null
           - unique

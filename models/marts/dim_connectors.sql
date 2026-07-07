@@ -1,18 +1,17 @@
 {{
   config(
     materialized='table',
-    description='Connector dimension; full refresh from int_ports'
+    description='Connector dimension; full refresh from int_connectors'
   )
 }}
 
-with ports as (
+with connectors as (
     select
         charge_point_id,
-        location_id,
         port_id,
         connector_id,
         connector_type
-    from {{ ref('int_ports') }}
+    from {{ ref('int_connectors') }}
 ),
 
 latest_status as (
@@ -27,19 +26,18 @@ latest_status as (
 
 select
     {{ dbt_utils.generate_surrogate_key([
-        'ports.charge_point_id',
-        'ports.port_id',
-        'ports.connector_id'
+        'connectors.charge_point_id',
+        'connectors.port_id',
+        'connectors.connector_id'
         ]) }} as connector_key,
-    ports.charge_point_id,
-    ports.location_id,
-    ports.port_id,
-    ports.connector_id,
-    ports.connector_type,
+    connectors.charge_point_id,
+    connectors.port_id,
+    connectors.connector_id,
+    connectors.connector_type,
     latest_status.latest_status,
     latest_status.latest_error_code,
     latest_status.latest_status_ts
-from ports
+from connectors
 left join latest_status
-    on ports.charge_point_id = latest_status.charge_point_id
-    and ports.connector_id = latest_status.connector_id
+    on connectors.charge_point_id = latest_status.charge_point_id
+    and connectors.connector_id = latest_status.connector_id

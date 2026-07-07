@@ -26,28 +26,40 @@ sources:
           - name: msg
             description: "JSON array representing OCPP message. For request messages (MessageTypeId = 2): [2, \"<UniqueId>\", \"<Action>\", <Payload>]. For response messages (MessageTypeId = 3): [3, \"<UniqueId>\", <Payload>]"
       
-      - name: ports
-        identifier: "{{ var('ports_identifier') }}"
-        description: >
-          Reference data describing the physical hardware hierarchy: Charger → Port → Connector.
-          A Charger (or Charging Station) is the physical system where EVs can be charged; it has one or more Ports.
-          A Port (or EVSE) is an independently operated part of the Charger that can deliver energy to one EV at a time — the answer to "how many vehicles can charge simultaneously?" is the number of Ports.
-          A Connector is an independently operated electrical outlet on a Port; a Port may have multiple Connectors (socket types or tethered cables) to facilitate different vehicle types — the answer to "what vehicle types can charge?" is determined by the Connector.
+      - name: chargers
+        identifier: "{{ var('chargers_identifier') }}"
+        description: "One row per Charger. Grain: charge_point_id."
         columns:
           - name: charge_point_id
             description: "Charger identifier"
           - name: location_id
             description: "Location identifier where the charger is located"
+          - name: commissioned_ts
+            description: "Timestamp when the charger was commissioned (null if not yet commissioned)"
+          - name: decommissioned_ts
+            description: "Timestamp when the charger was decommissioned (null if still commissioned)"
+
+      - name: ports
+        identifier: "{{ var('ports_identifier') }}"
+        description: "One row per Port. Grain: charge_point_id + port_id."
+        columns:
+          - name: charge_point_id
+            description: "Charger identifier"
+          - name: port_id
+            description: "Port identifier within the charger"
+
+      - name: connectors
+        identifier: "{{ var('connectors_identifier') }}"
+        description: "One row per Connector. Grain: charge_point_id + port_id + connector_id."
+        columns:
+          - name: charge_point_id
+            description: "Charger identifier"
           - name: port_id
             description: "Port identifier within the charger"
           - name: connector_id
             description: "Connector identifier within the port"
           - name: connector_type
             description: "Type of connector (e.g., CCS, NACS)"
-          - name: commissioned_ts
-            description: "Timestamp when the charger was commissioned (null if not commissioned yet)"
-          - name: decommissioned_ts
-            description: "Timestamp when the charger was decommissioned (null if still active)"
 
 models:
   - name: stg_ocpp_logs
@@ -70,40 +82,69 @@ models:
         data_tests:
           - not_null
 
-  - name: stg_ports
-    description: >
-      Staging model for the hardware reference table. One row per Connector (the finest-grain hardware unit).
-      Charger (Charging Station): the physical system a driver perceives as a charger — has one or more Ports.
-      Port (EVSE): independently operated part of a Charger that delivers energy to one EV at a time. Reliability and utilisation metrics are tracked at Port grain.
-      Connector: an independently operated electrical outlet on a Port, determining which vehicle types can charge (e.g. CCS, NACS, CHAdeMO).
+  - name: stg_chargers
+    description: "One row per Charger (Charging Station) — the physical system a driver perceives as a single charger. Grain: charge_point_id."
     columns:
       - name: charge_point_id
-        description: "Identifier for the Charger (Charging Station) — the physical unit a driver perceives as a single charger."
+        description: "Identifier for the Charger (Charging Station)."
         data_tests:
           - not_null
+          - unique
       - name: location_id
         description: "Location identifier where the Charger is installed."
         data_tests:
           - not_null
+      - name: commissioned_ts
+        description: "Timestamp when the Charger was commissioned (null if not yet commissioned)."
+      - name: decommissioned_ts
+        description: "Timestamp when the Charger was decommissioned (null if still commissioned)."
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "commissioned_ts is null or decommissioned_ts is null or commissioned_ts <= decommissioned_ts"
+          config:
+            severity: error
+
+  - name: stg_ports
+    description: "One row per Port (EVSE) within a Charger. Each Port can serve one EV at a time. Reliability and utilisation metrics are tracked at this grain. Grain: charge_point_id + port_id."
+    columns:
+      - name: charge_point_id
+        description: "Identifier for the Charger that contains this Port."
+        data_tests:
+          - not_null
       - name: port_id
-        description: "Identifier for the Port (EVSE) within the Charger. Each Port can serve one EV at a time; the Port count answers 'how many vehicles can charge simultaneously?'. Reliability and utilisation metrics are tracked at this grain."
+        description: "Identifier for the Port within the Charger."
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_point_id
+              - port_id
+
+  - name: stg_connectors
+    description: "One row per Connector within a Port. The Connector type (socket standard) determines which vehicle types can charge. Grain: charge_point_id + port_id + connector_id."
+    columns:
+      - name: charge_point_id
+        description: "Identifier for the Charger that contains this Connector."
+        data_tests:
+          - not_null
+      - name: port_id
+        description: "Identifier for the Port that contains this Connector."
         data_tests:
           - not_null
       - name: connector_id
-        description: "Identifier for the Connector within the Port. The Connector type (socket standard) determines which vehicle types can charge."
+        description: "Identifier for the Connector within the Port."
         data_tests:
           - not_null
       - name: connector_type
-        description: "Type of connector (e.g., CCS, NACS)"
+        description: "Type of connector (e.g., CCS, NACS, CHAdeMO)."
         data_tests:
           - not_null
           - accepted_values:
               arguments:
                 values: ['CCS', 'CHAdeMO', 'NACS', 'Type 2', 'Type 1']
-      - name: commissioned_ts
-        description: "Timestamp when the charge point was commissioned (null if not commissioned yet)"
-      - name: decommissioned_ts
-        description: "Timestamp when the charge point was decommissioned (null if still active)"
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -111,8 +152,3 @@ models:
               - charge_point_id
               - port_id
               - connector_id
-      - dbt_utils.expression_is_true:
-          arguments:
-            expression: "commissioned_ts is null or decommissioned_ts is null or commissioned_ts <= decommissioned_ts"
-          config:
-            severity: error

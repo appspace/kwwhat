@@ -8,7 +8,7 @@
 with locations as (
     select distinct
         location_id
-    from {{ ref('int_ports') }}
+    from {{ ref('int_chargers') }}
 )
 
 select

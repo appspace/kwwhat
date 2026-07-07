@@ -1,28 +1,18 @@
 {{
   config(
     materialized='table',
-    description='Materialized snapshot of stg_ports. Breaks the live RAW catalog dependency for downstream views and incremental models.'
+    description='Materialized port reference table. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charge_point_id + port_id.'
   )
 }}
 
 with ports as (
     select
         charge_point_id,
-        location_id,
-        port_id,
-        connector_id,
-        connector_type,
-        commissioned_ts,
-        decommissioned_ts
+        port_id
     from {{ ref('stg_ports') }}
 )
 
 select
     charge_point_id,
-    location_id,
-    port_id,
-    connector_id,
-    connector_type,
-    commissioned_ts,
-    decommissioned_ts
+    port_id
 from ports
