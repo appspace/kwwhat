@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "port_id", "from_ts"],
+    unique_key=["charger_id", "port_id", "from_ts"],
     incremental_strategy="merge",
     cluster_by="from_ts"
   )
@@ -40,7 +40,7 @@
 -- Get status changes filtered to faulted status transitions
 status_changes as (
     select
-        charge_point_id,
+        charger_id,
         port_id,
         connector_id,
         ingested_ts,
@@ -61,17 +61,16 @@ incremental as (
 
 ports_count as (
     select
-        charge_point_id,
+        charger_id,
         port_id,
-        count(distinct connector_id) as connector_count
+        connector_count
     from {{ ref("int_ports") }}
-    group by 1, 2
 ),
 
 -- Identify when status changes TO Faulted (start of fault period)
 fault_periods as (
     select
-        charge_point_id,
+        charger_id,
         port_id,
         connector_id,
         ingested_ts as from_ts,
@@ -83,7 +82,7 @@ fault_periods as (
 -- Generate all distinct time points (from_ts and to_ts) per port
 time_points as (
     select
-        charge_point_id,
+        charger_id,
         port_id,
         from_ts as time_point
     from fault_periods
@@ -91,7 +90,7 @@ time_points as (
     union distinct
 
     select
-        charge_point_id,
+        charger_id,
         port_id,
         to_ts as time_point
     from fault_periods
@@ -100,13 +99,13 @@ time_points as (
 -- Create time intervals between consecutive time points per port
 time_intervals as (
     select
-        tp1.charge_point_id,
+        tp1.charger_id,
         tp1.port_id,
         tp1.time_point as from_ts,
         min(tp2.time_point) as to_ts
     from time_points as tp1
     inner join time_points as tp2
-        on tp1.charge_point_id = tp2.charge_point_id
+        on tp1.charger_id = tp2.charger_id
         and tp1.port_id = tp2.port_id
         and tp2.time_point > tp1.time_point
     group by 1, 2, 3
@@ -115,14 +114,14 @@ time_intervals as (
 -- For each time interval, count how many connectors are faulted
 intervals_with_faulted_count as (
     select
-        ti.charge_point_id,
+        ti.charger_id,
         ti.port_id,
         ti.from_ts,
         ti.to_ts,
         count(distinct fp.connector_id) as faulted_connector_count
     from time_intervals as ti
     left join fault_periods as fp
-        on ti.charge_point_id = fp.charge_point_id
+        on ti.charger_id = fp.charger_id
         and ti.port_id = fp.port_id
         and fp.from_ts <= ti.to_ts
         and fp.to_ts >= ti.from_ts
@@ -132,13 +131,13 @@ intervals_with_faulted_count as (
 -- Filter to intervals where all connectors are faulted
 all_connectors_faulted as (
     select
-        iwfc.charge_point_id,
+        iwfc.charger_id,
         iwfc.port_id,
         iwfc.from_ts,
         iwfc.to_ts
     from intervals_with_faulted_count as iwfc
     inner join ports_count as pc
-        on iwfc.charge_point_id = pc.charge_point_id
+        on iwfc.charger_id = pc.charger_id
         and iwfc.port_id = pc.port_id
     where iwfc.faulted_connector_count = pc.connector_count
         and pc.connector_count > 0
@@ -147,12 +146,12 @@ all_connectors_faulted as (
 -- Merge adjacent/overlapping periods where all connectors are faulted
 faulted_outages_with_lag as (
     select
-        charge_point_id,
+        charger_id,
         port_id,
         from_ts,
         to_ts,
         lag(to_ts) over (
-            partition by charge_point_id, port_id
+            partition by charger_id, port_id
             order by from_ts
         ) as prev_to_ts
     from all_connectors_faulted
@@ -160,7 +159,7 @@ faulted_outages_with_lag as (
 
 faulted_outages_with_groups as (
     select
-        charge_point_id,
+        charger_id,
         port_id,
         from_ts,
         to_ts,
@@ -168,7 +167,7 @@ faulted_outages_with_groups as (
             when prev_to_ts >= from_ts then 0
             else 1
         end) over (
-            partition by charge_point_id, port_id
+            partition by charger_id, port_id
             order by from_ts
             rows unbounded preceding
         ) as group_id
@@ -177,7 +176,7 @@ faulted_outages_with_groups as (
 
 faulted_outages as (
     select
-        charge_point_id,
+        charger_id,
         port_id,
         min(from_ts) as from_ts,
         max(to_ts) as to_ts
@@ -197,7 +196,7 @@ faulted_outages as (
 {% endif %}
 
 select
-    charge_point_id,
+    charger_id,
     port_id,
     from_ts,
     to_ts,

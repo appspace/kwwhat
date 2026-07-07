@@ -1,7 +1,7 @@
 {{
     config(
         materialized="incremental",
-        unique_key=["charge_point_id", "transaction_id", "ingested_ts", "connector_id", "measurand", "unit", "phase"],
+        unique_key=["charger_id", "transaction_id", "ingested_ts", "connector_id", "measurand", "unit", "phase"],
         incremental_strategy="merge",
         cluster_by="ingested_ts"
     )
@@ -46,7 +46,7 @@
 
     ocpp_logs as (
         select
-            charge_point_id,
+            charger_id,
             action,
             ingested_timestamp as ingested_ts,
             message_type_id,
@@ -58,7 +58,7 @@
 
     transactions as (
         select
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             ingested_ts,
@@ -90,7 +90,7 @@
     meter_value_logs as (
         select
             ingested_ts,
-            charge_point_id,
+            charger_id,
             payload,
             {{ payload_extract_connector_id('action', 'payload') }} as connector_id,
             {{ payload_extract_transaction_id('action', 'payload', 'null') }} as transaction_id,
@@ -102,13 +102,13 @@
 
     meter_value_messages as (
         select
-            l.charge_point_id,
+            l.charger_id,
             t.ingested_ts,
             l.connector_id,
             l.transaction_id,
             l.meter_values
         from meter_value_logs as l
-        left join transactions as t on l.charge_point_id = t.charge_point_id
+        left join transactions as t on l.charger_id = t.charger_id
             and l.connector_id = t.connector_id
             and l.transaction_id = t.transaction_id
             and l.ingested_ts >= t.ingested_ts
@@ -117,7 +117,7 @@
 
     meter_values as (
         select
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             ingested_ts,
@@ -136,7 +136,7 @@
 
     sample_values as (
         select
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             ingested_ts,
@@ -148,7 +148,7 @@
 
     measurements as (
         select
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             ingested_ts,
@@ -167,7 +167,7 @@
 
     agg_transaction as (
         select
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             ingested_ts,
@@ -186,7 +186,7 @@
         from measurements
         where value is not null and value != ''
         group by
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             ingested_ts,
@@ -199,7 +199,7 @@
     {% if is_incremental() and relation_exists %}
 
         select
-            n.charge_point_id,
+            n.charger_id,
             n.transaction_id,
             n.ingested_ts,
             n.connector_id,
@@ -232,7 +232,7 @@
             end as _count
         from agg_transaction n
         left join {{ this }} b
-            on n.charge_point_id = b.charge_point_id
+            on n.charger_id = b.charger_id
             and n.connector_id = b.connector_id
             and n.transaction_id = b.transaction_id
             and n.ingested_ts = b.ingested_ts
@@ -249,7 +249,7 @@
     )
 
     select
-        charge_point_id,
+        charger_id,
         transaction_id,
         ingested_ts,
         connector_id,

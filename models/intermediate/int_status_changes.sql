@@ -1,7 +1,7 @@
 {{
     config(
         materialized="incremental",
-        unique_key=["charge_point_id", "connector_id", "ingested_ts"],
+        unique_key=["charger_id", "connector_id", "ingested_ts"],
         incremental_strategy="merge",
         cluster_by="ingested_ts"
     )
@@ -22,7 +22,7 @@ with incremental_date_range as (
 
     ocpp_logs as (
         select
-            charge_point_id,
+            charger_id,
             action,
             ingested_timestamp,
             message_type_id,
@@ -43,7 +43,7 @@ with incremental_date_range as (
     status_notification_events as (
         select
             ingested_timestamp,
-            charge_point_id,
+            charger_id,
             unique_id,
             action,
             payload,
@@ -60,9 +60,9 @@ with incremental_date_range as (
     status_with_confirmation as (
         select
             -- Request details
-            req.charge_point_id,
+            req.charger_id,
             req.connector_id,
-            p.port_id,
+            c.port_id,
             req.ingested_timestamp as ingested_ts,
             req.unique_id,
             req.status,
@@ -74,9 +74,9 @@ with incremental_date_range as (
             conf.ingested_timestamp as confirmation_ingested_ts
 
         from status_notification_events as req
-        left join {{ ref("int_ports") }} as p
-            on req.charge_point_id = p.charge_point_id
-            and req.connector_id = p.connector_id
+        left join {{ ref("int_connectors") }} as c
+            on req.charger_id = c.charger_id
+            and req.connector_id = c.connector_id
         left join ocpp_logs as conf
             on req.unique_id = conf.unique_id
             and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
@@ -89,7 +89,7 @@ with incremental_date_range as (
     -- Get previous statuses from the existing table to extend lag window
     statuses_buffer as (
         select
-            charge_point_id,
+            charger_id,
             connector_id,
             port_id,
             ingested_ts,
@@ -119,7 +119,7 @@ with incremental_date_range as (
         union all
 
         select
-            charge_point_id,
+            charger_id,
             connector_id,
             port_id,
             ingested_ts,
@@ -150,7 +150,7 @@ with incremental_date_range as (
     -- Use coalesce to prefer existing previous_status from buffer over recalculated values
     status_with_lag as (
         select
-            charge_point_id,
+            charger_id,
             connector_id,
             port_id,
             ingested_ts,
@@ -164,19 +164,19 @@ with incremental_date_range as (
             coalesce(
                 previous_status,
                 lag(status) over (
-                    partition by charge_point_id, connector_id order by ingested_ts
+                    partition by charger_id, connector_id order by ingested_ts
                 )
             ) as previous_status,
             coalesce(
                 previous_ingested_ts,
                 lag(ingested_ts) over (
-                    partition by charge_point_id, connector_id order by ingested_ts
+                    partition by charger_id, connector_id order by ingested_ts
                 )
             ) as previous_ingested_ts,
             coalesce(
                 previous_payload_ts,
                 lag(payload_ts) over (
-                    partition by charge_point_id, connector_id order by ingested_ts
+                    partition by charger_id, connector_id order by ingested_ts
                 )
             ) as previous_payload_ts
         from statuses_with_buffer
@@ -193,19 +193,19 @@ with incremental_date_range as (
         select
             *,
             lead(status) over (
-                partition by charge_point_id, connector_id order by ingested_ts
+                partition by charger_id, connector_id order by ingested_ts
             ) as next_status,
             lead(ingested_ts) over (
-                partition by charge_point_id, connector_id order by ingested_ts
+                partition by charger_id, connector_id order by ingested_ts
             ) as next_ingested_ts,
             lead(payload_ts) over (
-                partition by charge_point_id, connector_id order by ingested_ts
+                partition by charger_id, connector_id order by ingested_ts
             ) as next_payload_ts
         from change_from_lag
     )
 
 select
-    charge_point_id,
+    charger_id,
     connector_id,
     port_id,
     ingested_ts,

@@ -14,7 +14,7 @@ renamed as (
         cast(timestamp as {{ dbt.type_timestamp() }}) as ingested_timestamp,
 
         -- Charge point identifier
-        cast(id as {{ dbt.type_string() }}) as charge_point_id,
+        cast(id as {{ dbt.type_string() }}) as charger_id,
 
         -- OCPP action type (can be null for response messages)
         cast(action as {{ dbt.type_string() }}) as action,

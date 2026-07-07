@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "from_ts"],
+    unique_key=["charger_id", "from_ts"],
     incremental_strategy="merge",
     cluster_by="from_ts"
   )
@@ -30,32 +30,31 @@ with incremental_date_range as (
 -- charger context: time window per charger that should have events within boundaries of this incremental run
 charger_context as (
     select
-        charge_point_id,
+        charger_id,
         greatest(
-            min(commissioned_ts),
+            commissioned_ts,
             (select from_timestamp from incremental_date_range)
         ) as monitoring_start_ts,
         least(
-            coalesce(max(decommissioned_ts), (select to_timestamp from incremental_date_range)),
+            coalesce(decommissioned_ts, (select to_timestamp from incremental_date_range)),
             (select to_timestamp from incremental_date_range)
         ) as monitoring_end_ts
-    from {{ ref("int_ports") }}
+    from {{ ref("int_chargers") }}
     where commissioned_ts is not null
         and commissioned_ts < (select to_timestamp from incremental_date_range)
         and (decommissioned_ts is null or decommissioned_ts > (select from_timestamp from incremental_date_range))
-    group by charge_point_id
 ),
 
 -- Charger messages: OCPP logs filtered for charge point initiated messages (CALL messages) joined with charger context
 charger_messages as (
     select
-        cc.charge_point_id,
+        cc.charger_id,
         cc.monitoring_start_ts,
         cc.monitoring_end_ts,
         ol.ingested_timestamp
     from charger_context as cc
     inner join {{ ref("stg_ocpp_logs") }} as ol
-        on cc.charge_point_id = ol.charge_point_id
+        on cc.charger_id = ol.charger_id
         and ol.ingested_timestamp >= cc.monitoring_start_ts
         and ol.ingested_timestamp <= cc.monitoring_end_ts
         and ol.ingested_timestamp >= (select from_timestamp from incremental_date_range)
@@ -72,19 +71,19 @@ incremental as (
 
 message_gaps as (
     select
-        charge_point_id,
+        charger_id,
         monitoring_start_ts,
         monitoring_end_ts,
         ingested_timestamp as current_ts,
-        lag(ingested_timestamp) over (partition by charge_point_id order by ingested_timestamp) as prev_ts,
-        lead(ingested_timestamp) over (partition by charge_point_id order by ingested_timestamp) as next_ts
+        lag(ingested_timestamp) over (partition by charger_id order by ingested_timestamp) as prev_ts,
+        lead(ingested_timestamp) over (partition by charger_id order by ingested_timestamp) as next_ts
     from charger_messages
 ),
 
 outages_from_gaps as (
     -- Gap before first message (from monitoring_start to first message)
     select
-        charge_point_id,
+        charger_id,
         monitoring_start_ts as from_ts,
         current_ts as to_ts
     from message_gaps
@@ -94,7 +93,7 @@ outages_from_gaps as (
 
     -- Gaps between consecutive messages
     select
-        charge_point_id,
+        charger_id,
         prev_ts as from_ts,
         current_ts as to_ts
     from message_gaps
@@ -104,7 +103,7 @@ outages_from_gaps as (
 
     -- Gap after last message (from last message to monitoring_end)
     select
-        charge_point_id,
+        charger_id,
         current_ts as from_ts,
         monitoring_end_ts as to_ts
     from message_gaps
@@ -113,28 +112,28 @@ outages_from_gaps as (
 
 chargers_with_no_messages as (
     select
-        cc.charge_point_id,
+        cc.charger_id,
         cc.monitoring_start_ts as from_ts,
         cc.monitoring_end_ts as to_ts
     from charger_context as cc
     where not exists (
         select 1
         from charger_messages as cm
-        where cm.charge_point_id = cc.charge_point_id
+        where cm.charger_id = cc.charger_id
     )
 ),
 
 new_outages as (
-    select charge_point_id, from_ts, to_ts from outages_from_gaps
+    select charger_id, from_ts, to_ts from outages_from_gaps
     union all
-    select charge_point_id, from_ts, to_ts from chargers_with_no_messages
+    select charger_id, from_ts, to_ts from chargers_with_no_messages
 ),
 
 {% if is_incremental() %}
 -- Read buffer of previous outages that might continue into current period
 previous_outages as (
     select
-        charge_point_id,
+        charger_id,
         from_ts,
         to_ts
     from {{ this }}
@@ -143,16 +142,16 @@ previous_outages as (
 
 merged_outages as (
     select
-        n.charge_point_id,
+        n.charger_id,
         least(coalesce(p.from_ts, n.from_ts), n.from_ts) as from_ts,
         greatest(coalesce(p.to_ts, n.to_ts), n.to_ts) as to_ts
     from new_outages n
-    left join previous_outages p on n.charge_point_id = p.charge_point_id and p.to_ts = n.from_ts
+    left join previous_outages p on n.charger_id = p.charger_id and p.to_ts = n.from_ts
 ),
 
 all_outages as (
     select
-        charge_point_id,
+        charger_id,
         from_ts,
         to_ts,
         {{ dbt.datediff('from_ts', 'to_ts', 'seconds') }} as duration_seconds
@@ -163,7 +162,7 @@ all_outages as (
 
 all_outages as (
     select
-        charge_point_id,
+        charger_id,
         from_ts,
         to_ts,
         {{ dbt.datediff('from_ts', 'to_ts', 'seconds') }} as duration_seconds
@@ -173,7 +172,7 @@ all_outages as (
 {% endif %}
 
 select
-    charge_point_id,
+    charger_id,
     from_ts,
     to_ts,
     duration_seconds / 60 as duration_minutes,

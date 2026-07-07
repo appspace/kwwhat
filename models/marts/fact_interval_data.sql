@@ -1,7 +1,7 @@
 {{
     config(
         materialized="incremental",
-        unique_key=["charge_point_id", "transaction_id", "ingested_ts", "connector_id", "measurand", "unit", "phase", "meter_15min_interval_start"],
+        unique_key=["charger_id", "transaction_id", "ingested_ts", "connector_id", "measurand", "unit", "phase", "meter_15min_interval_start"],
         incremental_strategy="merge",
         cluster_by="ingested_ts"
     )
@@ -30,7 +30,7 @@ with incremental_date_range as (
 
     ocpp_logs as (
         select
-            charge_point_id,
+            charger_id,
             action,
             ingested_timestamp as ingested_ts,
             message_type_id,
@@ -42,7 +42,7 @@ with incremental_date_range as (
 
     meter_values as (
         select
-            charge_point_id,
+            charger_id,
             transaction_id,
             ingested_ts,
             connector_id,
@@ -73,7 +73,7 @@ with incremental_date_range as (
     meter_value_logs as (
         select
             ingested_ts,
-            charge_point_id,
+            charger_id,
             payload,
             {{ payload_extract_connector_id('action', 'payload') }} as connector_id,
             {{ payload_extract_transaction_id('action', 'payload', 'null') }} as transaction_id,
@@ -85,7 +85,7 @@ with incremental_date_range as (
 
     meter_value_records as (
         select
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             -- Extract timestamp from the meter value object
@@ -103,7 +103,7 @@ with incremental_date_range as (
 
     sample_values as (
         select
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             meter_timestamp,
@@ -114,7 +114,7 @@ with incremental_date_range as (
 
     measurements as (
         select
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             meter_timestamp,
@@ -132,7 +132,7 @@ with incremental_date_range as (
 
     measurements_with_context as (
         select
-            m.charge_point_id,
+            m.charger_id,
             m.connector_id,
             m.transaction_id,
             mv.ingested_ts,
@@ -147,7 +147,7 @@ with incremental_date_range as (
             m.phase,
             m.value
         from measurements as m
-        left join meter_values as mv on m.charge_point_id = mv.charge_point_id
+        left join meter_values as mv on m.charger_id = mv.charger_id
             and m.connector_id = mv.connector_id
             and m.transaction_id = mv.transaction_id
             and m.measurand = mv.measurand
@@ -159,7 +159,7 @@ with incremental_date_range as (
 
     intervals_15min as (
             select
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             ingested_ts,
@@ -183,7 +183,7 @@ with incremental_date_range as (
 
     agg_15min as (
         select
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             ingested_ts,
@@ -198,7 +198,7 @@ with incremental_date_range as (
             count(*) as _count
         from intervals_15min
         group by
-            charge_point_id,
+            charger_id,
             transaction_id,
             connector_id,
             ingested_ts,
@@ -213,7 +213,7 @@ with incremental_date_range as (
     {% if is_incremental() and relation_exists %}
 
         select
-            n.charge_point_id,
+            n.charger_id,
             n.transaction_id,
             n.ingested_ts,
             n.connector_id,
@@ -232,7 +232,7 @@ with incremental_date_range as (
             end as _count
         from agg_15min as n
         left join {{ this }} as b
-            on n.charge_point_id = b.charge_point_id
+            on n.charger_id = b.charger_id
             and n.connector_id = b.connector_id
             and n.transaction_id = b.transaction_id
             and n.ingested_ts = b.ingested_ts
@@ -250,7 +250,7 @@ with incremental_date_range as (
     )
 
     select
-        charge_point_id,
+        charger_id,
         transaction_id,
         ingested_ts,
         connector_id,
@@ -263,7 +263,7 @@ with incremental_date_range as (
         _count,
         -- Generate a deterministic unique ID from the composite key
         {{ dbt_utils.generate_surrogate_key([
-            'charge_point_id', 'transaction_id', 'ingested_ts',
+            'charger_id', 'transaction_id', 'ingested_ts',
             'connector_id', 'measurand', 'unit', 'phase', 'meter_15min_interval_start'
         ]) }} as interval_data_id,
         (select incremental_ts from incremental) as incremental_ts

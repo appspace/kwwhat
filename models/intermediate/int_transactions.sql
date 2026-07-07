@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "connector_id", "ingested_ts"],
+    unique_key=["charger_id", "connector_id", "ingested_ts"],
     incremental_strategy="merge",
     cluster_by="ingested_ts"
   )
@@ -49,7 +49,7 @@
 
 ocpp_logs as (
     select
-        charge_point_id,
+        charger_id,
         action,
         ingested_timestamp as ingested_ts,
         message_type_id,
@@ -69,7 +69,7 @@ incremental as (
 -- Filter for charge attempt actions first
 transaction_events as (
     select
-        charge_point_id,
+        charger_id,
         action,
         ingested_ts,
         message_type_id,
@@ -95,7 +95,7 @@ transaction_events_conf as (
 transaction_details as (
     select
         -- Charge attempts details
-        e.charge_point_id,
+        e.charger_id,
         e.connector_id,
         e.ingested_ts,
 
@@ -118,7 +118,7 @@ transaction_details as (
 transactions as (
     select
         transaction_id,
-        charge_point_id,
+        charger_id,
 
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="connector_id") }}) as connector_ids,
 
@@ -141,12 +141,12 @@ transactions as (
     where transaction_id is not null
     group by
         transaction_id,
-        charge_point_id
+        charger_id
 ),
 
 status_notifications as (
     select
-        charge_point_id,
+        charger_id,
         ingested_ts,
         {{ payload_extract_connector_id('action', 'payload') }} as connector_id,
         {{ payload_extract_error_code('action', 'payload') }} as error_code
@@ -159,17 +159,17 @@ status_notifications as (
 transaction_status_notifications as (
     select
         t.transaction_id,
-        t.charge_point_id,
+        t.charger_id,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="sn.error_code") }}) as error_codes
     from transactions as t
     left join status_notifications as sn
-        on t.charge_point_id = sn.charge_point_id
+        on t.charger_id = sn.charger_id
         and sn.ingested_ts >= t.transaction_start_ts
         and sn.ingested_ts <= coalesce(t.transaction_stop_ts, t.last_ingested_ts)
         and {{ array_contains('t.connector_ids', 'sn.connector_id') }}
     group by
         t.transaction_id,
-        t.charge_point_id
+        t.charger_id
 )
 
 {% if is_incremental() and relation_exists %}
@@ -177,7 +177,7 @@ transaction_status_notifications as (
 
 combined_transactions as (
     select
-        n.charge_point_id,
+        n.charger_id,
         n.transaction_id,
         coalesce(b.ingested_ts, n.ingested_ts) as ingested_ts,
         coalesce(b.transaction_start_ts, n.transaction_start_ts) as transaction_start_ts,
@@ -194,7 +194,7 @@ combined_transactions as (
 
     from transactions as n
     left join {{ this }} as b
-        on n.charge_point_id = b.charge_point_id
+        on n.charger_id = b.charger_id
         and n.transaction_id = b.transaction_id
         and b.transaction_stop_ts is null
 )
@@ -233,4 +233,4 @@ from
 {% endif %}
 left join transaction_status_notifications as tsn
     on t.transaction_id = tsn.transaction_id
-    and t.charge_point_id = tsn.charge_point_id
+    and t.charger_id = tsn.charger_id

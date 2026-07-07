@@ -16,7 +16,9 @@ SEEDS_DIR = "/seeds"
 
 SEEDS = {
     "ocpp_1_6_synthetic_logs_14d": "ocpp_1_6_synthetic_logs_14d.csv",
+    "chargers": "chargers.csv",
     "ports": "ports.csv",
+    "connectors": "connectors.csv",
 }
 
 

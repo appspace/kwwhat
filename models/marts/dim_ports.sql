@@ -1,29 +1,24 @@
 {{
   config(
-    materialized='table'
+    materialized='table',
+    description='Port (EVSE) dimension. One row per Port (charger_id + port_id). A Port is an independently operated part of a Charger that can deliver energy to one EV at a time. Reliability and utilisation metrics (uptime, downtime, charge attempts) are tracked at Port grain. Sanity check: the number of Ports at a location answers "how many vehicles can charge simultaneously?".'
   )
 }}
 
 with ports as (
     select
-        charge_point_id,
+        charger_id,
         port_id,
-        location_id,
-        count(connector_id) as connector_count
+        connector_count
     from {{ ref('int_ports') }}
-    group by
-        charge_point_id,
-        port_id,
-        location_id
 )
 
 select
     {{ dbt_utils.generate_surrogate_key([
-        'ports.charge_point_id',
+        'ports.charger_id',
         'ports.port_id'
         ]) }} as port_key,
-    ports.charge_point_id,
-    ports.location_id,
+    ports.charger_id,
     ports.port_id,
     ports.connector_count
 from ports

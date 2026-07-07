@@ -2,6 +2,6 @@ name: decommissioned_ports_check
 prompt: "How many ports are currently decommissioned?"
 sql: |
   SELECT COUNT(*) AS decommissioned_ports
-  FROM analytics.ANALYTICS.dim_charge_points cp
+  FROM analytics.ANALYTICS.dim_chargers cp
   JOIN analytics.ANALYTICS.dim_ports p ON cp.charge_point_id = p.charge_point_id
   WHERE cp.decommissioned_ts IS NOT NULL

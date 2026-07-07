@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "connector_id", "ingested_ts"],
+    unique_key=["charger_id", "connector_id", "ingested_ts"],
     incremental_strategy="merge",
     cluster_by="ingested_ts"
   )
@@ -33,7 +33,7 @@ with incremental_date_range as (
 status_changes_to_preparing as (
     select
         -- Request details
-        charge_point_id,
+        charger_id,
         connector_id,
         unique_id,
         ingested_ts,
@@ -59,7 +59,7 @@ status_changes_to_preparing as (
 
 ocpp_logs as (
     select
-        charge_point_id,
+        charger_id,
         action,
         ingested_timestamp as ingested_ts,
         message_type_id,
@@ -80,7 +80,7 @@ incremental as (
 -- Filter for charge attempt actions first
 charge_attempt_events as (
     select
-        charge_point_id,
+        charger_id,
         action,
         ingested_ts,
         message_type_id,
@@ -109,7 +109,7 @@ charge_attempt_events_conf as (
 preparing_events_chaining as (
     select
         -- Status change details
-        p.charge_point_id,
+        p.charger_id,
         p.connector_id,
         p.unique_id,
         p.ingested_ts,
@@ -128,7 +128,7 @@ preparing_events_chaining as (
         e.payload,
         e.conf_payload
     from status_changes_to_preparing as p
-    left join charge_attempt_events_conf as e on p.charge_point_id = e.charge_point_id
+    left join charge_attempt_events_conf as e on p.charger_id = e.charger_id
         and p.connector_id = e.connector_id
         and e.ingested_ts > coalesce(p.previous_ingested_ts, p.ingested_ts)
         and e.ingested_ts <= coalesce(p.next_ingested_ts, p.ingested_ts)
@@ -138,7 +138,7 @@ preparing_events_chaining as (
 -- Extract relevant details based on action type
 preparing_details as (
     select
-        p.charge_point_id,
+        p.charger_id,
         p.connector_id,
         p.unique_id,
         p.ingested_ts,
@@ -168,7 +168,7 @@ preparing_details as (
 preparing_agg as (
     select
         -- Status change details (grouping keys)
-        charge_point_id,
+        charger_id,
         connector_id,
         unique_id,
         ingested_ts,
@@ -190,7 +190,7 @@ preparing_agg as (
 
     from preparing_details
     group by
-        charge_point_id,
+        charger_id,
         connector_id,
         unique_id,
         ingested_ts,
@@ -210,7 +210,7 @@ preparing_agg as (
 
 combined_preparing as (
     select
-        n.charge_point_id,
+        n.charger_id,
         n.connector_id,
         n.unique_id,
         n.ingested_ts,
@@ -237,7 +237,7 @@ combined_preparing as (
 
     from preparing_agg as n
     left join {{ this }} as b
-        on n.charge_point_id = b.charge_point_id
+        on n.charger_id = b.charger_id
         and n.connector_id = b.connector_id
         and n.unique_id = b.unique_id
         and n.ingested_ts = b.ingested_ts
@@ -246,7 +246,7 @@ combined_preparing as (
 {% endif %}
 
 select
-    charge_point_id,
+    charger_id,
     connector_id,
     unique_id,
     ingested_ts,

@@ -3,11 +3,11 @@ version: 2
 semantic_models:
   - name: charge_points
     description: "Charge point dimension. Use to slice metrics by charger lifecycle attributes (active/decommissioned, port count, connector count)."
-    model: ref('dim_charge_points')
+    model: ref('dim_chargers')
     entities:
       - name: charge_point
         type: primary
-        expr: charge_point_id
+        expr: charger_id
     dimensions:
       - name: is_active
         type: categorical
@@ -23,7 +23,7 @@ semantic_models:
         type: primary
         expr: port_key
     dimensions:
-      - name: charge_point_id
+      - name: charger_id
         type: categorical
       - name: location_id
         type: categorical
@@ -40,7 +40,7 @@ semantic_models:
         type: categorical
       - name: latest_status
         type: categorical
-      - name: charge_point_id
+      - name: charger_id
         type: categorical
       - name: location_id
         type: categorical
@@ -72,9 +72,9 @@ semantic_models:
         type: time
         type_params:
           time_granularity: day
-      - name: first_charge_point_id
+      - name: first_charger_id
         type: categorical
-      - name: last_charge_point_id
+      - name: last_charger_id
         type: categorical
       - name: is_first_attempt_success
         type: categorical
@@ -156,7 +156,7 @@ semantic_models:
         expr: charge_attempt_id
       - name: charge_point
         type: foreign
-        expr: charge_point_id
+        expr: charger_id
     dimensions:
       - name: charge_attempt_start_ts
         type: time
@@ -174,7 +174,7 @@ semantic_models:
         type: categorical
       - name: transaction_stop_reason
         type: categorical
-      - name: charge_point_id
+      - name: charger_id
         type: categorical
       - name: connector_id
         type: categorical
@@ -265,13 +265,13 @@ semantic_models:
         expr: uptime_id
       - name: charge_point
         type: foreign
-        expr: charge_point_id
+        expr: charger_id
     dimensions:
       - name: date_id
         type: time
         type_params:
           time_granularity: day
-      - name: charge_point_id
+      - name: charger_id
         type: categorical
       - name: port_id
         type: categorical

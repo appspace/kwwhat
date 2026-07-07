@@ -4,7 +4,7 @@ models:
   - name: fact_charge_attempts
     description: "Incremental marts model that combines charge attempts and transactions data using outer join. Provides comprehensive view of charge attempts with associated transaction details where available."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Identifier for the charge point"
         data_tests:
           - not_null
@@ -13,7 +13,7 @@ models:
         data_tests:
           - not_null
       - name: charge_attempt_id
-        description: "Surrogate key for the charge attempt, generated from charge_point_id, connector_id, and charge_attempt_start_ts."
+        description: "Surrogate key for the charge attempt, generated from charger_id, connector_id, and charge_attempt_start_ts."
         data_tests:
           - unique
           - not_null
@@ -86,7 +86,7 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - connector_id
               - charge_attempt_start_ts
       - dbt_utils.expression_is_true:
@@ -98,7 +98,7 @@ models:
   - name: fact_interval_data
     description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Unique identifier for the charging point"
         data_tests:
           - not_null
@@ -141,7 +141,7 @@ models:
         data_tests:
           - not_null
       - name: interval_data_id
-        description: "Surrogate key for the interval data record, generated from charge_point_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start"
+        description: "Surrogate key for the interval data record, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start"
         data_tests:
           - unique
           - not_null
@@ -149,7 +149,7 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - connector_id
               - transaction_id
               - ingested_ts
@@ -159,13 +159,13 @@ models:
               - meter_15min_interval_start
 
   - name: fact_downtime_daily
-    description: "Daily aggregation of downtime at Port grain (charge_point_id + port_id + date_id). Splits outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types."
+    description: "Daily aggregation of downtime at Port grain (charger_id + port_id + date_id). Splits outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types."
     columns:
       - name: date_id
         description: "Calendar date for the downtime aggregation"
         data_tests:
           - not_null
-      - name: charge_point_id
+      - name: charger_id
         description: "Identifier for the charge point"
         data_tests:
           - not_null
@@ -186,7 +186,7 @@ models:
               arguments:
                 values: ['OFFLINE', 'FAULTED']
       - name: downtime_id
-        description: "Surrogate key for the downtime record, generated from date_id, charge_point_id, port_id, and reason"
+        description: "Surrogate key for the downtime record, generated from date_id, charger_id, port_id, and reason"
         data_tests:
           - unique
           - not_null
@@ -195,15 +195,15 @@ models:
           arguments:
             combination_of_columns:
               - date_id
-              - charge_point_id
+              - charger_id
               - port_id
               - reason
 
   - name: fact_visits
-    description: "One row per driver visit — a single trip to a charging location that may span multiple charge attempts (e.g., a failed plug-in followed by a retry). Authenticated visits (idTag present) group attempts by driver + location within a 30-minute window; unauthenticated visits group by port within a 2-minute window. Implementation uses two-step grouping: Step 1 groups attempts by charge_point_id within 2 minutes, inferring idTag from any attempt in the group that has one. Step 2 groups by location_id + idTag within 30 minutes (authenticated) or by charge_point_id + port_id within 2 minutes (unauthenticated). Time gaps are measured from charge_attempt_stop_ts of one attempt to charge_attempt_start_ts of the next."
+    description: "One row per driver visit — a single trip to a charging location that may span multiple charge attempts (e.g., a failed plug-in followed by a retry). Authenticated visits (idTag present) group attempts by driver + location within a 30-minute window; unauthenticated visits group by port within a 2-minute window. Implementation uses two-step grouping: Step 1 groups attempts by charger_id within 2 minutes, inferring idTag from any attempt in the group that has one. Step 2 groups by location_id + idTag within 30 minutes (authenticated) or by charger_id + port_id within 2 minutes (unauthenticated). Time gaps are measured from charge_attempt_stop_ts of one attempt to charge_attempt_start_ts of the next."
     columns:
       - name: visit_id
-        description: "Unique identifier for the visit, generated from location_id, first_charge_point_id, and visit_start_ts"
+        description: "Unique identifier for the visit, generated from location_id, first_charger_id, and visit_start_ts"
         data_tests:
           - not_null
           - unique
@@ -246,7 +246,7 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 1
-      - name: charge_point_ids
+      - name: charger_ids
         description: "Array of charge point IDs used during this visit"
       - name: charge_attempt_ids
         description: "Array of charge attempt IDs included in this visit"
@@ -267,9 +267,9 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0
-      - name: first_charge_point_id
+      - name: first_charger_id
         description: "Charge point ID where the visit started"
-      - name: last_charge_point_id
+      - name: last_charger_id
         description: "Charge point ID where the visit ended"
       - name: is_successful
         description: "Success status of the last charge attempt in the visit"
@@ -287,7 +287,7 @@ models:
           arguments:
             combination_of_columns:
               - location_id
-              - first_charge_point_id
+              - first_charger_id
               - first_port_id
               - visit_start_ts
       - dbt_utils.expression_is_true:
@@ -305,19 +305,19 @@ models:
         description: "Date at day granularity; used as time spine standard granularity column"
         granularity: day
   
-  - name: dim_charge_points
+  - name: dim_chargers
     description: >
       Charger (Charging Station) dimension. One row per Charger.
       A Charger is the physical system a driver perceives as a single charger — it has one or more Ports.
       Use for charger inventory, offline outage attribution, and visit attribution at charger level.
       Sanity check: if a driver says "I went to charger #3", they mean this entity.
     columns:
-      - name: charge_point_key
-        description: "Surrogate key for the Charger, generated from charge_point_id."
+      - name: charger_key
+        description: "Surrogate key for the Charger, generated from charger_id."
         data_tests:
           - not_null
           - unique
-      - name: charge_point_id
+      - name: charger_id
         description: "Natural key. Unique identifier for the Charger (Charging Station)."
         data_tests:
           - not_null
@@ -353,22 +353,18 @@ models:
 
   - name: dim_ports
     description: >
-      Port (EVSE) dimension. One row per Port (charge_point_id + port_id).
+      Port (EVSE) dimension. One row per Port (charger_id + port_id).
       A Port is an independently operated part of a Charger that can deliver energy to one EV at a time.
       Reliability and utilisation metrics (uptime, downtime, charge attempts) are tracked at Port grain.
       Sanity check: the number of Ports at a location answers "how many vehicles can charge simultaneously?".
     columns:
       - name: port_key
-        description: "Surrogate key for the Port, generated from charge_point_id and port_id."
+        description: "Surrogate key for the Port, generated from charger_id and port_id."
         data_tests:
           - not_null
           - unique
-      - name: charge_point_id
+      - name: charger_id
         description: "Charger (Charging Station) this Port belongs to."
-        data_tests:
-          - not_null
-      - name: location_id
-        description: "Location where this Port is installed."
         data_tests:
           - not_null
       - name: port_id
@@ -386,23 +382,23 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - port_id
 
   - name: dim_connectors
     description: >
-      Connector dimension. One row per Connector (charge_point_id + port_id + connector_id). Finest-grain hardware dimension.
+      Connector dimension. One row per Connector (charger_id + port_id + connector_id). Finest-grain hardware dimension.
       A Connector is an independently operated electrical outlet on a Port. A Port may have multiple Connectors
       (different socket types or tethered cables) to support different vehicle types (e.g. four-wheeled EVs and electric scooters).
       Sanity check: the Connector type answers "what vehicle types can charge here?".
       Use for connector-type analysis, current inventory, and connector-specific operational reporting.
     columns:
       - name: connector_key
-        description: "Surrogate key for the connector, generated from charge_point_id, port_id, and connector_id."
+        description: "Surrogate key for the connector, generated from charger_id, port_id, and connector_id."
         data_tests:
           - not_null
           - unique
-      - name: charge_point_id
+      - name: charger_id
         description: "Charge point this connector belongs to."
         data_tests:
           - not_null
@@ -439,7 +435,7 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - port_id
               - connector_id
 
@@ -498,7 +494,7 @@ models:
           - not_null
           - unique
       - name: location_id
-        description: "Natural key. Location identifier sourced from stg_ports."
+        description: "Natural key. Location identifier sourced from stg_chargers via int_chargers."
         data_tests:
           - not_null
           - unique
@@ -545,7 +541,7 @@ models:
   - name: charge_point_span_daily
     description: "One row per charge point per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Charger identifier"
         data_tests:
           - not_null
@@ -561,18 +557,18 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - date_id
 
   - name: fact_uptime
-    description: "Port-level daily uptime. One row per Port per day (charge_point_id + port_id + date_id). Uptime = (commissioned minutes that day − outage minutes) / commissioned minutes. Reliability is tracked at Port grain because a Port is the independently operated unit that serves one EV at a time."
+    description: "Port-level daily uptime. One row per Port per day (charger_id + port_id + date_id). Uptime = (commissioned minutes that day − outage minutes) / commissioned minutes. Reliability is tracked at Port grain because a Port is the independently operated unit that serves one EV at a time."
     columns:
       - name: uptime_id
-        description: "Surrogate key for the row (charge_point_id, port_id, date_id)"
+        description: "Surrogate key for the row (charger_id, port_id, date_id)"
         data_tests:
           - unique
           - not_null
-      - name: charge_point_id
+      - name: charger_id
         description: "Charger identifier"
         data_tests:
           - not_null

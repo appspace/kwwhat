@@ -1,7 +1,7 @@
 {{
   config(
     materialized='incremental',
-    unique_key=["charge_point_id", "connector_id", "charge_attempt_start_ts"],
+    unique_key=["charger_id", "connector_id", "charge_attempt_start_ts"],
     incremental_strategy="merge",
     cluster_by="charge_attempt_start_ts"
   )
@@ -29,7 +29,7 @@ with incremental_date_range as (
 
 preparing as (
     select
-        charge_point_id,
+        charger_id,
         connector_id,
         unique_id as preparing_unique_id,
         ingested_ts as preparing_ingested_ts,
@@ -56,7 +56,7 @@ preparing as (
 
 transactions as (
     select
-        charge_point_id,
+        charger_id,
         connector_id,
         transaction_id,
         ingested_ts as transaction_ingested_ts,
@@ -92,7 +92,7 @@ incremental as (
 attempts_and_transactions as (
     select
         -- Charge attempt identifiers
-        coalesce(p.charge_point_id, t.charge_point_id) as charge_point_id,
+        coalesce(p.charger_id, t.charger_id) as charger_id,
         coalesce(p.connector_id, t.connector_id) as connector_id,
 
         -- Attempt start and stop timestamps depending on what we know
@@ -125,7 +125,7 @@ attempts_and_transactions as (
 
     from preparing as p
     full outer join transactions as t
-        on p.charge_point_id = t.charge_point_id
+        on p.charger_id = t.charger_id
         and p.connector_id = t.connector_id
         and p.transaction_id = t.transaction_id
         and t.transaction_ingested_ts > {{ dbt.dateadd(
@@ -143,7 +143,7 @@ attempts_and_transactions as (
     -- Read previously stored charge attempts within buffer window
     charge_attempts_buffer as (
         select
-            charge_point_id,
+            charger_id,
             connector_id,
             charge_attempt_start_ts,
             charge_attempt_stop_ts,
@@ -172,7 +172,7 @@ attempts_and_transactions as (
 
     merged_attempts_and_transactions as (
         select
-            n.charge_point_id,
+            n.charger_id,
             n.connector_id,
 
             coalesce(b.charge_attempt_start_ts, n.charge_attempt_start_ts) as charge_attempt_start_ts,
@@ -201,14 +201,14 @@ attempts_and_transactions as (
             array_distinct({{ array_concat('n.error_codes', 'b.error_codes') }}) as error_codes
 
         from attempts_and_transactions n
-        left join charge_attempts_buffer b on n.charge_point_id = b.charge_point_id
+        left join charge_attempts_buffer b on n.charger_id = b.charger_id
             and n.connector_id = b.connector_id
             and n.transaction_id is not null and b.transaction_id is not null and n.transaction_id = b.transaction_id
     )
 {% endif %}
 
 select
-    charge_point_id,
+    charger_id,
     connector_id,
     charge_attempt_start_ts,
     charge_attempt_stop_ts,
@@ -240,7 +240,7 @@ select
     error_codes,
     -- Generate a deterministic unique ID from the composite key
     {{ dbt_utils.generate_surrogate_key([
-        'charge_point_id', 'connector_id', 'charge_attempt_start_ts'
+        'charger_id', 'connector_id', 'charge_attempt_start_ts'
     ]) }} as charge_attempt_id,
     case
         when transaction_id is not null

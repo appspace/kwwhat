@@ -2,9 +2,9 @@ version: 2
 
 models:
   - name: int_connector_latest_status
-    description: "Latest OCPP status snapshot per connector. View over int_status_changes filtered to rows where next_status is null. Grain: one row per charge_point_id + connector_id + port_id."
+    description: "Latest OCPP status snapshot per connector. View over int_status_changes filtered to rows where next_status is null. Grain: one row per charger_id + connector_id + port_id."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Identifier for the charge point"
         data_tests:
           - not_null
@@ -35,14 +35,14 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - connector_id
               - port_id
 
   - name: int_status_changes
     description: "Intermediate model that tracks connector status changes with previous status tracking and confirmation status. Uses incremental processing with 30-minute buffer to ensure accurate previous_status relationships. Grain: one row per status notification."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Identifier for the charge point"
         data_tests:
           - not_null
@@ -52,6 +52,10 @@ models:
           - not_null
       - name: connector_id
         description: "Identifier for the connector"
+        data_tests:
+          - not_null
+      - name: port_id
+        description: "Identifier for the port, resolved from int_connectors"
         data_tests:
           - not_null
       - name: ingested_ts
@@ -85,7 +89,7 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - connector_id
               - ingested_ts
       - dbt_utils.expression_is_true:
@@ -102,7 +106,7 @@ models:
   - name: int_connector_preparing
     description: "Intermediate model that processes charge attempt events, anchoring on charger going into 'Preparing' state and aggregating related authentication data. Each row represents a unique status change to 'Preparing'."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Identifier for the charge point"
         data_tests:
           - not_null
@@ -149,18 +153,18 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - connector_id
               - ingested_ts
 
   - name: int_transactions
-    description: "Intermediate model that processes transaction-related OCPP events (StartTransaction, StopTransaction, RemoteStartTransaction, RemoteStopTransaction, MeterValues) and groups them by transaction ID. Each row represents a unique transaction with aggregated details. Grain: one row per charge_point_id + connector_id + ingested_ts."
+    description: "Intermediate model that processes transaction-related OCPP events (StartTransaction, StopTransaction, RemoteStartTransaction, RemoteStopTransaction, MeterValues) and groups them by transaction ID. Each row represents a unique transaction with aggregated details. Grain: one row per charger_id + connector_id + ingested_ts."
     columns:
       - name: transaction_id
         description: "Unique identifier for the transaction from OCPP StartTransaction/StopTransaction messages"
         data_tests:
           - not_null
-      - name: charge_point_id
+      - name: charger_id
         description: "Identifier for the charge point"
         data_tests:
           - not_null
@@ -201,7 +205,7 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - connector_id
               - ingested_ts
 
@@ -247,7 +251,7 @@ models:
   - name: int_meter_values
     description: "Intermediate incremental model that processes transaction-level aggregated meter values. Provides min, max, and average values for each measurand aggregated across the entire transaction. Use for transaction-level analysis."
     columns:
-      - name: charge_point_id
+      - name: charger_id
         description: "Unique identifier for the charging point"
         data_tests:
           - not_null
@@ -301,7 +305,7 @@ models:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
               - connector_id
               - transaction_id
               - ingested_ts
@@ -314,27 +318,79 @@ models:
           config:
             severity: error
 
-  - name: int_ports
-    description: "Materialized snapshot of stg_ports. Breaks the live RAW catalog dependency for downstream views and incremental models. Grain: one row per charge_point_id + port_id + connector_id."
+  - name: int_chargers
+    description: "Materialized charger reference table with port count. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charger_id."
     columns:
-      - name: charge_point_id
-        description: "Charger identifier"
+      - name: charger_id
+        description: "Charger identifier."
+        data_tests:
+          - not_null
+          - unique
       - name: location_id
-        description: "Location identifier where the charge point is located"
-      - name: port_id
-        description: "Port identifier within the charge point"
-      - name: connector_id
-        description: "Connector identifier within the port"
-      - name: connector_type
-        description: "Type of connector (e.g., CCS, NACS)"
+        description: "Location identifier where the Charger is installed."
+        data_tests:
+          - not_null
       - name: commissioned_ts
-        description: "Timestamp when the charge point was commissioned (null if not commissioned yet)"
+        description: "Timestamp when the Charger was commissioned (null if not yet commissioned)."
       - name: decommissioned_ts
-        description: "Timestamp when the charge point was decommissioned (null if still active)"
+        description: "Timestamp when the Charger was decommissioned (null if still commissioned)."
+      - name: port_count
+        description: "Number of Ports on this Charger."
+        data_tests:
+          - not_null
+
+  - name: int_ports
+    description: "Materialized port reference table with connector count. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charger_id + port_id."
+    columns:
+      - name: charger_id
+        description: "Charger identifier."
+        data_tests:
+          - not_null
+      - name: port_id
+        description: "Port identifier within the Charger."
+        data_tests:
+          - not_null
+      - name: connector_count
+        description: "Number of Connectors on this Port."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - charge_point_id
+              - charger_id
+              - port_id
+
+  - name: int_connectors
+    description: "Materialized connector reference table. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charger_id + port_id + connector_id."
+    columns:
+      - name: charger_id
+        description: "Charger identifier."
+        data_tests:
+          - not_null
+      - name: port_id
+        description: "Port identifier within the Charger."
+        data_tests:
+          - not_null
+      - name: connector_id
+        description: "Connector identifier within the Port."
+        data_tests:
+          - not_null
+      - name: connector_type
+        description: "Type of connector (e.g., CCS, NACS, CHAdeMO)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['CCS', 'CHAdeMO', 'NACS', 'Type 2', 'Type 1']
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charger_id
               - port_id
               - connector_id
