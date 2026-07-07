@@ -185,23 +185,35 @@ Keep deterministic harness status and semantic judgment as separate layers.
 
 Existing / factual fields:
 
-```text
-run_id, timestamp, test_name, question, expected, actual, status,
-tokens, cost, execution_time, error_type, model, failure_reason, notes
-```
+| Field | Description |
+|---|---|
+| `run_id` | Unique run identifier. |
+| `timestamp` | Run timestamp. |
+| `test_name` | YAML test name. |
+| `question` | Input prompt. |
+| `expected` | Reference output from SQL or rubric. |
+| `actual` | LLM output. |
+| `status` | SQL harness pass/fail status. |
+| `tokens` | Token usage. |
+| `cost` | API cost. |
+| `execution_time` | Latency in seconds. |
+| `error_type` | Failure category. |
+| `model` | Agent model version. |
+| `failure_reason` | Manual or derived failure reason. |
+| `notes` | Optional reviewer notes. |
 
 Stage 2 semantic fields:
 
-```text
-semantic_metric
-semantic_score
-semantic_threshold
-semantic_pass
-semantic_reason
-semantic_label
-judge_model
-traceability_label
-```
+| Field | Description |
+|---|---|
+| `semantic_metric` | Rubric or judge metric name. |
+| `semantic_score` | Semantic score when an automated or manual score exists. |
+| `semantic_threshold` | Threshold used for the metric, if applicable. |
+| `semantic_pass` | Semantic pass/fail result. |
+| `semantic_reason` | Short explanation for the semantic result. |
+| `semantic_label` | Human label such as `correct`, `partial`, or `incorrect`. |
+| `judge_model` | Judge model version, recorded separately from the agent model. |
+| `traceability_label` | Manual inspectability label for evidence quality. |
 
 `status` remains the `nao test` / SQL harness result. `semantic_pass` and `semantic_label` describe answer quality and may disagree with `status`.
 
@@ -272,6 +284,16 @@ demo/
 - avoid committing raw `results_*.json` by default.
 
 The first version can support Stage 1-style data. Semantic fields can be added as soon as the golden dataset and manual labels exist.
+
+---
+
+## Long-Term Testing Notes
+
+Keep these as future-facing calibration practices, not Stage 2 merge gates:
+
+- Treat same-model judge scores as an upper-bound signal until an independent judge run is compared.
+- Promote reviewed real failures into `golden_dataset.yml` so the dataset grows from observed regressions, not only imagined cases.
+- After 2-3 stable baseline runs, use selected context changes to learn which rules or semantic-model entries are load-bearing, redundant, or risky.
 
 ---
 
