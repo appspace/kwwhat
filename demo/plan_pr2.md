@@ -21,6 +21,8 @@ Stage 2 is not a general model benchmark. It asks whether changes to curated pro
 
 The factual layer remains `nao test` plus SQL assertions. Stage 2 adds a semantic layer for answer quality: terminology, metric validity, formatting, completeness, faithfulness to configured context, and reviewer traceability.
 
+Stage 2 follows a **targeted, composite eval approach**: SQL/programmatic checks cover factual assertions; LLM-as-judge (or human labels first) covers semantic quality; human review calibrates ambiguous cases. Evals are single-turn, reference-based, and end-to-end — the score signals **context quality**, not general model quality.
+
 ---
 
 ## Stage 2 Deliverables
@@ -48,6 +50,7 @@ The factual layer remains `nao test` plus SQL assertions. Stage 2 adds a semanti
 5. **Calibration notes**
    - Track cost, latency, model, flakiness, and ambiguous judge behavior.
    - Use human review for the first runs before treating semantic scores as gates.
+   - Record `judge_model` separately; when the judge is the same model as the agent, treat scores as an upper-bound signal until compared with an independent judge.
 
 ---
 
@@ -108,6 +111,23 @@ Field meanings:
 
 `reference_contexts` are traceability pointers, not extra prompt chunks. The eval should exercise the same curated nao context a user would rely on in the demo.
 
+`primary_context` should point to the file a reviewer uses to **verify** the answer (for example `semantic_models.yml`). Put the rule under test in `reference_contexts` when it differs (for example `RULES.md`).
+
+---
+
+## Future Compatibility
+
+The Stage 2 golden format should stay compatible with future native eval support. One local artifact can serve the Stage 2 prototype, the upstream design discussion, and the Stage 3 history schema without requiring upstream nao changes in this PR.
+
+| kwwhat (Stage 2) | nao #727 (upstream) | nao test (today) | Purpose |
+|---|---|---|---|
+| `user_input` | `input` | `prompt` | the input |
+| `reference_answer` | `expected_output` | — | gold standard for the judge |
+| `category` + `human_explanation` | `context_hint` | — | which rule/context is under test |
+| `eval_type: sql` + `sql:` | SQL eval (unchanged) | `sql` | deterministic factual layer |
+| `primary_context` / `reference_contexts` | richer `context_hint` | — | reviewer traceability — **not injected** |
+| `semantic_score` / `semantic_pass` / `semantic_reason` / `judge_model` | stable judge output fields | — | result record |
+
 ---
 
 ## Initial Case Set
@@ -139,6 +159,21 @@ Initial rubric categories:
 | `rate_format` | Percentages and percentage-point changes are formatted clearly and consistently. |
 | `faithfulness` | The answer does not add unsupported claims or misleading narrative beyond SQL results and curated context. |
 | `completeness` | The answer covers the requested scope at the expected level of detail. |
+
+### Rubric priority for v1
+
+For curated-context BI chat, not classic RAG retrieval:
+
+| Rubric | Stage 2 priority | Notes |
+|---|---|---|
+| `faithfulness` | **Primary** | no invented metrics, wrong terminology, misleading narrative on correct SQL |
+| `metric_validity` | High | often a faithfulness sub-case |
+| `terminology` | High | kwwhat vocabulary enforcement |
+| `rate_format` | Secondary | formatting on rate/percentage answers |
+| `completeness` | Secondary | after factual + faithfulness |
+| Context relevance | Skip v1 | context is curated, not retrieved |
+
+Citation inspectability folds into `faithfulness` in v1. Promote it to a separate rubric only if `traceability_label` failure rate is ≥10–15% after calibration on 10–20 cases.
 
 For Stage 2, rubrics can start as documented criteria plus human labels. An automated LLM-as-judge sidecar is optional after the rubrics and dataset shape are stable.
 
@@ -179,11 +214,56 @@ traceability_label
 | `incorrect` | Cited or implied source does not support the claim. |
 | `missing` | Important numbers or claims have no inspectable support. |
 
+### `failure_reason` values (manual in Stage 2)
+
+Use alongside `semantic_label` when reviewing runs:
+
+- `invented_metric`
+- `wrong_terminology`
+- `misleading_narrative`
+- `wrong_rate_format`
+- `incomplete_answer`
+- `missing_citation`
+- `wrong_citation`
+- `sql_pass_semantic_fail` — SQL harness passed but answer quality failed
+
+---
+
+## File Layout
+
+```text
+demo/chat-bi/tests/
+  evals/
+    golden_dataset.yml      # reviewed cases (YAML list)
+    rubrics.md              # pass/fail criteria and examples
+  outputs/
+    results_*.json          # local only — gitignored
+  analysis/
+    stage2_analysis.csv     # committed summary artifact
+    stage2_delta_summary.md # committed PR review artifact
+    calibration_notes.md  # cost, flake, ambiguous cases
+demo/
+  results_summary.py        # reads results_*.json → analysis artifacts
+```
+
+---
+
+## Workflow
+
+1. `dbt seed && dbt run --full-refresh` when incremental state may affect outputs.
+2. Run the SQL harness: `nao test` (Docker demo or local).
+3. Treat `results_*.json` as read-only run output. Use it to inspect actual answers and errors.
+4. Record manual `semantic_label`, `traceability_label`, and `failure_reason` in `stage2_analysis.csv` and `calibration_notes.md`, not in raw JSON files.
+5. Cross-check against `evals/golden_dataset.yml` reference answers.
+6. `python demo/results_summary.py` → CSV + markdown under `tests/analysis/`.
+7. After the first baseline runs, promote failures that survive human review into `golden_dataset.yml` with a reviewed `reference_answer` and `human_explanation`.
+8. Commit golden dataset, rubrics, and analysis artifacts — **not** raw `results_*.json`.
+
 ---
 
 ## Automation
 
-`results_summary.py` should be lightweight:
+`results_summary.py` implements the summary step in the workflow and should stay lightweight:
 
 - read one or more `demo/chat-bi/tests/outputs/results_*.json` files;
 - write an analysis CSV under `demo/chat-bi/tests/analysis/`;
@@ -206,6 +286,7 @@ The first version can support Stage 1-style data. Semantic fields can be added a
 - Long-term eval history store.
 - Chat replay ingestion.
 - MCP or external agent distribution.
+- Full context-ablation runner (baseline vs intervention). Methodology only; first manual ablation pass may happen after Stage 2 merge.
 
 ---
 
@@ -220,6 +301,7 @@ Likely Stage 3 work:
 - trends across runs and rubrics;
 - sanitized chat replay candidates;
 - recurring-failure monitors;
+- lightweight context ablation on selected golden cases after 2-3 baseline runs, classifying context elements as load-bearing, redundant, or risky;
 - stricter gates once thresholds, cost, and flake are understood.
 
 ---
