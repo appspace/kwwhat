@@ -185,12 +185,10 @@ unit_tests:
           select 'CH-001' as charger_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted'   as status, cast(null as string) as next_status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
           union all
           select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Available', cast(null as string), cast(null as timestamp), cast('2025-10-01 12:00:00' as timestamp)
-      - input: ref('int_connectors')
+      - input: ref('int_ports')
         format: sql
         rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type
-          union all
-          select 'CH-001', 'PORT-001', '2', 'CCS'
+          select 'CH-001' as charger_id, 'PORT-001' as port_id, 2 as connector_count
     expect:
       rows: []
 
@@ -209,12 +207,10 @@ unit_tests:
           select 'CH-001' as charger_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, cast(null as string) as next_status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
           union all
           select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Faulted', cast(null as string), cast('2025-10-01 11:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
-      - input: ref('int_connectors')
+      - input: ref('int_ports')
         format: sql
         rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type
-          union all
-          select 'CH-001', 'PORT-001', '2', 'CCS'
+          select 'CH-001' as charger_id, 'PORT-001' as port_id, 2 as connector_count
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:00:00', duration_minutes: 60}
@@ -234,10 +230,10 @@ unit_tests:
           select 'CH-001' as charger_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, cast(null as string) as next_status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
           union all
           select 'CH-001', 'PORT-001', '1', cast('2025-10-01 11:00:00' as timestamp), 'Faulted', cast(null as string), cast('2025-10-01 12:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
-      - input: ref('int_connectors')
+      - input: ref('int_ports')
         format: sql
         rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type
+          select 'CH-001' as charger_id, 'PORT-001' as port_id, 1 as connector_count
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00', duration_minutes: 120}

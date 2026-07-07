@@ -367,10 +367,6 @@ models:
         description: "Charger (Charging Station) this Port belongs to."
         data_tests:
           - not_null
-      - name: location_id
-        description: "Location where this Port is installed."
-        data_tests:
-          - not_null
       - name: port_id
         description: "Port (EVSE) identifier within the Charger."
         data_tests:
