@@ -210,7 +210,7 @@ models:
               - ingested_ts
 
   - name: int_driver_aggregates
-    description: "Incremental per-driver aggregation over fact_charge_attempts. Maintains running first/last timestamps and authorization statuses per id_tag. Also tracks unauthorized attempts (null id_tag) under the sentinel row in dim_drivers downstream."
+    description: "Incremental per-driver aggregation over fact_charge_attempts. Maintains running first/last timestamps and authorization statuses per id_tag. Also tracks unauthorized attempts ('__UNKNOWN__' id_tag) under the sentinel row in dim_drivers downstream."
     columns:
       - name: id_tag
         description: "Driver identifier (id_tag) observed in OCPP messages. Natural key; null rows (unauthorized attempts) are excluded."
