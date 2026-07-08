@@ -19,7 +19,7 @@ with connectors as (
 capacity as (
     select
         location_id,
-        count(distinct charger_id) as charge_point_count,
+        count(distinct charger_id) as charger_count,
         count(distinct charger_id || '|' || cast(port_id as {{ dbt.type_string() }})) as port_count,
         count(
             distinct charger_id
@@ -33,7 +33,7 @@ capacity as (
 select
     {{ dbt_utils.generate_surrogate_key(['location_id']) }} as location_key,
     location_id,
-    charge_point_count,
+    charger_count,
     port_count,
     connector_count
 from capacity
