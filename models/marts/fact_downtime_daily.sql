@@ -127,13 +127,13 @@ final as (
 )
 
 select
+    -- Generate a deterministic unique ID from the composite key
+    {{ dbt_utils.generate_surrogate_key(['date_id', 'charger_id', 'port_id', 'reason']) }} as downtime_id,
+    port_key,
     date_id,
     charger_id,
-    port_key,
     port_id,
     reason,
     duration_minutes,
-    -- Generate a deterministic unique ID from the composite key
-    {{ dbt_utils.generate_surrogate_key(['date_id', 'charger_id', 'port_id', 'reason']) }} as downtime_id,
     (select incremental_ts from incremental) as incremental_ts
 from final

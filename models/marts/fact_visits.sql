@@ -430,7 +430,11 @@ new_visits as (
 {% endif %}
 
 select
+    {{ dbt_utils.generate_surrogate_key([
+        'v.location_id', 'v.first_charger_id', 'v.first_port_id', 'v.visit_start_ts'
+    ]) }} as visit_id,
     dl.location_key,
+    dd.driver_key,
     v.location_id,
     v.charger_ids,
     v.id_tag,
@@ -448,10 +452,6 @@ select
     v.is_successful,
     v.grouping_key,
     {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes,
-    {{ dbt_utils.generate_surrogate_key([
-        'v.location_id', 'v.first_charger_id', 'v.first_port_id', 'v.visit_start_ts'
-    ]) }} as visit_id,
-    dd.driver_key,
     (select incremental_ts from incremental) as incremental_ts
 from visits as v
 inner join {{ ref('dim_locations') }} as dl
