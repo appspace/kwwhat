@@ -117,7 +117,7 @@ semantic_models:
         agg: average
         expr: visit_duration_minutes
       - name: troubled_success_visits_count
-        description: "Number of visits that had multiple attempts but ultimately succeeded."
+        description: "Number of visits that had multiple attempts but ultimately succeeded (troubled success)."
         agg: count
         expr: case when is_successful and charge_attempt_count > 1 then visit_id end
       - name: troubled_success_count
