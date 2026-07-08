@@ -1,12 +1,13 @@
 {{
   config(
     materialized='view',
-    description='One row per charge point, port, and day: uptime = (minutes commissioned that day minus total outage minutes) / minutes commissioned that day.'
+    description='One row per charger, port, and day: uptime = (minutes commissioned that day minus total outage minutes) / minutes commissioned that day.'
   )
 }}
 
 with ports as (
     select
+        port_key,
         charger_id,
         port_id
     from {{ ref('dim_ports') }}
@@ -15,6 +16,7 @@ with ports as (
 span_port_days as (
     select
         p.charger_id,
+        p.port_key,
         p.port_id,
         s.date_id,
         s.minutes as minutes_commissioned
@@ -25,30 +27,30 @@ span_port_days as (
 downtime_agg as (
     select
         date_id,
-        charger_id,
-        port_id,
+        port_key,
         sum(duration_minutes) as total_downtime_minutes
     from {{ ref('fact_downtime_daily') }}
-    group by date_id, charger_id, port_id
+    group by date_id, port_key
 ),
 
 with_downtime as (
     select
         s.charger_id,
+        s.port_key,
         s.port_id,
         s.date_id,
         s.minutes_commissioned,
         coalesce(d.total_downtime_minutes, 0) as total_downtime_minutes
     from span_port_days as s
     left join downtime_agg as d
-        on s.charger_id = d.charger_id
-       and s.port_id = d.port_id
+        on s.port_key = d.port_key
        and s.date_id = d.date_id
 )
 
 select
     {{ dbt_utils.generate_surrogate_key(['charger_id', 'port_id', 'date_id']) }} as uptime_id,
     charger_id,
+    port_key,
     port_id,
     date_id,
     (minutes_commissioned - total_downtime_minutes) / minutes_commissioned as uptime

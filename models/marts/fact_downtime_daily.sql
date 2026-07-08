@@ -19,6 +19,7 @@ with incremental_date_range as (
 
 ports as (
     select
+        port_key,
         charger_id,
         port_id
     from {{ ref('dim_ports') }}
@@ -27,16 +28,20 @@ ports as (
 -- Get faulted outages first to filter offline outages
 faulted_outages as (
     select
-        charger_id,
-        port_id,
-        from_ts,
-        to_ts,
-        duration_minutes,
-        incremental_ts,
+        f.charger_id,
+        f.port_id,
+        p.port_key,
+        f.from_ts,
+        f.to_ts,
+        f.duration_minutes,
+        f.incremental_ts,
         'FAULTED' as reason
-    from {{ ref('int_faulted_outages') }}
-    where incremental_ts > (select buffer_from_timestamp from incremental_date_range)
-        and incremental_ts <= (select to_timestamp from incremental_date_range)
+    from {{ ref('int_faulted_outages') }} as f
+    inner join ports as p
+        on f.charger_id = p.charger_id
+       and f.port_id = p.port_id
+    where f.incremental_ts > (select buffer_from_timestamp from incremental_date_range)
+        and f.incremental_ts <= (select to_timestamp from incremental_date_range)
 ),
 
 -- for Offline outages (charge point level, need to join with ports)
@@ -45,6 +50,7 @@ offline_outages as (
     select
         o.charger_id,
         p.port_id,
+        p.port_key,
         o.from_ts,
         o.to_ts,
         o.duration_minutes,
@@ -65,9 +71,9 @@ offline_outages as (
 ),
 
 outages as (
-    select charger_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, reason from offline_outages
+    select charger_id, port_id, port_key, from_ts, to_ts, duration_minutes, incremental_ts, reason from offline_outages
     union all
-    select charger_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, reason from faulted_outages
+    select charger_id, port_id, port_key, from_ts, to_ts, duration_minutes, incremental_ts, reason from faulted_outages
 ),
 
 filtered_outages as (
@@ -89,10 +95,11 @@ outage_days as (
     select
         o.charger_id,
         o.port_id,
+        o.port_key,
         o.date_id,
         o.reason,
         greatest(o.from_ts, o.date_id) as interval_start,
-        least(o.to_ts, {{ dbt.dateadd('day', 1, "o.date_id") }}) as interval_end
+        least(o.to_ts, {{ dbt.dateadd('day', 1, 'o.date_id') }}) as interval_end
     from filtered_outages as o
 ),
 
@@ -100,6 +107,7 @@ per_day as (
     select
         charger_id,
         port_id,
+        port_key,
         date_id,
         reason,
         {{ dbt.datediff('interval_start', 'interval_end', 'minutes') }} as duration_minutes
@@ -111,15 +119,17 @@ final as (
         date_id,
         charger_id,
         port_id,
+        port_key,
         reason,
         sum(duration_minutes) as duration_minutes
     from per_day
-    group by 1, 2, 3, 4
+    group by 1, 2, 3, 4, 5
 )
 
 select
     date_id,
     charger_id,
+    port_key,
     port_id,
     reason,
     duration_minutes,
