@@ -1,7 +1,7 @@
 {{
   config(
     materialized='view',
-    description='One row per charge point per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics.'
+    description='One row per charger per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics.'
   )
 }}
 
@@ -14,7 +14,7 @@ with chargers as (
     where commissioned_ts is not null
 ),
 
-charge_point_span as (
+charger_commissioned_span as (
     select
         charger_id,
         commissioned_ts,
@@ -33,7 +33,7 @@ commissioned_days as (
         d.date_id,
         c.commissioned_ts,
         c.decommissioned_ts
-    from charge_point_span as c
+    from charger_commissioned_span as c
     cross join calendar as d
     where d.date_id >= {{ dbt.date_trunc('day', 'c.commissioned_ts') }}
       and d.date_id <= {{ dbt.date_trunc('day', 'c.decommissioned_ts') }}

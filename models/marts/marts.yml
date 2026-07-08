@@ -534,8 +534,8 @@ models:
               arguments:
                 min_value: 1
 
-  - name: charge_point_span_daily
-    description: "One row per charge point per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."
+  - name: fact_charger_commissioned_daily
+    description: "One row per charger per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."
     columns:
       - name: charger_id
         description: "Charger identifier"
