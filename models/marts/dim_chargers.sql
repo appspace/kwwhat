@@ -21,6 +21,6 @@ select
     chargers.location_id,
     chargers.commissioned_ts,
     chargers.decommissioned_ts,
-    chargers.decommissioned_ts is null as is_active,
+    chargers.decommissioned_ts is null as is_commissioned,
     chargers.port_count
 from chargers

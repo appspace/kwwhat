@@ -2,14 +2,14 @@ version: 2
 
 semantic_models:
   - name: chargers
-    description: "Charger dimension. Use to slice metrics by charger lifecycle attributes such as active status and location."
+    description: "Charger dimension. Use to slice metrics by charger lifecycle attributes such as is_commissioned and location."
     model: ref('dim_chargers')
     entities:
       - name: charger
         type: primary
         expr: charger_id
     dimensions:
-      - name: is_active
+      - name: is_commissioned
         type: categorical
         description: "True if the charger has not been decommissioned."
       - name: location_id

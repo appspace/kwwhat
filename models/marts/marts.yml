@@ -336,8 +336,8 @@ models:
         data_tests:
           - not_null
       - name: decommissioned_ts
-        description: "Timestamp when the charger was decommissioned. Null if still active."
-      - name: is_active
+        description: "Timestamp when the charger was decommissioned. Null if still commissioned."
+      - name: is_commissioned
         description: "True if the charger has not been decommissioned."
         data_tests:
           - not_null
