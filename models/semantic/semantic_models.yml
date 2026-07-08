@@ -141,7 +141,7 @@ semantic_models:
         agg: count
         expr: case when is_successful and charge_attempt_count > 1 then visit_id end
       - name: failed_visits_count
-        description: "Number of visits that failed."
+        description: "Number of visits that failed (did not end in successful charge)."
         agg: count
         expr: case when is_successful then null else visit_id end
 
