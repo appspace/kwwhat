@@ -93,7 +93,7 @@ semantic_models:
         expr: case when is_successful then false else true end
     measures:
       - name: visits_count
-        description: "Total number of charging visits."
+        description: "Total number of visits."
         agg: count
         expr: visit_id
       - name: energy_per_visit_kwh_average
