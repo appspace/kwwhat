@@ -337,7 +337,7 @@ metrics:
       measure: failed_visits_count
 
   - name: first_attempt_success_rate
-    description: "Proportion of visits where the first attempt succeeded."
+    description: "Primary reliability metric. Proportion of visits where the first attempt succeeded."
     label: "First attempt success rate"
     type: ratio
     type_params:
@@ -345,7 +345,7 @@ metrics:
       denominator: total_visits
 
   - name: troubled_success_rate
-    description: "Proportion of visits that were troubled successes."
+    description: "Primary reliability metric. Proportion of visits that were troubled successes."
     label: "Troubled success rate"
     type: ratio
     type_params:
@@ -353,7 +353,7 @@ metrics:
       denominator: total_visits
 
   - name: failed_rate
-    description: "Proportion of visits that failed."
+    description: "Primary reliability metric. Proportion of visits that failed."
     label: "Failed rate"
     type: ratio
     type_params:
@@ -361,7 +361,7 @@ metrics:
       denominator: total_visits
 
   - name: average_uptime
-    description: "Average port uptime as the fraction of commissioned time that was up, not in outage."
+    description: "Primary reliability metric. Average port uptime as the fraction of commissioned time that was up, not in outage."
     label: "Average uptime"
     type: simple
     type_params:
