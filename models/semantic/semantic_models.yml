@@ -93,7 +93,7 @@ semantic_models:
         expr: case when is_successful then false else true end
     measures:
       - name: visits_count
-        description: "Total number of charging visits."
+        description: "Total number of visits."
         agg: count
         expr: visit_id
       - name: energy_per_visit_kwh_average
@@ -117,7 +117,7 @@ semantic_models:
         agg: average
         expr: visit_duration_minutes
       - name: troubled_success_visits_count
-        description: "Number of visits that had multiple attempts but ultimately succeeded."
+        description: "Number of visits that had multiple attempts but ultimately succeeded (troubled success)."
         agg: count
         expr: case when is_successful and charge_attempt_count > 1 then visit_id end
       - name: troubled_success_count
@@ -141,7 +141,7 @@ semantic_models:
         agg: count
         expr: case when is_successful and charge_attempt_count > 1 then visit_id end
       - name: failed_visits_count
-        description: "Number of visits that failed."
+        description: "Number of visits that failed (did not end in successful charge)."
         agg: count
         expr: case when is_successful then null else visit_id end
 
@@ -294,7 +294,7 @@ semantic_models:
 
 metrics:
   - name: total_visits
-    description: "Total number of charging visits."
+    description: "Total number of visits."
     label: "Visits count"
     type: simple
     type_params:
