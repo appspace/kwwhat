@@ -223,7 +223,7 @@ models:
         description: "Driver identifier (id_tag) for this visit. Null for unauthorized visits. May be inferred from a subsequent authorized attempt within 2 minutes on the same charger."
       - name: driver_key
         description: "Foreign key to dim_drivers. Computed as dbt_utils.generate_surrogate_key(coalesce(id_tag, 'UNKNOWN')) so unauthorized visits resolve to the UNKNOWN sentinel."
-        tests:
+        data_tests:
           - not_null
           - relationships:
               arguments:
@@ -231,6 +231,7 @@ models:
                 field: driver_key
               config:
                 severity: warn
+
       - name: visit_start_ts
         description: "Start timestamp of the first charge attempt in the visit (charge_attempt_start_ts)"
         data_tests:
