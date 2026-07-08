@@ -5,7 +5,7 @@ models:
     description: "Incremental marts model that combines charge attempts and transactions data using outer join. Provides comprehensive view of charge attempts with associated transaction details where available."
     columns:
       - name: charger_id
-        description: "Identifier for the charge point"
+        description: "Identifier for the charger"
         data_tests:
           - not_null
       - name: connector_id
@@ -166,13 +166,13 @@ models:
         data_tests:
           - not_null
       - name: charger_id
-        description: "Identifier for the charge point"
+        description: "Identifier for the charger"
         data_tests:
           - not_null
       - name: port_id
-        description: "Port identifier associated with the charge point (may be null if unavailable)"
+        description: "Port identifier associated with the charger (may be null if unavailable)"
       - name: duration_minutes
-        description: "Total downtime minutes for the date/charge_point/port combination"
+        description: "Total downtime minutes for the date/charger/port combination"
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -248,7 +248,7 @@ models:
               arguments:
                 min_value: 1
       - name: charger_ids
-        description: "Array of charge point IDs used during this visit"
+        description: "Array of charger IDs used during this visit"
       - name: charge_attempt_ids
         description: "Array of charge attempt IDs included in this visit"
       - name: first_charge_attempt_id
@@ -269,9 +269,9 @@ models:
               arguments:
                 min_value: 0
       - name: first_charger_id
-        description: "Charge point ID where the visit started"
+        description: "Charger ID where the visit started"
       - name: last_charger_id
-        description: "Charge point ID where the visit ended"
+        description: "Charger ID where the visit ended"
       - name: is_successful
         description: "Success status of the last charge attempt in the visit"
         data_tests:
@@ -324,7 +324,7 @@ models:
           - not_null
           - unique
       - name: location_id
-        description: "Location where this charge point is installed."
+        description: "Location where this charger is installed."
         data_tests:
           - not_null
           - relationships:
@@ -332,20 +332,20 @@ models:
                 to: ref('dim_locations')
                 field: location_id
       - name: commissioned_ts
-        description: "Timestamp when the charge point was commissioned."
+        description: "Timestamp when the charger was commissioned."
         data_tests:
           - not_null
       - name: decommissioned_ts
-        description: "Timestamp when the charge point was decommissioned. Null if still active."
+        description: "Timestamp when the charger was decommissioned. Null if still active."
       - name: is_active
-        description: "True if the charge point has not been decommissioned."
+        description: "True if the charger has not been decommissioned."
         data_tests:
           - not_null
           - accepted_values:
               arguments:
                 values: [true, false]
       - name: port_count
-        description: "Number of ports on this charge point."
+        description: "Number of ports on this charger."
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
@@ -400,7 +400,7 @@ models:
           - not_null
           - unique
       - name: charger_id
-        description: "Charge point this connector belongs to."
+        description: "Charger this connector belongs to."
         data_tests:
           - not_null
       - name: port_id
@@ -513,22 +513,22 @@ models:
         data_tests:
           - not_null
           - unique
-      - name: charge_point_count
-        description: "Number of distinct charge points (devices) at this location."
+      - name: charger_count
+        description: "Number of distinct chargers (devices) at this location."
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 1
       - name: port_count
-        description: "Number of distinct ports (charge_point + port combinations) at this location."
+        description: "Number of distinct ports (charger + port combinations) at this location."
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 1
       - name: connector_count
-        description: "Number of distinct connectors (charge_point + port + connector combinations) at this location."
+        description: "Number of distinct connectors (charger + port + connector combinations) at this location."
         data_tests:
           - not_null
           - dbt_utils.accepted_range:

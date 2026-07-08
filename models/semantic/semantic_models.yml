@@ -1,17 +1,17 @@
 version: 2
 
 semantic_models:
-  - name: charge_points
-    description: "Charge point dimension. Use to slice metrics by charger lifecycle attributes such as active status and location."
+  - name: chargers
+    description: "Charger dimension. Use to slice metrics by charger lifecycle attributes such as active status and location."
     model: ref('dim_chargers')
     entities:
-      - name: charge_point
+      - name: charger
         type: primary
         expr: charger_id
     dimensions:
       - name: is_active
         type: categorical
-        description: "True if the charge point has not been decommissioned."
+        description: "True if the charger has not been decommissioned."
       - name: location_id
         type: categorical
 
@@ -154,7 +154,7 @@ semantic_models:
       - name: charge_attempt
         type: primary
         expr: charge_attempt_id
-      - name: charge_point
+      - name: charger
         type: foreign
         expr: charger_id
     dimensions:
@@ -263,7 +263,7 @@ semantic_models:
       - name: uptime_record
         type: primary
         expr: uptime_id
-      - name: charge_point
+      - name: charger
         type: foreign
         expr: charger_id
     dimensions:
