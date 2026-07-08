@@ -110,6 +110,24 @@ Every model must define:
 
 If grain is unclear → stop and ask.
 
+### Naming
+
+- **natural business identifiers**: `charger_id`, `port_id` — the domain's own IDs, carried through as-is
+- **dimension foreign keys, where helpful**: `port_key` — surrogate FK, computed once in the owning dimension
+- **fact row identifiers**: `visit_id`, `downtime_id`, `uptime_id` — the fact's own surrogate PK at its grain
+
+### Facts don't recompute dimension keys
+
+A `_key` is owned by its dimension. Facts join the dimension and reuse `dim.<x>_key` — they don't rederive it with their own `generate_surrogate_key(...)` call.
+
+### Column order in fact `select` statements
+
+`<fact>_id` first, then its `_key`s, then everything else:
+
+```
+<fact>_id, <dim>_key, <dim>_key, ..., <business columns...>
+```
+
 ---
 
 ## Testing Requirements
