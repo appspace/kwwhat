@@ -2,7 +2,7 @@ version: 2
 
 semantic_models:
   - name: charge_points
-    description: "Charge point dimension. Use to slice metrics by charger lifecycle attributes such as active status and location."
+    description: "Charge point dimension. Use to slice metrics by charger attributes such as commissioned status and location."
     model: ref('dim_chargers')
     entities:
       - name: charge_point
