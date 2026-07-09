@@ -430,27 +430,32 @@ new_visits as (
 {% endif %}
 
 select
-    {{ dbt_utils.generate_surrogate_key(['location_id']) }} as location_key,
-    location_id,
-    charger_ids,
-    id_tag,
-    visit_start_ts,
-    visit_end_ts,
-    charge_attempt_count,
-    charge_attempt_ids,
-    total_energy_transferred_kwh,
-    first_charge_attempt_id,
-    last_charge_attempt_id,
-    first_charger_id,
-    last_charger_id,
-    first_port_id,
-    last_port_id,
-    is_successful,
-    grouping_key,
-    {{ dbt.datediff('visit_start_ts', 'visit_end_ts', 'minute') }} as visit_duration_minutes,
     {{ dbt_utils.generate_surrogate_key([
-        'location_id', 'first_charger_id', "first_port_id", 'visit_start_ts'
+        'v.location_id', 'v.first_charger_id', 'v.first_port_id', 'v.visit_start_ts'
     ]) }} as visit_id,
-    {{ dbt_utils.generate_surrogate_key(["coalesce(id_tag, 'UNKNOWN')"]) }} as driver_key,
+    dl.location_key,
+    dd.driver_key,
+    v.location_id,
+    v.charger_ids,
+    v.id_tag,
+    v.visit_start_ts,
+    v.visit_end_ts,
+    v.charge_attempt_count,
+    v.charge_attempt_ids,
+    v.total_energy_transferred_kwh,
+    v.first_charge_attempt_id,
+    v.last_charge_attempt_id,
+    v.first_charger_id,
+    v.last_charger_id,
+    v.first_port_id,
+    v.last_port_id,
+    v.is_successful,
+    v.grouping_key,
+    {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes,
     (select incremental_ts from incremental) as incremental_ts
-from visits
+from visits as v
+inner join {{ ref('dim_locations') }} as dl
+    on v.location_id = dl.location_id
+left join {{ ref('dim_drivers') }} as dd
+    on coalesce(v.id_tag, 'UNKNOWN') = dd.id_tag
+

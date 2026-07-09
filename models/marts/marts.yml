@@ -169,6 +169,14 @@ models:
         description: "Identifier for the charger"
         data_tests:
           - not_null
+      - name: port_key
+        description: "Foreign key to dim_ports for the affected port."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_ports')
+                field: port_key
       - name: port_id
         description: "Port identifier associated with the charger (may be null if unavailable)"
       - name: duration_minutes
@@ -569,6 +577,14 @@ models:
         description: "Charger identifier"
         data_tests:
           - not_null
+      - name: port_key
+        description: "Foreign key to dim_ports. Surrogate key read from dim_ports."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_ports')
+                field: port_key
       - name: port_id
         description: "Port identifier within the charger"
         data_tests:
