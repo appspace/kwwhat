@@ -1,7 +1,7 @@
 {{
   config(
     materialized='table',
-    description='Charger (Charging Station) dimension. One row per Charger. A Charger is the physical system a driver perceives as a single charger — it has one or more Ports. Use for charger inventory, offline outage attribution, and visit attribution at charger level. Sanity check: if a driver says "I went to charger #3", they mean this entity.'
+    description='Charger (Charging Station) dimension. One row per Charger. A Charger is the physical system a driver perceives as a single charger — it has one or more Ports. Use for charger inventory, offline outage attribution, and visit attribution at charger level. Sanity check: if a driver says "I went to charger #3", they mean this entity. SCD Type 1 — current state only, overwritten on every full rebuild from int_chargers; commissioned_ts/decommissioned_ts/is_commissioned reflect the latest known state and prior states are not retained. Chosen because no downstream metric requires point-in-time charger attribute history, and int_chargers only exposes the current commissioned/decommissioned timestamps rather than a change log.'
   )
 }}
 
