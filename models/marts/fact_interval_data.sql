@@ -247,6 +247,26 @@ with incremental_date_range as (
             *
         from agg_15min
     {% endif %}
+    ),
+
+    -- charger_id + connector_id -> port_id (dim_connectors) -> port_key (dim_ports)
+    -- charger_id -> location_id (dim_chargers) -> location_key (dim_locations)
+    final_with_keys as (
+        select
+            final.*,
+            ports.port_key,
+            locations.location_key
+        from final
+        left join {{ ref('dim_connectors') }} as connectors
+            on final.charger_id = connectors.charger_id
+            and final.connector_id = connectors.connector_id
+        left join {{ ref('dim_ports') }} as ports
+            on connectors.charger_id = ports.charger_id
+            and connectors.port_id = ports.port_id
+        left join {{ ref('dim_chargers') }} as chargers
+            on final.charger_id = chargers.charger_id
+        left join {{ ref('dim_locations') }} as locations
+            on chargers.location_id = locations.location_id
     )
 
     select
@@ -255,6 +275,8 @@ with incremental_date_range as (
             'charger_id', 'transaction_id', 'ingested_ts',
             'connector_id', 'measurand', 'unit', 'phase', 'meter_15min_interval_start'
         ]) }} as interval_data_id,
+        port_key,
+        location_key,
         charger_id,
         transaction_id,
         ingested_ts,
@@ -267,4 +289,4 @@ with incremental_date_range as (
         avg_value,
         _count,
         (select incremental_ts from incremental) as incremental_ts
-    from final
+    from final_with_keys

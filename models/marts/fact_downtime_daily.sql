@@ -124,16 +124,29 @@ final as (
         sum(duration_minutes) as duration_minutes
     from per_day
     group by 1, 2, 3, 4, 5
+),
+
+-- charger_id -> location_id (dim_chargers) -> location_key (dim_locations)
+final_with_keys as (
+    select
+        final.*,
+        locations.location_key
+    from final
+    left join {{ ref('dim_chargers') }} as chargers
+        on final.charger_id = chargers.charger_id
+    left join {{ ref('dim_locations') }} as locations
+        on chargers.location_id = locations.location_id
 )
 
 select
     -- Generate a deterministic unique ID from the composite key
     {{ dbt_utils.generate_surrogate_key(['date_id', 'charger_id', 'port_id', 'reason']) }} as downtime_id,
     port_key,
+    location_key,
     date_id,
     charger_id,
     port_id,
     reason,
     duration_minutes,
     (select incremental_ts from incremental) as incremental_ts
-from final
+from final_with_keys

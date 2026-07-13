@@ -435,6 +435,8 @@ select
     ]) }} as visit_id,
     dl.location_key,
     dd.driver_key,
+    first_ports.port_key as first_port_key,
+    last_ports.port_key as last_port_key,
     v.location_id,
     v.charger_ids,
     v.id_tag,
@@ -458,4 +460,10 @@ inner join {{ ref('dim_locations') }} as dl
     on v.location_id = dl.location_id
 left join {{ ref('dim_drivers') }} as dd
     on coalesce(v.id_tag, 'UNKNOWN') = dd.id_tag
+left join {{ ref('dim_ports') }} as first_ports
+    on v.first_charger_id = first_ports.charger_id
+    and v.first_port_id = first_ports.port_id
+left join {{ ref('dim_ports') }} as last_ports
+    on v.last_charger_id = last_ports.charger_id
+    and v.last_port_id = last_ports.port_id
 

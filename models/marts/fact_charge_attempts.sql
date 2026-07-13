@@ -207,11 +207,45 @@ attempts_and_transactions as (
     )
 {% endif %}
 
+,
+
+attempts_final as (
+    select *
+    from
+    {% if is_incremental() %}
+        merged_attempts_and_transactions
+    {% else %}
+        attempts_and_transactions
+    {% endif %}
+),
+
+-- charger_id + connector_id -> port_id (dim_connectors) -> port_key (dim_ports)
+-- charger_id -> location_id (dim_chargers) -> location_key (dim_locations)
+attempts_with_keys as (
+    select
+        attempts_final.*,
+        ports.port_key,
+        locations.location_key
+    from attempts_final
+    left join {{ ref('dim_connectors') }} as connectors
+        on attempts_final.charger_id = connectors.charger_id
+        and attempts_final.connector_id = connectors.connector_id
+    left join {{ ref('dim_ports') }} as ports
+        on connectors.charger_id = ports.charger_id
+        and connectors.port_id = ports.port_id
+    left join {{ ref('dim_chargers') }} as chargers
+        on attempts_final.charger_id = chargers.charger_id
+    left join {{ ref('dim_locations') }} as locations
+        on chargers.location_id = locations.location_id
+)
+
 select
     -- Generate a deterministic unique ID from the composite key
     {{ dbt_utils.generate_surrogate_key([
         'charger_id', 'connector_id', 'charge_attempt_start_ts'
     ]) }} as charge_attempt_id,
+    port_key,
+    location_key,
     charger_id,
     connector_id,
     charge_attempt_start_ts,
@@ -252,9 +286,4 @@ select
         else false
     end as is_successful,
     (select incremental_ts from incremental) as incremental_ts
-from
-{% if is_incremental() %}
-    merged_attempts_and_transactions
-{% else %}
-    attempts_and_transactions
-{% endif %}
+from attempts_with_keys

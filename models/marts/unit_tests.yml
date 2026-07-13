@@ -103,6 +103,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -188,6 +191,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -274,6 +280,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -360,6 +369,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -444,6 +456,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -529,6 +544,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -615,6 +633,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -700,6 +721,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -842,6 +866,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -924,6 +951,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -1006,6 +1036,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -1091,6 +1124,9 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
+      - input: ref('dim_ports')
+        format: sql
+        fixture: dim_ports_fixture
       - input: ref('dim_locations')
         format: dict
         rows:
@@ -1505,6 +1541,10 @@ unit_tests:
         format: sql
         rows: |
           select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
+      - input: ref('dim_locations')
+        format: sql
+        rows: |
+          select 'location-key-001' as location_key, 'LOC-001' as location_id
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120}
@@ -1540,6 +1580,10 @@ unit_tests:
           select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
           union all
           select cast('2025-10-02' as date), cast('2025-10-02' as date)
+      - input: ref('dim_locations')
+        format: sql
+        rows: |
+          select 'location-key-001' as location_key, 'LOC-001' as location_id
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 120}

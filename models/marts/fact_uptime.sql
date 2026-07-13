@@ -45,14 +45,27 @@ with_downtime as (
     left join downtime_agg as d
         on s.port_key = d.port_key
        and s.date_id = d.date_id
+),
+
+-- charger_id -> location_id (dim_chargers) -> location_key (dim_locations)
+with_location as (
+    select
+        with_downtime.*,
+        locations.location_key
+    from with_downtime
+    left join {{ ref('dim_chargers') }} as chargers
+        on with_downtime.charger_id = chargers.charger_id
+    left join {{ ref('dim_locations') }} as locations
+        on chargers.location_id = locations.location_id
 )
 
 select
     {{ dbt_utils.generate_surrogate_key(['charger_id', 'port_id', 'date_id']) }} as uptime_id,
     port_key,
+    location_key,
     charger_id,
     port_id,
     date_id,
     (minutes_commissioned - total_downtime_minutes) / minutes_commissioned as uptime
-from with_downtime
+from with_location
 where minutes_commissioned > 0
