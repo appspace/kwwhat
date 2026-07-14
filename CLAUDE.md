@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Writing style
+
+- Do not use em-dashes or "->" style arrows in any output text (responses, issue descriptions, PR descriptions, commit messages, docs). GitHub cannot read them. Use a regular hyphen (-) instead, or rephrase with "to", "then", or separate sentences.
+
 ## What this project is
 
 **kwwhat** is a dbt project that transforms raw OCPP (Open Charge Point Protocol) 1.6 logs into EV charger reliability and utilization metrics. It models uptime, charge attempt success, and driver visit outcomes.
