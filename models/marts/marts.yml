@@ -159,7 +159,7 @@ models:
               - meter_15min_interval_start
 
   - name: fact_downtime_daily
-    description: "Daily aggregation of downtime at Port grain (charger_id + port_id + date_id). Splits outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types."
+    description: "One row per date_id + charger_id + port_id + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types. Both outage sources are inner-joined to dim_ports before reaching this model, so port_id is always populated."
     columns:
       - name: date_id
         description: "Calendar date for the downtime aggregation"
@@ -178,7 +178,9 @@ models:
                 to: ref('dim_ports')
                 field: port_key
       - name: port_id
-        description: "Port identifier associated with the charger (may be null if unavailable)"
+        description: "Port identifier associated with the charger. Always populated: both the OFFLINE and FAULTED outage sources are inner-joined to dim_ports before reaching this model."
+        data_tests:
+          - not_null
       - name: duration_minutes
         description: "Total downtime minutes for the date/charger/port combination"
         data_tests:
