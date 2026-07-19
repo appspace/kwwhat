@@ -322,9 +322,18 @@ models:
       A Charger is the physical system a driver perceives as a single charger — it has one or more Ports.
       Use for charger inventory, offline outage attribution, and visit attribution at charger level.
       Sanity check: if a driver says "I went to charger #3", they mean this entity.
+
+      SCD Type 1 (current state only). The model is fully rebuilt from int_chargers on every run and
+      overwrites prior state — no history of commissioned/decommissioned changes is retained, and a
+      charger that is decommissioned and later recommissioned will only ever show its latest state here.
+      Decision: Type 1 was chosen over Type 2 because no current metric or report requires point-in-time
+      charger attribute history, and int_chargers surfaces only the current commissioned/decommissioned
+      timestamps rather than a change log to version against. Downstream consumers must not assume this
+      model can answer "what was true as of date X" for charger attributes — if that need arises, revisit
+      as SCD Type 2 (valid_from/valid_to/is_current, versioned charger_key).
     columns:
       - name: charger_key
-        description: "Surrogate key for the Charger, generated from charger_id."
+        description: "Surrogate key for the Charger, generated from charger_id. Type 1: stable and unversioned — one key per charger_id for its lifetime."
         data_tests:
           - not_null
           - unique
@@ -342,13 +351,13 @@ models:
                 to: ref('dim_locations')
                 field: location_id
       - name: commissioned_ts
-        description: "Timestamp when the charger was commissioned."
+        description: "Timestamp when the charger was commissioned. Reflects current state only (SCD Type 1) — overwritten if this value changes upstream, with no prior value retained."
         data_tests:
           - not_null
       - name: decommissioned_ts
-        description: "Timestamp when the charger was decommissioned. Null if still commissioned."
+        description: "Timestamp when the charger was decommissioned. Null if still commissioned. Reflects current state only (SCD Type 1) — a recommissioned charger's earlier decommissioned_ts is not retained."
       - name: is_commissioned
-        description: "True if the charger has not been decommissioned."
+        description: "True if the charger has not been decommissioned. Derived live from decommissioned_ts on every rebuild (SCD Type 1) — reflects current state only."
         data_tests:
           - not_null
           - accepted_values:
