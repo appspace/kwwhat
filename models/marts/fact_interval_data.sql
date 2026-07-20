@@ -249,24 +249,23 @@ with incremental_date_range as (
     {% endif %}
     ),
 
-    -- charger_id + connector_id -> port_id (dim_connectors) -> port_key (dim_ports)
-    -- charger_id -> location_id (dim_chargers) -> location_key (dim_locations)
+    -- charger_id + connector_id -> port_id (dim_connectors) -> port_key generated in place
+    -- charger_id -> location_id (dim_chargers) -> location_key generated in place
     final_with_keys as (
         select
             final.*,
-            ports.port_key,
-            locations.location_key
+            case when connectors.port_id is not null
+                then {{ dbt_utils.generate_surrogate_key(['final.charger_id', 'connectors.port_id']) }}
+            end as port_key,
+            case when chargers.location_id is not null
+                then {{ dbt_utils.generate_surrogate_key(['chargers.location_id']) }}
+            end as location_key
         from final
         left join {{ ref('dim_connectors') }} as connectors
             on final.charger_id = connectors.charger_id
             and final.connector_id = connectors.connector_id
-        left join {{ ref('dim_ports') }} as ports
-            on connectors.charger_id = ports.charger_id
-            and connectors.port_id = ports.port_id
         left join {{ ref('dim_chargers') }} as chargers
             on final.charger_id = chargers.charger_id
-        left join {{ ref('dim_locations') }} as locations
-            on chargers.location_id = locations.location_id
     )
 
     select

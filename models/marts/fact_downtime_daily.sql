@@ -19,7 +19,6 @@ with incremental_date_range as (
 
 ports as (
     select
-        port_key,
         charger_id,
         port_id
     from {{ ref('dim_ports') }}
@@ -30,7 +29,6 @@ faulted_outages as (
     select
         f.charger_id,
         f.port_id,
-        p.port_key,
         f.from_ts,
         f.to_ts,
         f.duration_minutes,
@@ -50,7 +48,6 @@ offline_outages as (
     select
         o.charger_id,
         p.port_id,
-        p.port_key,
         o.from_ts,
         o.to_ts,
         o.duration_minutes,
@@ -71,9 +68,9 @@ offline_outages as (
 ),
 
 outages as (
-    select charger_id, port_id, port_key, from_ts, to_ts, duration_minutes, incremental_ts, reason from offline_outages
+    select charger_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, reason from offline_outages
     union all
-    select charger_id, port_id, port_key, from_ts, to_ts, duration_minutes, incremental_ts, reason from faulted_outages
+    select charger_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, reason from faulted_outages
 ),
 
 filtered_outages as (
@@ -95,7 +92,6 @@ outage_days as (
     select
         o.charger_id,
         o.port_id,
-        o.port_key,
         o.date_id,
         o.reason,
         greatest(o.from_ts, o.date_id) as interval_start,
@@ -107,7 +103,6 @@ per_day as (
     select
         charger_id,
         port_id,
-        port_key,
         date_id,
         reason,
         {{ dbt.datediff('interval_start', 'interval_end', 'minutes') }} as duration_minutes
@@ -119,30 +114,29 @@ final as (
         date_id,
         charger_id,
         port_id,
-        port_key,
         reason,
         sum(duration_minutes) as duration_minutes
     from per_day
-    group by 1, 2, 3, 4, 5
+    group by 1, 2, 3, 4
 ),
 
--- charger_id -> location_id (dim_chargers) -> location_key (dim_locations)
+-- charger_id -> location_id (dim_chargers) -> location_key generated in place
 final_with_keys as (
     select
         final.*,
-        locations.location_key
+        chargers.location_id
     from final
     left join {{ ref('dim_chargers') }} as chargers
         on final.charger_id = chargers.charger_id
-    left join {{ ref('dim_locations') }} as locations
-        on chargers.location_id = locations.location_id
 )
 
 select
     -- Generate a deterministic unique ID from the composite key
     {{ dbt_utils.generate_surrogate_key(['date_id', 'charger_id', 'port_id', 'reason']) }} as downtime_id,
-    port_key,
-    location_key,
+    {{ dbt_utils.generate_surrogate_key(['charger_id', 'port_id']) }} as port_key,
+    case when location_id is not null
+        then {{ dbt_utils.generate_surrogate_key(['location_id']) }}
+    end as location_key,
     date_id,
     charger_id,
     port_id,

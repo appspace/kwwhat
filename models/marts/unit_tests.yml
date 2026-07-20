@@ -103,19 +103,6 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7}
@@ -191,19 +178,6 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
@@ -280,19 +254,6 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1}
@@ -369,19 +330,6 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
@@ -456,19 +404,6 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 2}
@@ -544,19 +479,6 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
@@ -633,19 +555,6 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2}
@@ -721,19 +630,6 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 1}
@@ -866,19 +762,6 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 4}
@@ -951,19 +834,6 @@ unit_tests:
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7, visit_start_ts: '2025-10-02 10:00:00', visit_end_ts: '2025-10-02 10:20:00', visit_duration_minutes: 20, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charger_id: 'CH-001', last_charger_id: 'CH-002', first_port_id: '1', last_port_id: '1', incremental_ts: '2025-10-02 10:15:00'}
@@ -1030,28 +900,15 @@ unit_tests:
               cast(null as array) as error_codes,
               false as is_successful,
               cast('2025-10-02 11:02:00' as timestamp) as incremental_ts
+
+
+
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
-
-
-
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 2, total_energy_transferred_kwh: 5.5, visit_start_ts: '2025-10-02 11:00:00', visit_end_ts: '2025-10-02 11:01:30', visit_duration_minutes: 1, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', incremental_ts: '2025-10-02 11:01:00'} 
@@ -1118,28 +975,15 @@ unit_tests:
               cast(null as array) as error_codes,
               true as is_successful,
               cast('2025-10-02 12:05:00' as timestamp) as incremental_ts
+
+
+
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
       - input: ref('dim_chargers')
         format: sql
         fixture: dim_chargers_fixture
-      - input: ref('dim_ports')
-        format: sql
-        fixture: dim_ports_fixture
-      - input: ref('dim_locations')
-        format: dict
-        rows:
-          - {location_key: 'location-key-001', location_id: 'LOC-001'}
-          - {location_key: 'location-key-002', location_id: 'LOC-002'}
-      - input: ref('dim_drivers')
-        format: dict
-        rows:
-          - {driver_key: 'driver-key-001', id_tag: 'TAG-001'}
-          - {driver_key: 'driver-key-unknown', id_tag: 'UNKNOWN'}
-
-
-
     expect:
       rows:
         - {id_tag: 'TAG-001', charge_attempt_count: 2}
@@ -1541,10 +1385,6 @@ unit_tests:
         format: sql
         rows: |
           select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
-      - input: ref('dim_locations')
-        format: sql
-        rows: |
-          select 'location-key-001' as location_key, 'LOC-001' as location_id
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120}
@@ -1580,10 +1420,6 @@ unit_tests:
           select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
           union all
           select cast('2025-10-02' as date), cast('2025-10-02' as date)
-      - input: ref('dim_locations')
-        format: sql
-        rows: |
-          select 'location-key-001' as location_key, 'LOC-001' as location_id
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 120}

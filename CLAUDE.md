@@ -116,13 +116,13 @@ If grain is unclear → stop and ask.
 
 ### Naming
 
-- **natural business identifiers**: `charger_id`, `port_id` — the domain's own IDs, carried through as-is
-- **dimension foreign keys, where helpful**: `port_key` — surrogate FK, computed once in the owning dimension
-- **fact row identifiers**: `visit_id`, `downtime_id`, `uptime_id` — the fact's own surrogate PK at its grain
+- **natural business identifiers**: `charger_id`, `port_id` - the domain's own IDs, carried through as-is
+- **dimension foreign keys, where helpful**: `port_key` - surrogate FK, computed the same way in the dimension and in any fact that carries it
+- **fact row identifiers**: `visit_id`, `downtime_id`, `uptime_id` - the fact's own surrogate PK at its grain
 
-### Facts don't recompute dimension keys
+### Facts generate their own dimension keys in place
 
-A `_key` is owned by its dimension. Facts join the dimension and reuse `dim.<x>_key` — they don't rederive it with their own `generate_surrogate_key(...)` call.
+A `_key` is a deterministic hash of the dimension's natural key(s) (`dbt_utils.generate_surrogate_key(...)`). Facts compute it directly from the natural key columns they already have (or resolve via a natural-key join, e.g. `charger_id + connector_id -> port_id` through `dim_connectors`) instead of joining the dimension table just to read its `_key` column. The hash formula must stay identical to the one in the owning dimension so values still match by construction - keep them in sync if either side's key columns change. Joins to a dimension are still fine, and still required, when the fact needs a column that isn't a `_key` (e.g. enumerating a charger's ports via `dim_ports`) or when resolving a natural key that isn't already on the fact (e.g. `location_id` via `dim_chargers`).
 
 ### Column order in fact `select` statements
 
