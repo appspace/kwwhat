@@ -31,6 +31,8 @@ preparing as (
     select
         charger_id,
         connector_id,
+        port_id,
+        location_id,
         unique_id as preparing_unique_id,
         ingested_ts as preparing_ingested_ts,
         previous_ingested_ts,
@@ -58,6 +60,8 @@ transactions as (
     select
         charger_id,
         connector_id,
+        port_id,
+        location_id,
         transaction_id,
         ingested_ts as transaction_ingested_ts,
         transaction_start_ts,
@@ -94,6 +98,8 @@ attempts_and_transactions as (
         -- Charge attempt identifiers
         coalesce(p.charger_id, t.charger_id) as charger_id,
         coalesce(p.connector_id, t.connector_id) as connector_id,
+        coalesce(p.port_id, t.port_id) as port_id,
+        coalesce(p.location_id, t.location_id) as location_id,
 
         -- Attempt start and stop timestamps depending on what we know
         coalesce(p.preparing_start_ts, t.transaction_start_ts) as charge_attempt_start_ts,
@@ -174,6 +180,8 @@ attempts_and_transactions as (
         select
             n.charger_id,
             n.connector_id,
+            n.port_id,
+            n.location_id,
 
             coalesce(b.charge_attempt_start_ts, n.charge_attempt_start_ts) as charge_attempt_start_ts,
             coalesce(n.charge_attempt_stop_ts, b.charge_attempt_stop_ts) as charge_attempt_stop_ts,
@@ -217,25 +225,6 @@ attempts_final as (
     {% else %}
         attempts_and_transactions
     {% endif %}
-),
-
--- charger_id + connector_id -> port_id (dim_connectors) -> port_key generated in place
--- charger_id -> location_id (dim_chargers) -> location_key generated in place
-attempts_with_keys as (
-    select
-        attempts_final.*,
-        case when connectors.port_id is not null
-            then {{ dbt_utils.generate_surrogate_key(['attempts_final.charger_id', 'connectors.port_id']) }}
-        end as port_key,
-        case when chargers.location_id is not null
-            then {{ dbt_utils.generate_surrogate_key(['chargers.location_id']) }}
-        end as location_key
-    from attempts_final
-    left join {{ ref('dim_connectors') }} as connectors
-        on attempts_final.charger_id = connectors.charger_id
-        and attempts_final.connector_id = connectors.connector_id
-    left join {{ ref('dim_chargers') }} as chargers
-        on attempts_final.charger_id = chargers.charger_id
 )
 
 select
@@ -243,8 +232,13 @@ select
     {{ dbt_utils.generate_surrogate_key([
         'charger_id', 'connector_id', 'charge_attempt_start_ts'
     ]) }} as charge_attempt_id,
-    port_key,
-    location_key,
+    -- port_id/location_id resolved upstream in int_connector_preparing/int_transactions
+    case when port_id is not null
+        then {{ dbt_utils.generate_surrogate_key(['charger_id', 'port_id']) }}
+    end as port_key,
+    case when location_id is not null
+        then {{ dbt_utils.generate_surrogate_key(['location_id']) }}
+    end as location_key,
     charger_id,
     connector_id,
     charge_attempt_start_ts,
@@ -285,4 +279,4 @@ select
         else false
     end as is_successful,
     (select incremental_ts from incremental) as incremental_ts
-from attempts_with_keys
+from attempts_final

@@ -46,6 +46,8 @@ with incremental_date_range as (
             transaction_id,
             ingested_ts,
             connector_id,
+            port_id,
+            location_id,
             measurand,
             unit,
             phase,
@@ -134,6 +136,8 @@ with incremental_date_range as (
         select
             m.charger_id,
             m.connector_id,
+            mv.port_id,
+            mv.location_id,
             m.transaction_id,
             mv.ingested_ts,
             mv.first_interval,
@@ -162,6 +166,8 @@ with incremental_date_range as (
             charger_id,
             transaction_id,
             connector_id,
+            port_id,
+            location_id,
             ingested_ts,
             -- Rebates reporting requires 15-minute interval data (e.g., 10:00, 10:15, 10:30).
             -- The first and last intervals correspond to when energy transfer starts and stops.
@@ -186,6 +192,8 @@ with incremental_date_range as (
             charger_id,
             transaction_id,
             connector_id,
+            port_id,
+            location_id,
             ingested_ts,
             meter_15min_interval_start,
             meter_15min_interval_stop,
@@ -201,6 +209,8 @@ with incremental_date_range as (
             charger_id,
             transaction_id,
             connector_id,
+            port_id,
+            location_id,
             ingested_ts,
             meter_15min_interval_start,
             meter_15min_interval_stop,
@@ -217,6 +227,8 @@ with incremental_date_range as (
             n.transaction_id,
             n.ingested_ts,
             n.connector_id,
+            n.port_id,
+            n.location_id,
             n.measurand,
             n.unit,
             n.phase,
@@ -247,25 +259,6 @@ with incremental_date_range as (
             *
         from agg_15min
     {% endif %}
-    ),
-
-    -- charger_id + connector_id -> port_id (dim_connectors) -> port_key generated in place
-    -- charger_id -> location_id (dim_chargers) -> location_key generated in place
-    final_with_keys as (
-        select
-            final.*,
-            case when connectors.port_id is not null
-                then {{ dbt_utils.generate_surrogate_key(['final.charger_id', 'connectors.port_id']) }}
-            end as port_key,
-            case when chargers.location_id is not null
-                then {{ dbt_utils.generate_surrogate_key(['chargers.location_id']) }}
-            end as location_key
-        from final
-        left join {{ ref('dim_connectors') }} as connectors
-            on final.charger_id = connectors.charger_id
-            and final.connector_id = connectors.connector_id
-        left join {{ ref('dim_chargers') }} as chargers
-            on final.charger_id = chargers.charger_id
     )
 
     select
@@ -274,8 +267,13 @@ with incremental_date_range as (
             'charger_id', 'transaction_id', 'ingested_ts',
             'connector_id', 'measurand', 'unit', 'phase', 'meter_15min_interval_start'
         ]) }} as interval_data_id,
-        port_key,
-        location_key,
+        -- port_id/location_id resolved upstream in int_meter_values
+        case when port_id is not null
+            then {{ dbt_utils.generate_surrogate_key(['charger_id', 'port_id']) }}
+        end as port_key,
+        case when location_id is not null
+            then {{ dbt_utils.generate_surrogate_key(['location_id']) }}
+        end as location_key,
         charger_id,
         transaction_id,
         ingested_ts,
@@ -288,4 +286,4 @@ with incremental_date_range as (
         avg_value,
         _count,
         (select incremental_ts from incremental) as incremental_ts
-    from final_with_keys
+    from final

@@ -9,7 +9,7 @@ with ports as (
     select
         charger_id,
         port_id
-    from {{ ref('dim_ports') }}
+    from {{ ref('int_ports') }}
 ),
 
 span_port_days as (
@@ -46,13 +46,13 @@ with_downtime as (
        and s.date_id = d.date_id
 ),
 
--- charger_id -> location_id (dim_chargers) -> location_key generated in place
+-- charger_id -> location_id (int_chargers) -> location_key generated in place
 with_location as (
     select
         with_downtime.*,
         chargers.location_id
     from with_downtime
-    left join {{ ref('dim_chargers') }} as chargers
+    left join {{ ref('int_chargers') }} as chargers
         on with_downtime.charger_id = chargers.charger_id
 )
 

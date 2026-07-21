@@ -10,7 +10,7 @@ models:
           - unique
           - not_null
       - name: port_key
-        description: "Surrogate key for the port the attempt occurred on, generated in place from charger_id + port_id (port_id resolved via dim_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in dim_connectors."
+        description: "Surrogate key for the port the attempt occurred on, generated in place from charger_id + port_id (port_id resolved upstream in int_connector_preparing/int_transactions via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
           - not_null
           - relationships:
@@ -18,7 +18,7 @@ models:
                 to: ref('dim_ports')
                 field: port_key
       - name: location_key
-        description: "Surrogate key for the charger's location, generated in place from location_id (resolved via dim_chargers: charger_id -> location_id). Matches dim_locations.location_key by construction; null if the charger isn't found in dim_chargers."
+        description: "Surrogate key for the charger's location, generated in place from location_id (resolved upstream in int_connector_preparing/int_transactions via int_chargers: charger_id -> location_id). Matches dim_locations.location_key by construction; null if the charger isn't found in int_chargers."
         data_tests:
           - not_null
           - relationships:
@@ -115,7 +115,7 @@ models:
     description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
     columns:
       - name: port_key
-        description: "Surrogate key for the port the interval was recorded on, generated in place from charger_id + port_id (port_id resolved via dim_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in dim_connectors."
+        description: "Surrogate key for the port the interval was recorded on, generated in place from charger_id + port_id (port_id resolved upstream in int_meter_values via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
           - not_null
           - relationships:
@@ -123,7 +123,7 @@ models:
                 to: ref('dim_ports')
                 field: port_key
       - name: location_key
-        description: "Surrogate key for the charger's location, generated in place from location_id (resolved via dim_chargers: charger_id -> location_id). Matches dim_locations.location_key by construction; null if the charger isn't found in dim_chargers."
+        description: "Surrogate key for the charger's location, generated in place from location_id (resolved upstream in int_meter_values via int_chargers: charger_id -> location_id). Matches dim_locations.location_key by construction; null if the charger isn't found in int_chargers."
         data_tests:
           - not_null
           - relationships:
@@ -191,7 +191,7 @@ models:
               - meter_15min_interval_start
 
   - name: fact_downtime_daily
-    description: "One row per date_id + charger_id + port_id + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types. Both outage sources are inner-joined to dim_ports before reaching this model, so port_id is always populated."
+    description: "One row per date_id + charger_id + port_id + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types. Both outage sources are inner-joined to int_ports before reaching this model, so port_id is always populated."
     columns:
       - name: date_id
         description: "Calendar date for the downtime aggregation"
@@ -202,7 +202,7 @@ models:
         data_tests:
           - not_null
       - name: port_key
-        description: "Surrogate key for the affected port, generated in place from charger_id + port_id (both already on this fact via dim_ports enumeration). Matches dim_ports.port_key by construction."
+        description: "Surrogate key for the affected port, generated in place from charger_id + port_id (both already on this fact via int_ports enumeration). Matches dim_ports.port_key by construction."
         data_tests:
           - not_null
           - relationships:
@@ -210,7 +210,7 @@ models:
                 to: ref('dim_ports')
                 field: port_key
       - name: location_key
-        description: "Surrogate key for the charger's location, generated in place from location_id (resolved via dim_chargers: charger_id -> location_id). Matches dim_locations.location_key by construction; null if the charger isn't found in dim_chargers."
+        description: "Surrogate key for the charger's location, generated in place from location_id (resolved via int_chargers: charger_id -> location_id). Matches dim_locations.location_key by construction; null if the charger isn't found in int_chargers."
         data_tests:
           - not_null
           - relationships:
@@ -218,7 +218,7 @@ models:
                 to: ref('dim_locations')
                 field: location_key
       - name: port_id
-        description: "Port identifier associated with the charger. Always populated: both the OFFLINE and FAULTED outage sources are inner-joined to dim_ports before reaching this model."
+        description: "Port identifier associated with the charger. Always populated: both the OFFLINE and FAULTED outage sources are inner-joined to int_ports before reaching this model."
         data_tests:
           - not_null
       - name: duration_minutes
@@ -634,7 +634,7 @@ models:
         data_tests:
           - not_null
       - name: port_key
-        description: "Surrogate key for the port, generated in place from charger_id + port_id (both enumerated via dim_ports). Matches dim_ports.port_key by construction."
+        description: "Surrogate key for the port, generated in place from charger_id + port_id (both enumerated via int_ports). Matches dim_ports.port_key by construction."
         data_tests:
           - not_null
           - relationships:
@@ -642,7 +642,7 @@ models:
                 to: ref('dim_ports')
                 field: port_key
       - name: location_key
-        description: "Surrogate key for the charger's location, generated in place from location_id (resolved via dim_chargers: charger_id -> location_id). Matches dim_locations.location_key by construction; null if the charger isn't found in dim_chargers."
+        description: "Surrogate key for the charger's location, generated in place from location_id (resolved via int_chargers: charger_id -> location_id). Matches dim_locations.location_key by construction; null if the charger isn't found in int_chargers."
         data_tests:
           - not_null
           - relationships:

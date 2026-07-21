@@ -1373,14 +1373,14 @@ unit_tests:
         format: sql
         rows: |
           select 'CH-001' as charger_id, cast('2025-10-01 10:30:00' as timestamp) as from_ts, cast('2025-10-01 12:30:00' as timestamp) as to_ts, 120 as duration_minutes, cast('2025-10-01 12:30:00' as timestamp) as incremental_ts
-      - input: ref('dim_chargers')
+      - input: ref('int_chargers')
         format: sql
         rows: |
-          select 'charger-key-001' as charger_key, 'CH-001' as charger_id, 'LOC-001' as location_id, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts, true as is_commissioned, 1 as port_count
-      - input: ref('dim_ports')
+          select 'CH-001' as charger_id, 'LOC-001' as location_id, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts, 1 as port_count
+      - input: ref('int_ports')
         format: sql
         rows: |
-          select 'port-key-001' as port_key, 'CH-001' as charger_id, 'PORT-001' as port_id, 1 as connector_count
+          select 'CH-001' as charger_id, 'PORT-001' as port_id, 1 as connector_count
       - input: ref('dim_dates')
         format: sql
         rows: |
@@ -1406,14 +1406,14 @@ unit_tests:
         format: sql
         rows: |
           select 'CH-001' as charger_id, cast('2025-10-01 22:00:00' as timestamp) as from_ts, cast('2025-10-02 04:00:00' as timestamp) as to_ts, 360 as duration_minutes, cast('2025-10-02 12:00:00' as timestamp) as incremental_ts
-      - input: ref('dim_chargers')
+      - input: ref('int_chargers')
         format: sql
         rows: |
-          select 'charger-key-001' as charger_key, 'CH-001' as charger_id, 'LOC-001' as location_id, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts, true as is_commissioned, 1 as port_count
-      - input: ref('dim_ports')
+          select 'CH-001' as charger_id, 'LOC-001' as location_id, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts, 1 as port_count
+      - input: ref('int_ports')
         format: sql
         rows: |
-          select 'port-key-001' as port_key, 'CH-001' as charger_id, 'PORT-001' as port_id, 1 as connector_count
+          select 'CH-001' as charger_id, 'PORT-001' as port_id, 1 as connector_count
       - input: ref('dim_dates')
         format: sql
         rows: |

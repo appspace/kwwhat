@@ -246,6 +246,20 @@
             *
         from agg_transaction
     {% endif %}
+    ),
+
+    -- charger_id + connector_id -> port_id (int_connectors); charger_id -> location_id (int_chargers)
+    final_with_ids as (
+        select
+            final.*,
+            connectors.port_id,
+            chargers.location_id
+        from final
+        left join {{ ref('int_connectors') }} as connectors
+            on final.charger_id = connectors.charger_id
+            and final.connector_id = connectors.connector_id
+        left join {{ ref('int_chargers') }} as chargers
+            on final.charger_id = chargers.charger_id
     )
 
     select
@@ -253,6 +267,8 @@
         transaction_id,
         ingested_ts,
         connector_id,
+        port_id,
+        location_id,
         measurand,
         unit,
         phase,
@@ -263,4 +279,4 @@
         avg_value,
         _count,
         (select incremental_ts from incremental) as incremental_ts
-    from final
+    from final_with_ids

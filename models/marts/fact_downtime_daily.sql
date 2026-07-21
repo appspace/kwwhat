@@ -21,7 +21,7 @@ ports as (
     select
         charger_id,
         port_id
-    from {{ ref('dim_ports') }}
+    from {{ ref('int_ports') }}
 ),
 
 -- Get faulted outages first to filter offline outages
@@ -120,13 +120,13 @@ final as (
     group by 1, 2, 3, 4
 ),
 
--- charger_id -> location_id (dim_chargers) -> location_key generated in place
+-- charger_id -> location_id (int_chargers) -> location_key generated in place
 final_with_keys as (
     select
         final.*,
         chargers.location_id
     from final
-    left join {{ ref('dim_chargers') }} as chargers
+    left join {{ ref('int_chargers') }} as chargers
         on final.charger_id = chargers.charger_id
 )
 
