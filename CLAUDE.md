@@ -116,13 +116,15 @@ If grain is unclear → stop and ask.
 
 ### Naming
 
-- **natural business identifiers**: `charger_id`, `port_id` — the domain's own IDs, carried through as-is
-- **dimension foreign keys, where helpful**: `port_key` — surrogate FK, computed once in the owning dimension
-- **fact row identifiers**: `visit_id`, `downtime_id`, `uptime_id` — the fact's own surrogate PK at its grain
+- **natural business identifiers**: `charger_id`, `port_id` - the domain's own IDs, carried through as-is
+- **dimension foreign keys, where helpful**: `port_key` - surrogate FK, computed the same way in the dimension and in any fact that carries it
+- **fact row identifiers**: `visit_id`, `downtime_id`, `uptime_id` - the fact's own surrogate PK at its grain
 
-### Facts don't recompute dimension keys
+### Facts generate their own dimension keys in place
 
-A `_key` is owned by its dimension. Facts join the dimension and reuse `dim.<x>_key` — they don't rederive it with their own `generate_surrogate_key(...)` call.
+A `_key` is a deterministic hash of the dimension's natural key(s) (`dbt_utils.generate_surrogate_key(...)`). Facts compute it directly from the natural key columns they already have, instead of joining the dimension table just to read its `_key` column. The hash formula must stay identical to the one in the owning dimension so values still match by construction - keep them in sync if either side's key columns change.
+
+When a fact's event stream is missing a natural key it needs (e.g. an OCPP event only carries `charger_id + connector_id`, not `port_id`), resolve it upstream in the intermediate layer - join the reference table there (e.g. `charger_id + connector_id -> port_id` through `int_connectors`) so the id already exists on the row by the time it reaches the mart. This keeps the resolution logic in one place instead of duplicated across every fact that needs it, and keeps marts protocol-agnostic (e.g. an OCPP 2.x source that carries `port_id` natively needs no such join at all, so marts built on top don't change). Facts should not join `dim_` tables in the marts layer just to resolve a natural key; join the intermediate reference table (`int_connectors`, `int_chargers`, etc.) directly if resolution truly can't happen upstream. Joins to a dimension from a fact are still fine, and still required, when the fact needs a column that isn't a `_key` (e.g. enumerating a charger's ports via `dim_ports`/`int_ports`).
 
 ### Column order in fact `select` statements
 

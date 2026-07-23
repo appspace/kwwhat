@@ -114,6 +114,10 @@ models:
         description: "Identifier for the charging connector"
         data_tests:
           - not_null
+      - name: port_id
+        description: "Identifier for the port, resolved from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+      - name: location_id
+        description: "Identifier for the charger's location, resolved from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
       - name: unique_id
         description: "Unique identifier for the status change that triggered this charge attempt"
         data_tests:
@@ -172,6 +176,10 @@ models:
         description: "Connector ID for this transaction"
         data_tests:
           - not_null
+      - name: port_id
+        description: "Identifier for the port, resolved from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+      - name: location_id
+        description: "Identifier for the charger's location, resolved from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
       - name: ingested_ts
         description: "Earliest timestamp when any OCPP event for this transaction was ingested"
         data_tests:
@@ -264,6 +272,10 @@ models:
         description: "Unique identifier for the connector within the charging point"
         data_tests:
           - not_null
+      - name: port_id
+        description: "Identifier for the port, resolved from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+      - name: location_id
+        description: "Identifier for the charger's location, resolved from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
       - name: ingested_ts
         description: "Timestamp when transaction was ingested into the system"
         data_tests:

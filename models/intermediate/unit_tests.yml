@@ -397,6 +397,10 @@ unit_tests:
         format: sql
         rows: |
           select cast('2025-10-01 10:10:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, cast(null as string) as action, '2' as message_type_id, 'UID-999' as unique_id, '{}' as payload
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_chargers')
+        rows: []
     expect:
       rows:
         - {charger_id: 'CH-001', connector_id: '1', status: 'Preparing', next_status: 'Charging'}

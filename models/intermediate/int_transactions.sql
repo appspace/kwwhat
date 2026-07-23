@@ -200,37 +200,58 @@ combined_transactions as (
 )
 {% endif %}
 
-select
-    t.*,
-    tsn.error_codes,
+,
 
-    -- Calculate energy transferred from meterStart and meterStop values
-    cast(
+transactions_final as (
+    select
+        t.*,
+        tsn.error_codes,
+
+        -- Calculate energy transferred from meterStart and meterStop values
+        cast(
+            case
+                when t.meter_start_wh is not null and t.meter_stop_wh is not null
+                then (t.meter_stop_wh - t.meter_start_wh) / 1000.0
+            end as {{ dbt.type_numeric() }}
+        ) as energy_transferred_kwh,
         case
-            when t.meter_start_wh is not null and t.meter_stop_wh is not null
-            then (t.meter_stop_wh - t.meter_start_wh) / 1000.0
-        end as {{ dbt.type_numeric() }}
-    ) as energy_transferred_kwh,
-    case
-        when t.connector_ids is not null and {{ array_size('t.connector_ids') }} > 0
-            then {{ array_first('t.connector_ids') }}
-    end as connector_id,
+            when t.connector_ids is not null and {{ array_size('t.connector_ids') }} > 0
+                then {{ array_first('t.connector_ids') }}
+        end as connector_id,
 
-    -- Count aggregations for testing
-    case
-        when t.connector_ids is not null
-            then {{ array_size('t.connector_ids') }}
-        else 0
-    end as _unique_connectors_count,
+        -- Count aggregations for testing
+        case
+            when t.connector_ids is not null
+                then {{ array_size('t.connector_ids') }}
+            else 0
+        end as _unique_connectors_count
 
+    from
+    {% if is_incremental() and relation_exists %}
+        combined_transactions as t
+    {% else %}
+        transactions as t
+    {% endif %}
+    left join transaction_status_notifications as tsn
+        on t.transaction_id = tsn.transaction_id
+        and t.charger_id = tsn.charger_id
+),
+
+-- charger_id + connector_id -> port_id (int_connectors); charger_id -> location_id (int_chargers)
+transactions_with_ids as (
+    select
+        transactions_final.*,
+        connectors.port_id,
+        chargers.location_id
+    from transactions_final
+    left join {{ ref('int_connectors') }} as connectors
+        on transactions_final.charger_id = connectors.charger_id
+        and transactions_final.connector_id = connectors.connector_id
+    left join {{ ref('int_chargers') }} as chargers
+        on transactions_final.charger_id = chargers.charger_id
+)
+
+select
+    *,
     (select incremental_ts from incremental) as incremental_ts
-
-from
-{% if is_incremental() and relation_exists %}
-    combined_transactions as t
-{% else %}
-    transactions as t
-{% endif %}
-left join transaction_status_notifications as tsn
-    on t.transaction_id = tsn.transaction_id
-    and t.charger_id = tsn.charger_id
+from transactions_with_ids
