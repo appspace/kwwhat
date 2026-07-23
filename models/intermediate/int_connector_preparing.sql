@@ -245,9 +245,37 @@ combined_preparing as (
 )
 {% endif %}
 
+,
+
+preparing_source as (
+    select *
+    from
+    {% if is_incremental() %}
+        combined_preparing
+    {% else %}
+        preparing_agg
+    {% endif %}
+),
+
+-- charger_id + connector_id -> port_id (int_connectors); charger_id -> location_id (int_chargers)
+preparing_with_ids as (
+    select
+        preparing_source.*,
+        connectors.port_id,
+        chargers.location_id
+    from preparing_source
+    left join {{ ref('int_connectors') }} as connectors
+        on preparing_source.charger_id = connectors.charger_id
+        and preparing_source.connector_id = connectors.connector_id
+    left join {{ ref('int_chargers') }} as chargers
+        on preparing_source.charger_id = chargers.charger_id
+)
+
 select
     charger_id,
     connector_id,
+    port_id,
+    location_id,
     unique_id,
     ingested_ts,
     payload_ts,
@@ -276,9 +304,4 @@ select
             then {{ array_size('transaction_ids') }}
         else 0
     end as _unique_transaction_count
-from
-{% if is_incremental() %}
-    combined_preparing
-{% else %}
-    preparing_agg
-{% endif %}
+from preparing_with_ids

@@ -433,8 +433,10 @@ select
     {{ dbt_utils.generate_surrogate_key([
         'v.location_id', 'v.first_charger_id', 'v.first_port_id', 'v.visit_start_ts'
     ]) }} as visit_id,
-    dl.location_key,
-    dd.driver_key,
+    {{ dbt_utils.generate_surrogate_key(['v.location_id']) }} as location_key,
+    {{ dbt_utils.generate_surrogate_key(["coalesce(v.id_tag, 'UNKNOWN')"]) }} as driver_key,
+    {{ dbt_utils.generate_surrogate_key(['v.first_charger_id', 'v.first_port_id']) }} as first_port_key,
+    {{ dbt_utils.generate_surrogate_key(['v.last_charger_id', 'v.last_port_id']) }} as last_port_key,
     v.location_id,
     v.charger_ids,
     v.id_tag,
@@ -454,8 +456,4 @@ select
     {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes,
     (select incremental_ts from incremental) as incremental_ts
 from visits as v
-inner join {{ ref('dim_locations') }} as dl
-    on v.location_id = dl.location_id
-left join {{ ref('dim_drivers') }} as dd
-    on coalesce(v.id_tag, 'UNKNOWN') = dd.id_tag
 

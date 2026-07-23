@@ -63,6 +63,9 @@ semantic_models:
       - name: location
         type: foreign
         expr: location_key
+      - name: port
+        type: foreign
+        expr: last_port_key
     dimensions:
       - name: visit_end_ts
         type: time
@@ -157,6 +160,12 @@ semantic_models:
       - name: charger
         type: foreign
         expr: charger_id
+      - name: port
+        type: foreign
+        expr: port_key
+      - name: location
+        type: foreign
+        expr: location_key
     dimensions:
       - name: charge_attempt_start_ts
         type: time
@@ -266,6 +275,12 @@ semantic_models:
       - name: charger
         type: foreign
         expr: charger_id
+      - name: port
+        type: foreign
+        expr: port_key
+      - name: location
+        type: foreign
+        expr: location_key
     dimensions:
       - name: date_id
         type: time
