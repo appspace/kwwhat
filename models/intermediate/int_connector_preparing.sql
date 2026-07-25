@@ -24,7 +24,7 @@ with incremental_date_range as (
         buffer_minutes=30,
         to_timestamp_caps=[
             "(select max(incremental_ts) from " ~ ref("int_status_changes") ~ ")",
-            "(select max(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"
+            "(select max(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ ")"
         ]
     ) }}
 ),
@@ -35,6 +35,7 @@ status_changes_to_preparing as (
         -- Request details
         charger_id,
         connector_id,
+        port_id,
         unique_id,
         ingested_ts,
         payload_ts,
@@ -64,8 +65,11 @@ ocpp_logs as (
         ingested_timestamp as ingested_ts,
         message_type_id,
         payload,
-        unique_id
-    from {{ ref("stg_ocpp_logs") }}
+        unique_id,
+        connector_id,
+        port_id,
+        location_id
+    from {{ ref("int_ocpp_logs") }}
     where ingested_timestamp >= (select buffer_from_timestamp from incremental_date_range)
         and ingested_timestamp <= (select to_timestamp from incremental_date_range)
 ),
@@ -85,7 +89,10 @@ charge_attempt_events as (
         ingested_ts,
         message_type_id,
         payload,
-        unique_id
+        unique_id,
+        connector_id,
+        port_id,
+        location_id
     from ocpp_logs
     where action in ({{ "'" + "', '".join(charge_attempt_actions) + "'" }})
         and message_type_id = {{ var("message_type_ids").CALL }}
@@ -94,7 +101,6 @@ charge_attempt_events as (
 charge_attempt_events_conf as (
     select req.*,
         conf.payload as conf_payload,
-        {{ payload_extract_connector_id('req.action', 'req.payload') }} as connector_id,
         {{ payload_extract_transaction_id('req.action', 'req.payload', 'conf.payload') }} as transaction_id
     from charge_attempt_events as req
     left join ocpp_logs as conf on req.unique_id = conf.unique_id
@@ -111,6 +117,7 @@ preparing_events_chaining as (
         -- Status change details
         p.charger_id,
         p.connector_id,
+        p.port_id,
         p.unique_id,
         p.ingested_ts,
         p.previous_status,
@@ -140,6 +147,7 @@ preparing_details as (
     select
         p.charger_id,
         p.connector_id,
+        p.port_id,
         p.unique_id,
         p.ingested_ts,
         p.previous_status,
@@ -170,6 +178,7 @@ preparing_agg as (
         -- Status change details (grouping keys)
         charger_id,
         connector_id,
+        port_id,
         unique_id,
         ingested_ts,
         previous_status,
@@ -192,6 +201,7 @@ preparing_agg as (
     group by
         charger_id,
         connector_id,
+        port_id,
         unique_id,
         ingested_ts,
         payload_ts,
@@ -212,6 +222,7 @@ combined_preparing as (
     select
         n.charger_id,
         n.connector_id,
+        n.port_id,
         n.unique_id,
         n.ingested_ts,
         n.payload_ts,
@@ -257,16 +268,12 @@ preparing_source as (
     {% endif %}
 ),
 
--- charger_id + connector_id -> port_id (int_connectors); charger_id -> location_id (int_chargers)
+-- port_id already carried through from int_status_changes; charger_id -> location_id (int_chargers)
 preparing_with_ids as (
     select
         preparing_source.*,
-        connectors.port_id,
         chargers.location_id
     from preparing_source
-    left join {{ ref('int_connectors') }} as connectors
-        on preparing_source.charger_id = connectors.charger_id
-        and preparing_source.connector_id = connectors.connector_id
     left join {{ ref('int_chargers') }} as chargers
         on preparing_source.charger_id = chargers.charger_id
 )
