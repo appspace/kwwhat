@@ -29,7 +29,8 @@ with incremental_date_range as (
             payload,
             unique_id,
             connector_id,
-            port_id
+            port_id,
+            location_id
         from {{ ref("int_ocpp_logs") }}
         where ingested_timestamp > (select from_timestamp from incremental_date_range)
             and ingested_timestamp <= (select to_timestamp from incremental_date_range)
@@ -51,6 +52,7 @@ with incremental_date_range as (
             payload,
             connector_id,
             port_id,
+            location_id,
             {{ payload_extract_status('action', 'payload') }} as status,
             {{ payload_extract_error_code('action', 'payload') }} as error_code,
             {{ payload_extract_timestamp('action', 'payload') }} as payload_ts
@@ -66,6 +68,7 @@ with incremental_date_range as (
             req.charger_id,
             req.connector_id,
             req.port_id,
+            req.location_id,
             req.ingested_timestamp as ingested_ts,
             req.unique_id,
             req.status,
@@ -92,6 +95,7 @@ with incremental_date_range as (
             charger_id,
             connector_id,
             port_id,
+            location_id,
             ingested_ts,
             unique_id,
             status,
@@ -122,6 +126,7 @@ with incremental_date_range as (
             charger_id,
             connector_id,
             port_id,
+            location_id,
             ingested_ts,
             unique_id,
             status,
@@ -153,6 +158,7 @@ with incremental_date_range as (
             charger_id,
             connector_id,
             port_id,
+            location_id,
             ingested_ts,
             unique_id,
             status,
@@ -208,6 +214,7 @@ select
     charger_id,
     connector_id,
     port_id,
+    location_id,
     ingested_ts,
     unique_id,
     status,

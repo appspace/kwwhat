@@ -36,6 +36,7 @@ status_changes_to_preparing as (
         charger_id,
         connector_id,
         port_id,
+        location_id,
         unique_id,
         ingested_ts,
         payload_ts,
@@ -118,6 +119,7 @@ preparing_events_chaining as (
         p.charger_id,
         p.connector_id,
         p.port_id,
+        p.location_id,
         p.unique_id,
         p.ingested_ts,
         p.previous_status,
@@ -148,6 +150,7 @@ preparing_details as (
         p.charger_id,
         p.connector_id,
         p.port_id,
+        p.location_id,
         p.unique_id,
         p.ingested_ts,
         p.previous_status,
@@ -179,6 +182,7 @@ preparing_agg as (
         charger_id,
         connector_id,
         port_id,
+        location_id,
         unique_id,
         ingested_ts,
         previous_status,
@@ -202,6 +206,7 @@ preparing_agg as (
         charger_id,
         connector_id,
         port_id,
+        location_id,
         unique_id,
         ingested_ts,
         payload_ts,
@@ -223,6 +228,7 @@ combined_preparing as (
         n.charger_id,
         n.connector_id,
         n.port_id,
+        n.location_id,
         n.unique_id,
         n.ingested_ts,
         n.payload_ts,
@@ -266,18 +272,9 @@ preparing_source as (
     {% else %}
         preparing_agg
     {% endif %}
-),
-
--- port_id already carried through from int_status_changes; charger_id -> location_id (int_chargers)
-preparing_with_ids as (
-    select
-        preparing_source.*,
-        chargers.location_id
-    from preparing_source
-    left join {{ ref('int_chargers') }} as chargers
-        on preparing_source.charger_id = chargers.charger_id
 )
 
+-- port_id and location_id both carried through from int_status_changes
 select
     charger_id,
     connector_id,
@@ -311,4 +308,4 @@ select
             then {{ array_size('transaction_ids') }}
         else 0
     end as _unique_transaction_count
-from preparing_with_ids
+from preparing_source

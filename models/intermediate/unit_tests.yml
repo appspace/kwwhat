@@ -82,11 +82,11 @@ unit_tests:
       - input: ref('int_ocpp_logs')
         format: sql
         rows: |
-          select cast('2025-10-01 09:59:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, cast(null as string) as connector_id, cast(null as string) as port_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-000' as unique_id, '{}' as payload
+          select cast('2025-10-01 09:59:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, cast(null as string) as connector_id, cast(null as string) as port_id, cast(null as string) as location_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-000' as unique_id, '{}' as payload
           union all
-          select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', '1', 'PORT-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
+          select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', '1', 'PORT-001', 'LOC-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
           union all
-          select cast('2025-10-01 10:30:00' as timestamp), 'CH-001', '1', 'PORT-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
+          select cast('2025-10-01 10:30:00' as timestamp), 'CH-001', '1', 'PORT-001', 'LOC-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
     expect:
       rows:
         - {charger_id: 'CH-001', connector_id: '1', status: 'Available', previous_status: null, next_status: null}
@@ -103,13 +103,13 @@ unit_tests:
       - input: ref('int_ocpp_logs')
         format: sql
         rows: |
-          select cast('2025-10-01 09:59:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, cast(null as string) as connector_id, cast(null as string) as port_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-000' as unique_id, '{}' as payload
+          select cast('2025-10-01 09:59:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, cast(null as string) as connector_id, cast(null as string) as port_id, cast(null as string) as location_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-000' as unique_id, '{}' as payload
           union all
-          select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', '1', 'PORT-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
+          select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', '1', 'PORT-001', 'LOC-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
           union all
-          select cast('2025-10-01 10:05:00' as timestamp), 'CH-001', '1', 'PORT-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'
+          select cast('2025-10-01 10:05:00' as timestamp), 'CH-001', '1', 'PORT-001', 'LOC-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'
           union all
-          select cast('2025-10-01 10:10:00' as timestamp), 'CH-001', '1', 'PORT-001', 'StatusNotification', '2', 'UID-003', '{"connectorId": 1, "errorCode": "NoError", "status": "Charging"}'
+          select cast('2025-10-01 10:10:00' as timestamp), 'CH-001', '1', 'PORT-001', 'LOC-001', 'StatusNotification', '2', 'UID-003', '{"connectorId": 1, "errorCode": "NoError", "status": "Charging"}'
     expect:
       rows:
         - {status: 'Available',  previous_status: null,        next_status: 'Preparing'}
@@ -133,6 +133,7 @@ unit_tests:
             'CH-001'                                    as charger_id,
             '1'                                         as connector_id,
             'PORT-001'                                  as port_id,
+            'LOC-001'                                   as location_id,
             cast('2025-10-01 09:45:00' as timestamp)   as ingested_ts,
             'UID-000'                                   as unique_id,
             'Available'                                 as status,
@@ -150,7 +151,7 @@ unit_tests:
       - input: ref('int_ocpp_logs')
         format: sql
         rows: |
-          select cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, '1' as connector_id, 'PORT-001' as port_id, 'StatusNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}' as payload
+          select cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, '1' as connector_id, 'PORT-001' as port_id, 'LOC-001' as location_id, 'StatusNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}' as payload
     expect:
       rows:
         - {status: 'Available', previous_status: null,        next_status: 'Preparing'}
@@ -369,6 +370,7 @@ unit_tests:
             'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             'PORT-001'                                 as port_id,
+            'LOC-001'                                  as location_id,
             'UID-001'                                  as unique_id,
             cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
             cast(null as timestamp)                    as payload_ts,
@@ -395,8 +397,6 @@ unit_tests:
             '2' as message_type_id,
             'UID-999' as unique_id,
             '{}' as payload
-      - input: ref('int_chargers')
-        rows: []
     expect:
       rows:
         - {charger_id: 'CH-001', connector_id: '1', status: 'Preparing', next_status: 'Charging'}
