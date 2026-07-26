@@ -38,7 +38,7 @@
                     select
                     greatest(
                         cast('{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}),
-                        (select min(ingested_timestamp) from {{ ref("stg_ocpp_logs") }})
+                        (select min(ingested_timestamp) from {{ ref("int_ocpp_logs") }})
                     ) as from_timestamp
                 )
         ),
@@ -50,8 +50,11 @@
             action,
             ingested_timestamp as ingested_ts,
             message_type_id,
-            payload
-        from {{ ref("stg_ocpp_logs") }}
+            payload,
+            connector_id,
+            port_id,
+            location_id
+        from {{ ref("int_ocpp_logs") }}
         where ingested_timestamp > (select from_timestamp from incremental_date_range)
             and ingested_timestamp <= (select to_timestamp from incremental_date_range)
     ),
@@ -92,7 +95,9 @@
             ingested_ts,
             charger_id,
             payload,
-            {{ payload_extract_connector_id('action', 'payload') }} as connector_id,
+            connector_id,
+            port_id,
+            location_id,
             {{ payload_extract_transaction_id('action', 'payload', 'null') }} as transaction_id,
             {{ payload_extract_meter_values('action', 'payload') }} as meter_values
         from ocpp_logs
@@ -105,6 +110,8 @@
             l.charger_id,
             t.ingested_ts,
             l.connector_id,
+            l.port_id,
+            l.location_id,
             l.transaction_id,
             l.meter_values
         from meter_value_logs as l
@@ -120,6 +127,8 @@
             charger_id,
             transaction_id,
             connector_id,
+            port_id,
+            location_id,
             ingested_ts,
             -- Extract timestamp from the meter value object
             cast(
@@ -139,6 +148,8 @@
             charger_id,
             transaction_id,
             connector_id,
+            port_id,
+            location_id,
             ingested_ts,
             meter_timestamp,
             mv.value as sample_values
@@ -151,6 +162,8 @@
             charger_id,
             transaction_id,
             connector_id,
+            port_id,
+            location_id,
             ingested_ts,
             meter_timestamp,
             {{ dbt.dateadd(
@@ -170,6 +183,8 @@
             charger_id,
             transaction_id,
             connector_id,
+            port_id,
+            location_id,
             ingested_ts,
             measurand,
             unit,
@@ -189,6 +204,8 @@
             charger_id,
             transaction_id,
             connector_id,
+            port_id,
+            location_id,
             ingested_ts,
             measurand,
             unit,
@@ -203,6 +220,8 @@
             n.transaction_id,
             n.ingested_ts,
             n.connector_id,
+            n.port_id,
+            n.location_id,
             n.measurand,
             n.unit,
             n.phase,
@@ -246,20 +265,6 @@
             *
         from agg_transaction
     {% endif %}
-    ),
-
-    -- charger_id + connector_id -> port_id (int_connectors); charger_id -> location_id (int_chargers)
-    final_with_ids as (
-        select
-            final.*,
-            connectors.port_id,
-            chargers.location_id
-        from final
-        left join {{ ref('int_connectors') }} as connectors
-            on final.charger_id = connectors.charger_id
-            and final.connector_id = connectors.connector_id
-        left join {{ ref('int_chargers') }} as chargers
-            on final.charger_id = chargers.charger_id
     )
 
     select
@@ -279,4 +284,4 @@
         avg_value,
         _count,
         (select incremental_ts from incremental) as incremental_ts
-    from final_with_ids
+    from final

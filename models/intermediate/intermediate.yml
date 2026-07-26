@@ -1,6 +1,41 @@
 version: 2
 
 models:
+  - name: int_ocpp_logs
+    description: "View over stg_ocpp_logs enriched with connector_id (extracted from the payload) and the port_id/location_id it resolves to. Centralizes the charger_id + connector_id -> port_id (int_connectors) and charger_id -> location_id (int_chargers) resolution used by every downstream model that needs port context. Grain: one row per raw OCPP message (same as stg_ocpp_logs)."
+    columns:
+      - name: charger_id
+        description: "Identifier for the charge point"
+        data_tests:
+          - not_null
+      - name: message_type_id
+        description: "OCPP message type: 2 = CALL (request), 3 = CALLRESULT (response)"
+        data_tests:
+          - not_null
+      - name: unique_id
+        description: "OCPP message identifier. Usually unique per charge point per direction, but may legitimately repeat if a CALL is retransmitted after going unacknowledged (same request, same id)."
+        data_tests:
+          - not_null
+      - name: connector_id
+        description: "Connector identifier extracted from the payload. Null for message actions that don't carry connector context (e.g. Authorize, Heartbeat)."
+      - name: port_id
+        description: "Identifier for the port, resolved from int_connectors (charger_id + connector_id -> port_id). Null for message actions that don't carry connector context (e.g. Authorize, Heartbeat), or if the connector isn't found in int_connectors."
+      - name: location_id
+        description: "Identifier for the charger's location, resolved from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charger_id
+              - message_type_id
+              - unique_id
+          config:
+            severity: warn
+            # RAW.SEED.ocpp_1_6_synthetic_logs_14d has 8 pre-existing duplicate
+            # (charger_id, message_type_id, unique_id) groups on CH-002 (fixed in
+            # demo/seeds/ocpp_1_6_synthetic_logs_14d.csv, but the live dev source
+            # table hasn't been reloaded from it). Drop to error once reloaded.
+
   - name: int_connector_latest_status
     description: "Latest OCPP status snapshot per connector. View over int_status_changes filtered to rows where next_status is null. Grain: one row per charger_id + connector_id + port_id."
     columns:
@@ -55,9 +90,11 @@ models:
         data_tests:
           - not_null
       - name: port_id
-        description: "Identifier for the port, resolved from int_connectors"
+        description: "Identifier for the port. Carried through from int_ocpp_logs, which resolves it from int_connectors (charger_id + connector_id -> port_id)."
         data_tests:
           - not_null
+      - name: location_id
+        description: "Identifier for the charger's location. Carried through from int_ocpp_logs, which resolves it from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
       - name: ingested_ts
         description: "Timestamp when the status notification was ingested"
         data_tests:
@@ -115,9 +152,9 @@ models:
         data_tests:
           - not_null
       - name: port_id
-        description: "Identifier for the port, resolved from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+        description: "Identifier for the port. Carried through from int_status_changes, which resolves it from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
       - name: location_id
-        description: "Identifier for the charger's location, resolved from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
+        description: "Identifier for the charger's location. Carried through from int_status_changes, which resolves it from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
       - name: unique_id
         description: "Unique identifier for the status change that triggered this charge attempt"
         data_tests:
@@ -273,9 +310,9 @@ models:
         data_tests:
           - not_null
       - name: port_id
-        description: "Identifier for the port, resolved from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+        description: "Identifier for the port. Carried through from int_ocpp_logs, which resolves it from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
       - name: location_id
-        description: "Identifier for the charger's location, resolved from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
+        description: "Identifier for the charger's location. Carried through from int_ocpp_logs, which resolves it from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
       - name: ingested_ts
         description: "Timestamp when transaction was ingested into the system"
         data_tests:
