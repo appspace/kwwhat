@@ -54,8 +54,9 @@ ocpp_logs as (
         ingested_timestamp as ingested_ts,
         message_type_id,
         payload,
-        unique_id
-    from {{ ref("stg_ocpp_logs") }}
+        unique_id,
+        connector_id
+    from {{ ref("int_ocpp_logs") }}
     where ingested_timestamp > (select from_timestamp from incremental_date_range)
         and ingested_timestamp <= (select to_timestamp from incremental_date_range)
 ),
@@ -75,7 +76,7 @@ transaction_events as (
         message_type_id,
         payload,
         unique_id,
-        {{ payload_extract_connector_id('action', 'payload') }} as connector_id
+        connector_id
     from ocpp_logs
     where action in ({{ "'" + "', '".join(transaction_related_actions) + "'" }})
 ),
@@ -148,7 +149,7 @@ status_notifications as (
     select
         charger_id,
         ingested_ts,
-        {{ payload_extract_connector_id('action', 'payload') }} as connector_id,
+        connector_id,
         {{ payload_extract_error_code('action', 'payload') }} as error_code
     from ocpp_logs
     where action = 'StatusNotification'

@@ -12,7 +12,7 @@
 {%- else -%}
     {%- set from_ts_caps = [
         "cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")",
-        "(select min(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"
+        "(select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ ")"
     ] -%}
 {%- endif -%}
 
@@ -27,8 +27,11 @@ with incremental_date_range as (
             ingested_timestamp,
             message_type_id,
             payload,
-            unique_id
-        from {{ ref("stg_ocpp_logs") }}
+            unique_id,
+            connector_id,
+            port_id,
+            location_id
+        from {{ ref("int_ocpp_logs") }}
         where ingested_timestamp > (select from_timestamp from incremental_date_range)
             and ingested_timestamp <= (select to_timestamp from incremental_date_range)
     ),
@@ -47,7 +50,9 @@ with incremental_date_range as (
             unique_id,
             action,
             payload,
-            {{ payload_extract_connector_id('action', 'payload') }} as connector_id,
+            connector_id,
+            port_id,
+            location_id,
             {{ payload_extract_status('action', 'payload') }} as status,
             {{ payload_extract_error_code('action', 'payload') }} as error_code,
             {{ payload_extract_timestamp('action', 'payload') }} as payload_ts
@@ -56,13 +61,14 @@ with incremental_date_range as (
             and message_type_id = {{ var("message_type_ids").CALL }}
     ),
 
-    -- Join status notifications with their confirmations and ports
+    -- Join status notifications with their confirmations
     status_with_confirmation as (
         select
             -- Request details
             req.charger_id,
             req.connector_id,
-            c.port_id,
+            req.port_id,
+            req.location_id,
             req.ingested_timestamp as ingested_ts,
             req.unique_id,
             req.status,
@@ -74,9 +80,6 @@ with incremental_date_range as (
             conf.ingested_timestamp as confirmation_ingested_ts
 
         from status_notification_events as req
-        left join {{ ref("int_connectors") }} as c
-            on req.charger_id = c.charger_id
-            and req.connector_id = c.connector_id
         left join ocpp_logs as conf
             on req.unique_id = conf.unique_id
             and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
@@ -92,6 +95,7 @@ with incremental_date_range as (
             charger_id,
             connector_id,
             port_id,
+            location_id,
             ingested_ts,
             unique_id,
             status,
@@ -122,6 +126,7 @@ with incremental_date_range as (
             charger_id,
             connector_id,
             port_id,
+            location_id,
             ingested_ts,
             unique_id,
             status,
@@ -153,6 +158,7 @@ with incremental_date_range as (
             charger_id,
             connector_id,
             port_id,
+            location_id,
             ingested_ts,
             unique_id,
             status,
@@ -208,6 +214,7 @@ select
     charger_id,
     connector_id,
     port_id,
+    location_id,
     ingested_ts,
     unique_id,
     status,
