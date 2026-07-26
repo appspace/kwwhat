@@ -13,13 +13,13 @@ models:
         data_tests:
           - not_null
       - name: unique_id
-        description: "OCPP message identifier, unique per charge point per direction"
+        description: "OCPP message identifier. Usually unique per charge point per direction, but may legitimately repeat if a CALL is retransmitted after going unacknowledged (same request, same id)."
         data_tests:
           - not_null
       - name: connector_id
         description: "Connector identifier extracted from the payload. Null for message actions that don't carry connector context (e.g. Authorize, Heartbeat)."
       - name: port_id
-        description: "Identifier for the port, resolved from int_connectors (charger_id + connector_id -> port_id). Null if connector_id is null or isn't found in int_connectors."
+        description: "Identifier for the port, resolved from int_connectors (charger_id + connector_id -> port_id). Null for message actions that don't carry connector context (e.g. Authorize, Heartbeat), or if the connector isn't found in int_connectors."
       - name: location_id
         description: "Identifier for the charger's location, resolved from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
     data_tests:
