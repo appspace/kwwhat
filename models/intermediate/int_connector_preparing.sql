@@ -98,7 +98,7 @@ charge_attempt_events as (
         location_id
     from ocpp_logs
     where action in ({{ "'" + "', '".join(charge_attempt_actions) + "'" }})
-        and message_type_id = {{ var("message_type_ids").CALL }}
+        and message_type_id = '{{ var("message_type_ids").CALL }}'
 ),
 
 charge_attempt_events_conf as (
@@ -107,7 +107,7 @@ charge_attempt_events_conf as (
         {{ payload_extract_transaction_id('req.action', 'req.payload', 'conf.payload') }} as transaction_id
     from charge_attempt_events as req
     left join ocpp_logs as conf on req.unique_id = conf.unique_id
-        and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
+        and conf.message_type_id = '{{ var("message_type_ids").CALLRESULT }}'
         and conf.ingested_ts >= req.ingested_ts
         and conf.ingested_ts <= {{ dbt.dateadd(
             "second", var("transaction_message_retry_interval"), "req.ingested_ts"

@@ -4,8 +4,15 @@ version: 2
 sources:
   - name: raw
     description: "raw data"
-    database: "{{ var('raw_database', 'RAW') }}"
-    schema: "{{ var('raw_schema', 'SEED') }}"
+    # Most warehouses (Snowflake, Redshift, Postgres, Databricks, DuckDB) support an
+    # arbitrarily-named RAW database, so that's the shared default. BigQuery has no such
+    # concept - a BigQuery `database` is a real GCP project ID - so it falls back to the
+    # target's own project instead. Add an entry per adapter.type as new warehouses need
+    # a different default; source config rendering can't reach project macros, so this
+    # has to stay a plain dict lookup rather than an adapter.dispatch macro.
+    # Override either var with --vars if your raw data lives somewhere else.
+    database: "{{ var('raw_database', {'bigquery': target.database}.get(target.type, 'RAW')) }}"
+    schema: "{{ var('raw_schema', {'bigquery': 'raw_seed'}.get(target.type, 'SEED')) }}"
 
     tables:
       - name: ocpp_logs
