@@ -58,7 +58,7 @@ with incremental_date_range as (
             {{ payload_extract_timestamp('action', 'payload') }} as payload_ts
         from ocpp_logs
         where action = 'StatusNotification'
-            and message_type_id = {{ var("message_type_ids").CALL }}
+            and message_type_id = '{{ var("message_type_ids").CALL }}'
     ),
 
     -- Join status notifications with their confirmations
@@ -82,7 +82,7 @@ with incremental_date_range as (
         from status_notification_events as req
         left join ocpp_logs as conf
             on req.unique_id = conf.unique_id
-            and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
+            and conf.message_type_id = '{{ var("message_type_ids").CALLRESULT }}'
             and conf.ingested_timestamp >= req.ingested_timestamp
             and conf.ingested_timestamp <= {{ dbt.dateadd("second", 15, "req.ingested_timestamp") }}
     ),

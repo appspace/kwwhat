@@ -105,7 +105,7 @@ per_day as (
         port_id,
         date_id,
         reason,
-        {{ dbt.datediff('interval_start', 'interval_end', 'minutes') }} as duration_minutes
+        {{ dbt.datediff('interval_start', 'interval_end', 'minute') }} as duration_minutes
     from outage_days
 ),
 

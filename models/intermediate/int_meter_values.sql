@@ -102,7 +102,7 @@
             {{ payload_extract_meter_values('action', 'payload') }} as meter_values
         from ocpp_logs
         where action = 'MeterValues'
-            and message_type_id = {{ var("message_type_ids").CALL }}
+            and message_type_id = '{{ var("message_type_ids").CALL }}'
     ),
 
     meter_value_messages as (
@@ -136,14 +136,14 @@
                 as {{ dbt.type_timestamp() }}
             ) as meter_timestamp,
             -- Keep the full meter value object for now
-            {{ json_extract(string="mv.value", string_path="sampledValue") }} as sample_values
+            {{ json_extract_array(string="mv.value", string_path="sampledValue") }} as sample_values
         from meter_value_messages
         {{ json_array_unnest('meter_values') }} as mv
         where meter_values is not null
             and mv.value is not null
     ),
 
-    sample_values as (
+    sample_value_rows as (
         select
             charger_id,
             transaction_id,
@@ -168,14 +168,14 @@
             meter_timestamp,
             {{ dbt.dateadd(
                 "minute",
-                '-(minute(meter_timestamp) % 15)',
+                '-mod(extract(minute from meter_timestamp), 15)',
                 dbt.date_trunc("minute", 'meter_timestamp')
             ) }} as meter_15min_interval_start,
             {{ fivetran_utils.pivot_json_extract(
                 string="sample_values",
                 list_of_properties=["measurand", "value", "unit", "phase"]
             ) }}
-        from sample_values
+        from sample_value_rows
     ),
 
     agg_transaction as (

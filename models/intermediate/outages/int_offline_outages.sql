@@ -55,11 +55,14 @@ charger_messages as (
     from charger_context as cc
     inner join {{ ref("stg_ocpp_logs") }} as ol
         on cc.charger_id = ol.charger_id
+        -- monitoring_start_ts/monitoring_end_ts are already clamped to
+        -- incremental_date_range's from_timestamp/to_timestamp (see charger_context above),
+        -- so this already implies the incremental window bounds without repeating them here.
+        -- BigQuery also rejects a subquery that references a table (incremental_date_range)
+        -- inside a join predicate ("Unsupported subquery with table in join predicate").
         and ol.ingested_timestamp >= cc.monitoring_start_ts
         and ol.ingested_timestamp <= cc.monitoring_end_ts
-        and ol.ingested_timestamp >= (select from_timestamp from incremental_date_range)
-        and ol.ingested_timestamp <= (select to_timestamp from incremental_date_range)
-        and ol.message_type_id = {{ var("message_type_ids").CALL }}
+        and ol.message_type_id = '{{ var("message_type_ids").CALL }}'
         and ol.action in ({{ "'" + "', '".join(charge_point_initiated_actions) + "'" }})
 ),
 
@@ -154,7 +157,7 @@ all_outages as (
         charger_id,
         from_ts,
         to_ts,
-        {{ dbt.datediff('from_ts', 'to_ts', 'seconds') }} as duration_seconds
+        {{ dbt.datediff('from_ts', 'to_ts', 'second') }} as duration_seconds
     from merged_outages
 )
 
@@ -165,7 +168,7 @@ all_outages as (
         charger_id,
         from_ts,
         to_ts,
-        {{ dbt.datediff('from_ts', 'to_ts', 'seconds') }} as duration_seconds
+        {{ dbt.datediff('from_ts', 'to_ts', 'second') }} as duration_seconds
     from new_outages
 )
 

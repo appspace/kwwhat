@@ -113,8 +113,8 @@ attempts_and_transactions as (
         p.next_status,
         p.payload_ts as preparing_payload_ts,
         p.next_payload_ts as preparing_next_payload_ts,
-        array_distinct({{ array_concat('p.id_tags', 't.id_tags') }}) as id_tags,
-        array_distinct({{ array_concat('p.id_tag_statuses', 't.id_tag_statuses') }}) as id_tag_statuses,
+        {{ array_distinct(array_concat('p.id_tags', 't.id_tags')) }} as id_tags,
+        {{ array_distinct(array_concat('p.id_tag_statuses', 't.id_tag_statuses')) }} as id_tag_statuses,
 
         -- Transaction details
         coalesce(p.transaction_id, t.transaction_id) as transaction_id,
@@ -127,7 +127,7 @@ attempts_and_transactions as (
         t.energy_transferred_kwh,
 
         -- Error details - concatenate error codes from both sources
-        array_distinct({{ array_concat('p.error_codes', 't.error_codes') }}) as error_codes
+        {{ array_distinct(array_concat('p.error_codes', 't.error_codes')) }} as error_codes
 
     from preparing as p
     full outer join transactions as t
@@ -204,9 +204,9 @@ attempts_and_transactions as (
             coalesce(n.energy_transferred_kwh, b.energy_transferred_kwh) as energy_transferred_kwh,
 
             -- Merge arrays using array_concat
-            array_distinct({{ array_concat('n.id_tags', 'b.id_tags') }}) as id_tags,
-            array_distinct({{ array_concat('n.id_tag_statuses', 'b.id_tag_statuses') }}) as id_tag_statuses,
-            array_distinct({{ array_concat('n.error_codes', 'b.error_codes') }}) as error_codes
+            {{ array_distinct(array_concat('n.id_tags', 'b.id_tags')) }} as id_tags,
+            {{ array_distinct(array_concat('n.id_tag_statuses', 'b.id_tag_statuses')) }} as id_tag_statuses,
+            {{ array_distinct(array_concat('n.error_codes', 'b.error_codes')) }} as error_codes
 
         from attempts_and_transactions n
         left join charge_attempts_buffer b on n.charger_id = b.charger_id

@@ -200,7 +200,7 @@ select
     port_id,
     from_ts,
     to_ts,
-    {{ dbt.datediff('from_ts', 'to_ts', 'minutes') }} as duration_minutes,
+    {{ dbt.datediff('from_ts', 'to_ts', 'minute') }} as duration_minutes,
     (select incremental_ts from incremental) as incremental_ts
 from faulted_outages
 where to_ts > from_ts

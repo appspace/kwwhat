@@ -11,11 +11,26 @@
 {% endmacro %}
 
 {% macro snowflake__json_array_unnest(json_column) %}
-    cross join lateral flatten(input => parse_json({{ json_column }}))
+    {#
+      No parse_json() here: callers only ever pass a value already produced by
+      json_extract_array()/meter_values_json (kwwhat macros), which on Snowflake is
+      already a variant - re-parsing it would just round-trip it through text for no
+      reason.
+    #}
+    cross join lateral flatten(input => {{ json_column }})
 {% endmacro %}
 
 {% macro bigquery__json_array_unnest(json_column) %}
-    cross join unnest(json_extract_array({{ json_column }}))
+    {#
+      No json_extract_array() here: callers only ever pass a value already produced by
+      json_extract_array()/meter_values_json (kwwhat macros), which on BigQuery is already
+      an ARRAY - re-extracting it fails ("Unable to coerce type ARRAY<STRING> to expected
+      type STRING"). Wrapped in a one-field struct so callers can use `<alias>.value`
+      uniformly across adapters - Snowflake's flatten() already exposes elements that way,
+      but a bare `unnest(array<string>) as mv` makes `mv` the scalar itself, with no `.value`
+      to access ("Cannot access field value on a value with type STRING").
+    #}
+    cross join unnest(array(select as struct x as value from unnest({{ json_column }}) as x))
 {% endmacro %}
 
 {% macro duckdb__json_array_unnest(json_column) %}
