@@ -222,6 +222,10 @@ Every model must include:
 
 Write docs for **humans**, not for dbt.
 
+Descriptions live in the layer's shared `<layer>.yml` (e.g. `marts.yml`, `intermediate.yml`) only.
+Never set `description` in a model's `config()` block in the `.sql` file — it duplicates the yml,
+the two drift out of sync, and it fragments docs across two places instead of one.
+
 ---
 
 ## Anti-Patterns
@@ -234,6 +238,7 @@ The agent must NOT:
 - create duplicate models with slightly different logic
 - ignore failing tests
 - run full refreshes without reason
+- set `description` in a model's `config()` block — descriptions belong in the layer's shared yml only
 
 ---
 

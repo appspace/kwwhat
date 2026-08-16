@@ -1,7 +1,6 @@
 {{
   config(
-    materialized='view',
-    description='One row per charger per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics.'
+    materialized='view'
   )
 }}
 

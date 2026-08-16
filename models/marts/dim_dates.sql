@@ -1,7 +1,6 @@
 {{
   config(
-    materialized='table',
-    description='Date dimension table for semantic models and date-based joins'
+    materialized='table'
   )
 }}
 

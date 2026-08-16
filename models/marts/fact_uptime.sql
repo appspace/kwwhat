@@ -1,7 +1,6 @@
 {{
   config(
-    materialized='view',
-    description='One row per charger, port, and day: uptime = (minutes commissioned that day minus total outage minutes) / minutes commissioned that day.'
+    materialized='view'
   )
 }}
 

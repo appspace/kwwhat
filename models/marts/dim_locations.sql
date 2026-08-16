@@ -1,7 +1,6 @@
 {{
   config(
-    materialized='table',
-    description="Conformed location dimension. One row per distinct charging location. SCD Type 1."
+    materialized='table'
   )
 }}
 
