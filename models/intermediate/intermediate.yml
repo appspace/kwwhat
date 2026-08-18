@@ -62,6 +62,12 @@ models:
         description: "Error code from the most recent StatusNotification"
         data_tests:
           - not_null
+      - name: latest_vendor_error_code
+        description: "ChargeX Minimum Required Error Code (MREC) fault code (e.g. 'CX003' for HighTemperature) from the most recent StatusNotification's vendorErrorCode field, if the charge point vendor reports it. Null for chargers that don't implement the ChargeX convention. See https://chargex.inl.gov"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['CX001', 'CX002', 'CX003', 'CX004', 'CX005', 'CX006', 'CX007', 'CX008', 'CX009', 'CX010', 'CX011', 'CX012', 'CX013', 'CX014', 'CX015', 'CX016', 'CX017', 'CX018', 'CX019', 'CX020', 'CX021', 'CX022', 'CX023', 'CX024', 'CX025', 'CX026']
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested"
         data_tests:
@@ -109,7 +115,13 @@ models:
       - name: error_code
         description: "Error code from the status notification payload (NoError if no error to report)"
         data_tests:
-          - not_null        
+          - not_null
+      - name: vendor_error_code
+        description: "ChargeX Minimum Required Error Code (MREC) fault code (e.g. 'CX003' for HighTemperature) from the status notification's vendorErrorCode field, if the charge point vendor reports it. Null for chargers that don't implement the ChargeX convention. See https://chargex.inl.gov"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['CX001', 'CX002', 'CX003', 'CX004', 'CX005', 'CX006', 'CX007', 'CX008', 'CX009', 'CX010', 'CX011', 'CX012', 'CX013', 'CX014', 'CX015', 'CX016', 'CX017', 'CX018', 'CX019', 'CX020', 'CX021', 'CX022', 'CX023', 'CX024', 'CX025', 'CX026']
       - name: payload
         description: "Original payload from the status notification"
       - name: previous_status

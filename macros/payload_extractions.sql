@@ -90,6 +90,16 @@
     end
 {% endmacro %}
 
+{% macro payload_extract_vendor_error_code(action, payload) %}
+    -- ChargeX Minimum Required Error Code (MREC), e.g. 'CX001'. See https://chargex.inl.gov
+    -- Null unless the charge point vendor implements the ChargeX fault code convention.
+    case
+        when {{ action }} = 'StatusNotification'
+            then cast({{ json_extract(string=payload, string_path="vendorErrorCode") }} as {{ dbt.type_string() }})
+        else null
+    end
+{% endmacro %}
+
 {% macro payload_extract_connector_id(action, payload) %}
     case 
         when {{ action }} in ('StatusNotification', 'StartTransaction', 'MeterValues', 'RemoteStartTransaction')

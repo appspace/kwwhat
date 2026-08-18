@@ -57,6 +57,7 @@ with incremental_date_range as (
             location_id,
             {{ payload_extract_status('action', 'payload') }} as status,
             {{ payload_extract_error_code('action', 'payload') }} as error_code,
+            {{ payload_extract_vendor_error_code('action', 'payload') }} as vendor_error_code,
             {{ payload_extract_timestamp('action', 'payload') }} as payload_ts
         from ocpp_logs
         where action = 'StatusNotification'
@@ -75,6 +76,7 @@ with incremental_date_range as (
             req.unique_id,
             req.status,
             req.error_code,
+            req.vendor_error_code,
             req.payload,
             req.payload_ts,
 
@@ -102,6 +104,7 @@ with incremental_date_range as (
             unique_id,
             status,
             error_code,
+            vendor_error_code,
             payload,
             payload_ts,
             confirmation_ingested_ts,
@@ -135,6 +138,7 @@ with incremental_date_range as (
             unique_id,
             status,
             error_code,
+            vendor_error_code,
             payload,
             payload_ts,
             confirmation_ingested_ts,
@@ -169,6 +173,7 @@ with incremental_date_range as (
             unique_id,
             status,
             error_code,
+            vendor_error_code,
             payload,
             payload_ts,
             confirmation_ingested_ts,
@@ -226,6 +231,7 @@ select
     unique_id,
     status,
     error_code,
+    vendor_error_code,
     payload,
     payload_ts,
     confirmation_ingested_ts,
