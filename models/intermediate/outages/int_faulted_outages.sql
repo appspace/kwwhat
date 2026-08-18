@@ -45,6 +45,7 @@ status_changes as (
         connector_id,
         ingested_ts,
         status,
+        vendor_error_code,
         next_status,
         next_ingested_ts,
         incremental_ts
@@ -73,6 +74,7 @@ fault_periods as (
         charger_id,
         port_id,
         connector_id,
+        vendor_error_code,
         ingested_ts as from_ts,
         coalesce(next_ingested_ts, (select to_timestamp from incremental_date_range)) as to_ts
     from status_changes
@@ -182,6 +184,23 @@ faulted_outages as (
         max(to_ts) as to_ts
     from faulted_outages_with_groups
     group by 1, 2, group_id
+),
+
+-- Root cause: ChargeX MREC fault codes reported by any connector while faulted during the outage
+faulted_outages_with_root_cause as (
+    select
+        fo.charger_id,
+        fo.port_id,
+        fo.from_ts,
+        fo.to_ts,
+        array_distinct({{ fivetran_utils.array_agg(field_to_agg="fp.vendor_error_code") }}) as vendor_error_codes
+    from faulted_outages as fo
+    left join fault_periods as fp
+        on fo.charger_id = fp.charger_id
+        and fo.port_id = fp.port_id
+        and fp.from_ts <= fo.to_ts
+        and fp.to_ts >= fo.from_ts
+    group by fo.charger_id, fo.port_id, fo.from_ts, fo.to_ts
 )
 
 {% if is_incremental() %}
@@ -201,6 +220,7 @@ select
     from_ts,
     to_ts,
     {{ dbt.datediff('from_ts', 'to_ts', 'minutes') }} as duration_minutes,
+    vendor_error_codes,
     (select incremental_ts from incremental) as incremental_ts
-from faulted_outages
+from faulted_outages_with_root_cause
 where to_ts > from_ts
