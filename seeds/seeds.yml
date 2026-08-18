@@ -1,0 +1,98 @@
+version: 2
+
+seeds:
+  - name: chargex_mrec_codes
+    description: >
+      Reference data for the ChargeX Minimum Required Error Codes (MREC) standard.
+      One row per fault code (CX001-CX026), with its name, description, and the
+      responsibility/functional classifications from "Recommendations for Minimum
+      Required Error Codes for Electric Vehicle Charging Infrastructure" (ChargeX
+      Consortium, Sept. 2023). See https://chargex.inl.gov. Static reference data,
+      only changes if ChargeX revises the standard.
+    config:
+      column_types:
+        fault_code: varchar(5)
+    columns:
+      - name: fault_code
+        description: "ChargeX fault code, e.g. 'CX003'. Natural key."
+        data_tests:
+          - not_null
+          - unique
+      - name: error_code_name
+        description: "Human-readable error name, e.g. 'HighTemperature'."
+        data_tests:
+          - not_null
+      - name: description
+        description: "Full description of the error condition."
+        data_tests:
+          - not_null
+      - name: in_ocpp_1_6
+        description: "True if this error already has a corresponding standard OCPP 1.6 ChargePointErrorCode (so it's also reported via the plain errorCode field, not just vendorErrorCode)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_ev_user
+        description: "True if the EV User is a likely responsible party for resolving this error (e.g. incorrect plug-in)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_cso
+        description: "True if the Charging Station Operator is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_evse
+        description: "True if the EVSE (charging station hardware) is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_ev
+        description: "True if the EV (vehicle) is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_safety
+        description: "True if this error compromises the safety of the user, vehicle, or charging infrastructure."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_security
+        description: "True if this error relates to authentication, data privacy, or secure operation of the charging system."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_maintenance
+        description: "True if this error signals a need for technical service, component repair, or replacement."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_financial
+        description: "True if this error relates to payment processing, pricing, or billing."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_authorization
+        description: "True if this error relates to user access control or authorization communication between the EV and EVSE."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]

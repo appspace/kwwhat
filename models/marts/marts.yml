@@ -495,11 +495,12 @@ models:
       - name: latest_error_code
         description: "Error code from the most recent StatusNotification (e.g. NoError, ConnectorLockFailure)."
       - name: latest_vendor_error_code
-        description: "ChargeX Minimum Required Error Code (MREC) fault code (e.g. 'CX003' for HighTemperature) from the most recent StatusNotification, if the charge point vendor reports it. Null for chargers that don't implement the ChargeX convention. See https://chargex.inl.gov"
+        description: "ChargeX Minimum Required Error Code (MREC) fault code (e.g. 'CX003' for HighTemperature) from the most recent StatusNotification, if the charge point vendor reports it. Null for chargers that don't implement the ChargeX convention. Join to dim_error_codes on fault_code for the error name, description, and responsibility/functional classification. See https://chargex.inl.gov"
         data_tests:
-          - accepted_values:
+          - relationships:
               arguments:
-                values: ['CX001', 'CX002', 'CX003', 'CX004', 'CX005', 'CX006', 'CX007', 'CX008', 'CX009', 'CX010', 'CX011', 'CX012', 'CX013', 'CX014', 'CX015', 'CX016', 'CX017', 'CX018', 'CX019', 'CX020', 'CX021', 'CX022', 'CX023', 'CX024', 'CX025', 'CX026']
+                to: ref('dim_error_codes')
+                field: fault_code
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested."
     data_tests:
@@ -509,6 +510,105 @@ models:
               - charger_id
               - port_id
               - connector_id
+
+  - name: dim_error_codes
+    description: >
+      ChargeX Minimum Required Error Code (MREC) reference dimension. One row per fault code
+      (CX001-CX026) defined by "Recommendations for Minimum Required Error Codes for Electric
+      Vehicle Charging Infrastructure" (ChargeX Consortium, Sept. 2023). Static reference data,
+      SCD Type 1 (overwritten on each refresh) - only changes if ChargeX revises the standard.
+      Join to dim_connectors.latest_vendor_error_code (or any future vendor_error_code column)
+      on fault_code to decode a code into its name, description, and classification.
+      See https://chargex.inl.gov
+    columns:
+      - name: error_code_key
+        description: "Surrogate key for the error code, generated from fault_code."
+        data_tests:
+          - not_null
+          - unique
+      - name: fault_code
+        description: "ChargeX fault code, e.g. 'CX003'. Natural key."
+        data_tests:
+          - not_null
+          - unique
+      - name: error_code_name
+        description: "Human-readable error name, e.g. 'HighTemperature'."
+        data_tests:
+          - not_null
+      - name: description
+        description: "Full description of the error condition."
+        data_tests:
+          - not_null
+      - name: in_ocpp_1_6
+        description: "True if this error already has a corresponding standard OCPP 1.6 ChargePointErrorCode (so it's also reported via the plain errorCode field, not just vendorErrorCode)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_ev_user
+        description: "True if the EV User is a likely responsible party for resolving this error (e.g. incorrect plug-in)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_cso
+        description: "True if the Charging Station Operator is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_evse
+        description: "True if the EVSE (charging station hardware) is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_ev
+        description: "True if the EV (vehicle) is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_safety
+        description: "True if this error compromises the safety of the user, vehicle, or charging infrastructure."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_security
+        description: "True if this error relates to authentication, data privacy, or secure operation of the charging system."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_maintenance
+        description: "True if this error signals a need for technical service, component repair, or replacement."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_financial
+        description: "True if this error relates to payment processing, pricing, or billing."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_authorization
+        description: "True if this error relates to user access control or authorization communication between the EV and EVSE."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
 
   - name: dim_drivers
     description: "Driver dimension. Grain: one row per distinct RFID id_tag observed in OCPP charge attempts, plus a single UNKNOWN sentinel row for unauthorized visits. Reads from int_driver_aggregates (never scans fact_charge_attempts directly). Type 1 (overwrite on each refresh). Behavioral attributes (first/last seen, authorization status) are derived; lifetime metrics belong in the semantic layer, not on this dim."
