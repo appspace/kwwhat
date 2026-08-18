@@ -50,6 +50,8 @@ models:
         description: "Duration of the faulted outage in minutes (calculated from from_ts to to_ts). Only periods where all connectors for the port are faulted are included."
         data_tests:
           - not_null
+      - name: vendor_error_codes
+        description: "Distinct ChargeX Minimum Required Error Code (MREC) fault codes (e.g. 'CX003' for HighTemperature) reported by any connector on this port while faulted during the outage. Empty array if no connector reported a ChargeX code (vendor doesn't implement the convention, or the notification that triggered the fault carried no vendorErrorCode). Join to dim_error_codes on fault_code to decode. See https://chargex.inl.gov"
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
