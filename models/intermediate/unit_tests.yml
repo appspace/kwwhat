@@ -91,6 +91,36 @@ unit_tests:
       rows:
         - {charger_id: 'CH-001', connector_id: '1', status: 'Available', previous_status: null, next_status: null}
 
+  - name: test_status_changes_extracts_chargex_vendor_error_code
+    description: >
+      A StatusNotification carrying a ChargeX MREC fault code in vendorErrorCode
+      (e.g. 'CX003' for HighTemperature) should have it extracted into
+      vendor_error_code, alongside the standard OCPP error_code. A StatusNotification
+      without a vendorErrorCode field should leave vendor_error_code null.
+    model: int_status_changes
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 09:59:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-000' as unique_id, '{}' as payload
+          union all
+          select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted", "vendorId": "https://chargex.inl.gov", "vendorErrorCode": "CX003"}'
+          union all
+          select cast('2025-10-01 10:05:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 2, "errorCode": "NoError", "status": "Available"}'
+      - input: ref('int_connectors')
+        format: sql
+        rows: |
+          select 'CH-001' as charger_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type
+          union all
+          select 'CH-001', 'PORT-002', '2', 'CCS'
+    expect:
+      rows:
+        - {connector_id: '1', status: 'Faulted', error_code: 'HighTemperature', vendor_error_code: 'CX003'}
+        - {connector_id: '2', status: 'Available', error_code: 'NoError', vendor_error_code: null}
+
   - name: test_status_changes_lag_lead_populated_correctly
     description: >
       Three status transitions (Available → Preparing → Charging) should produce
@@ -138,6 +168,7 @@ unit_tests:
             'UID-000'                                   as unique_id,
             'Available'                                 as status,
             'NoError'                                   as error_code,
+            cast(null as string)                        as vendor_error_code,
             '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload,
             cast(null as timestamp)                     as payload_ts,
             cast(null as timestamp)                     as confirmation_ingested_ts,
@@ -422,6 +453,7 @@ unit_tests:
             'P-001'                                    as port_id,
             'Available'                                as latest_status,
             'NoError'                                  as latest_error_code,
+            cast(null as string)                       as latest_vendor_error_code,
             cast('2025-10-02 09:00:00' as timestamp)  as latest_status_ts,
             cast('2025-10-02 10:00:00' as timestamp)  as incremental_ts
       - input: ref('int_status_changes')
@@ -434,6 +466,7 @@ unit_tests:
             cast('2025-10-02 10:30:00' as timestamp)  as ingested_ts,
             'Charging'                                 as status,
             'NoError'                                  as error_code,
+            cast(null as string)                       as vendor_error_code,
             cast(null as string)                       as next_status
     expect:
       rows:

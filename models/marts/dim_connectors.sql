@@ -19,6 +19,7 @@ latest_status as (
         connector_id,
         latest_status,
         latest_error_code,
+        latest_vendor_error_code,
         latest_status_ts
     from {{ ref('int_connector_latest_status') }}
 )
@@ -35,6 +36,7 @@ select
     connectors.connector_type,
     latest_status.latest_status,
     latest_status.latest_error_code,
+    latest_status.latest_vendor_error_code,
     latest_status.latest_status_ts
 from connectors
 left join latest_status
