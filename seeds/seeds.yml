@@ -8,7 +8,11 @@ seeds:
       responsibility/functional classifications from "Recommendations for Minimum
       Required Error Codes for Electric Vehicle Charging Infrastructure" (ChargeX
       Consortium, Sept. 2023). See https://chargex.inl.gov. Static reference data,
-      only changes if ChargeX revises the standard.
+      only changes if ChargeX revises the standard. Feeds two marts: the generic
+      columns (fault_code, error_code_name, description) into dim_error_codes
+      (tagged vendor = 'ChargeX'), and the ChargeX-specific classification columns
+      (responsible_*, is_*) into the dim_chargex_mrec_attributes outrigger. The
+      seed's own columns are unchanged by this split.
     config:
       column_types:
         fault_code: varchar(5)

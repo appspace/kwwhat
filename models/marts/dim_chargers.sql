@@ -11,7 +11,8 @@ with chargers as (
         location_id,
         commissioned_ts,
         decommissioned_ts,
-        port_count
+        port_count,
+        charge_point_vendor
     from {{ ref('int_chargers') }}
 )
 
@@ -22,5 +23,6 @@ select
     chargers.commissioned_ts,
     chargers.decommissioned_ts,
     chargers.decommissioned_ts is null as is_commissioned,
-    chargers.port_count
+    chargers.port_count,
+    chargers.charge_point_vendor
 from chargers
