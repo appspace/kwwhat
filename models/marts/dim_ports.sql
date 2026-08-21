@@ -1,7 +1,6 @@
 {{
   config(
-    materialized='table',
-    description='Port (EVSE) dimension. One row per Port (charger_id + port_id). A Port is an independently operated part of a Charger that can deliver energy to one EV at a time. Reliability and utilisation metrics (uptime, downtime, charge attempts) are tracked at Port grain. Sanity check: the number of Ports at a location answers "how many vehicles can charge simultaneously?".'
+    materialized='table'
   )
 }}
 
