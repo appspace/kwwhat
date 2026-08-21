@@ -91,11 +91,20 @@
 {% endmacro %}
 
 {% macro payload_extract_vendor_error_code(action, payload) %}
-    -- ChargeX Minimum Required Error Code (MREC), e.g. 'CX001'. See https://chargex.inl.gov
-    -- Null unless the charge point vendor implements the ChargeX fault code convention.
+    -- Vendor-specific fault code (e.g. ChargeX MREC 'CX001', see https://chargex.inl.gov). Meaning is
+    -- OEM-dependent - decode via dim_error_codes scoped to the reporting charger's charge_point_vendor.
     case
         when {{ action }} = 'StatusNotification'
             then cast({{ json_extract(string=payload, string_path="vendorErrorCode") }} as {{ dbt.type_string() }})
+        else null
+    end
+{% endmacro %}
+
+{% macro payload_extract_charge_point_vendor(action, payload) %}
+    -- OEM/manufacturer reported in the charger's OCPP BootNotification.
+    case
+        when {{ action }} = 'BootNotification'
+            then cast({{ json_extract(string=payload, string_path="chargePointVendor") }} as {{ dbt.type_string() }})
         else null
     end
 {% endmacro %}

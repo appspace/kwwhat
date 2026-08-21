@@ -5,37 +5,30 @@
   )
 }}
 
-with chargex_mrec_codes as (
+with chargex_error_codes as (
     select
+        'ChargeX' as vendor,
         fault_code,
         error_code_name,
-        description,
-        in_ocpp_1_6,
-        responsible_ev_user,
-        responsible_cso,
-        responsible_evse,
-        responsible_ev,
-        is_safety,
-        is_security,
-        is_maintenance,
-        is_financial,
-        is_authorization
+        description
     from {{ ref('chargex_mrec_codes') }}
+),
+
+-- Generic, multi-vendor reference: add one CTE per new OEM (its own seed, its own vendor
+-- literal) and union it in here.
+all_error_codes as (
+    select
+        vendor,
+        fault_code,
+        error_code_name,
+        description
+    from chargex_error_codes
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['fault_code']) }} as error_code_key,
+    {{ dbt_utils.generate_surrogate_key(['vendor', 'fault_code']) }} as error_code_key,
+    vendor,
     fault_code,
     error_code_name,
-    description,
-    in_ocpp_1_6,
-    responsible_ev_user,
-    responsible_cso,
-    responsible_evse,
-    responsible_ev,
-    is_safety,
-    is_security,
-    is_maintenance,
-    is_financial,
-    is_authorization
-from chargex_mrec_codes
+    description
+from all_error_codes

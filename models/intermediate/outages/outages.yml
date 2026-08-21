@@ -51,7 +51,7 @@ models:
         data_tests:
           - not_null
       - name: vendor_error_codes
-        description: "Distinct ChargeX Minimum Required Error Code (MREC) fault codes (e.g. 'CX003' for HighTemperature) reported by any connector on this port while faulted during the outage. Empty array if no connector reported a ChargeX code (vendor doesn't implement the convention, or the notification that triggered the fault carried no vendorErrorCode). Join to dim_error_codes on fault_code to decode. See https://chargex.inl.gov"
+        description: "Distinct vendor-specific fault codes (e.g. ChargeX MREC 'CX003' for HighTemperature) reported by any connector on this port while faulted during the outage. Empty array if no connector reported a vendor error code (vendor doesn't populate it, or the notification that triggered the fault carried no vendorErrorCode). Meaning depends on the charger's OEM - decode via dim_error_codes scoped to that charger's charge_point_vendor, see dim_chargers."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

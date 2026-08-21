@@ -188,6 +188,34 @@ unit_tests:
         - {status: 'Available', previous_status: null,        next_status: 'Preparing'}
         - {status: 'Preparing', previous_status: 'Available', next_status: null}
 
+  # ── int_charger_vendor_info ──────────────────────────────────────────────────
+
+  - name: test_charger_vendor_info_extracts_and_keeps_latest_boot_notification
+    description: >
+      chargePointVendor is extracted from BootNotification CALL payloads and kept per
+      charger, with the most recent BootNotification winning when a charger sends more
+      than one. Non-BootNotification actions (e.g. Heartbeat) produce no row for a
+      charger that has never sent a BootNotification.
+    model: int_charger_vendor_info
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, 'BootNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"chargePointVendor": "ChargeX", "chargePointModel": "X1"}' as payload
+          union all
+          select cast('2025-10-01 11:00:00' as timestamp), 'CH-001', 'BootNotification', '2', 'UID-002', '{"chargePointVendor": "ABB", "chargePointModel": "X2"}'
+          union all
+          select cast('2025-10-01 10:30:00' as timestamp), 'CH-003', 'Heartbeat', '2', 'UID-003', '{}'
+          union all
+          select cast('2025-10-01 09:00:00' as timestamp), 'CH-002', 'BootNotification', '2', 'UID-004', '{"chargePointVendor": "Kempower"}'
+    expect:
+      rows:
+        - {charger_id: 'CH-001', charge_point_vendor: 'ABB'}
+        - {charger_id: 'CH-002', charge_point_vendor: 'Kempower'}
+
   # ── int_faulted_outages ─────────────────────────────────────────────────────
 
   - name: test_faulted_outages_partial_fault_produces_no_outage

@@ -419,6 +419,8 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 1
+      - name: charge_point_vendor
+        description: "OEM/manufacturer reported in the charger's OCPP BootNotification. Null until its first BootNotification is ingested."
 
   - name: dim_ports
     description: >
@@ -495,7 +497,12 @@ models:
       - name: latest_error_code
         description: "Error code from the most recent StatusNotification (e.g. NoError, ConnectorLockFailure)."
       - name: latest_vendor_error_code
-        description: "ChargeX Minimum Required Error Code (MREC) fault code (e.g. 'CX003' for HighTemperature) from the most recent StatusNotification, if the charge point vendor reports it. Null for chargers that don't implement the ChargeX convention. Join to dim_error_codes on fault_code for the error name, description, and responsibility/functional classification. See https://chargex.inl.gov"
+        description: >
+          Vendor-specific fault code from the most recent StatusNotification (e.g. ChargeX MREC
+          'CX003' for HighTemperature), if the charge point vendor reports it. Meaning depends on
+          the charger's OEM - decode via dim_error_codes scoped to that charger's
+          charge_point_vendor (see dim_chargers), not by fault_code alone. Null for chargers whose
+          vendor doesn't populate this field.
         data_tests:
           - relationships:
               arguments:
@@ -513,24 +520,41 @@ models:
 
   - name: dim_error_codes
     description: >
-      ChargeX Minimum Required Error Code (MREC) reference dimension. One row per fault code
-      (CX001-CX026) defined by "Recommendations for Minimum Required Error Codes for Electric
-      Vehicle Charging Infrastructure" (ChargeX Consortium, Sept. 2023). Static reference data,
-      SCD Type 1 (overwritten on each refresh) - only changes if ChargeX revises the standard.
-      Join to dim_connectors.latest_vendor_error_code (or any future vendor_error_code column)
-      on fault_code to decode a code into its name, description, and classification.
-      See https://chargex.inl.gov
+      Generic, multi-vendor error-code reference dimension. One row per (vendor, fault_code).
+      Currently seeded from the ChargeX Minimum Required Error Code (MREC) standard
+      (CX001-CX026, "Recommendations for Minimum Required Error Codes for Electric Vehicle
+      Charging Infrastructure", ChargeX Consortium, Sept. 2023 - see https://chargex.inl.gov),
+      but the shape is OEM-agnostic: adding a new vendor's fault-code dictionary means adding
+      one more seed and CTE, not new columns. OEM-specific classification taxonomies (like
+      ChargeX's responsible_*/is_* flags) live in separate outrigger dimensions such as
+      dim_chargex_mrec_attributes, joined 1:1 on error_code_key - they don't belong here because
+      they don't generalize across vendors. Static reference data, SCD Type 1 (overwritten on
+      each refresh). To decode a charger's latest_vendor_error_code, join on both vendor
+      (from dim_chargers.charge_point_vendor for that charger) and fault_code - fault_code alone
+      is no longer globally unique once more than one vendor is present.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - vendor
+              - fault_code
     columns:
       - name: error_code_key
-        description: "Surrogate key for the error code, generated from fault_code."
+        description: "Surrogate key for the error code, generated from vendor and fault_code."
         data_tests:
           - not_null
           - unique
+      - name: vendor
+        description: "OEM/manufacturer this fault code dictionary belongs to, e.g. 'ChargeX'. Matches dim_chargers.charge_point_vendor for the chargers it applies to."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['ChargeX']
       - name: fault_code
-        description: "ChargeX fault code, e.g. 'CX003'. Natural key."
+        description: "Vendor fault code, e.g. 'CX003'. Part of the natural key together with vendor - no longer unique on its own across vendors."
         data_tests:
           - not_null
-          - unique
       - name: error_code_name
         description: "Human-readable error name, e.g. 'HighTemperature'."
         data_tests:
@@ -539,6 +563,26 @@ models:
         description: "Full description of the error condition."
         data_tests:
           - not_null
+
+  - name: dim_chargex_mrec_attributes
+    description: >
+      Outrigger dimension holding the ChargeX MREC-specific classification taxonomy
+      (responsibility and functional-category flags) that doesn't generalize to other OEMs.
+      One row per ChargeX fault code (CX001-CX026), joined 1:1 to dim_error_codes via
+      error_code_key - this table reuses that key rather than recomputing its own, since the
+      key is owned by dim_error_codes. Static reference data, SCD Type 1 (overwritten on each
+      refresh) - only changes if ChargeX revises the standard. See https://chargex.inl.gov
+    columns:
+      - name: error_code_key
+        description: "Surrogate key shared with dim_error_codes (vendor='ChargeX', fault_code). Owned by dim_error_codes; reused here, not recomputed."
+        data_tests:
+          - not_null
+          - unique
+      - name: fault_code
+        description: "ChargeX fault code, e.g. 'CX003'. Unique here because this table is ChargeX-only."
+        data_tests:
+          - not_null
+          - unique
       - name: in_ocpp_1_6
         description: "True if this error already has a corresponding standard OCPP 1.6 ChargePointErrorCode (so it's also reported via the plain errorCode field, not just vendorErrorCode)."
         data_tests:

@@ -63,11 +63,7 @@ models:
         data_tests:
           - not_null
       - name: latest_vendor_error_code
-        description: "ChargeX Minimum Required Error Code (MREC) fault code (e.g. 'CX003' for HighTemperature) from the most recent StatusNotification's vendorErrorCode field, if the charge point vendor reports it. Null for chargers that don't implement the ChargeX convention. See https://chargex.inl.gov"
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: ['CX001', 'CX002', 'CX003', 'CX004', 'CX005', 'CX006', 'CX007', 'CX008', 'CX009', 'CX010', 'CX011', 'CX012', 'CX013', 'CX014', 'CX015', 'CX016', 'CX017', 'CX018', 'CX019', 'CX020', 'CX021', 'CX022', 'CX023', 'CX024', 'CX025', 'CX026']
+        description: "Vendor-specific fault code from the most recent StatusNotification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the charge point vendor reports it. Meaning depends on the charger's OEM - decode via dim_error_codes scoped to that charger's charge_point_vendor, see dim_chargers. Null for chargers whose vendor doesn't populate this field."
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested"
         data_tests:
@@ -117,11 +113,7 @@ models:
         data_tests:
           - not_null
       - name: vendor_error_code
-        description: "ChargeX Minimum Required Error Code (MREC) fault code (e.g. 'CX003' for HighTemperature) from the status notification's vendorErrorCode field, if the charge point vendor reports it. Null for chargers that don't implement the ChargeX convention. See https://chargex.inl.gov"
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: ['CX001', 'CX002', 'CX003', 'CX004', 'CX005', 'CX006', 'CX007', 'CX008', 'CX009', 'CX010', 'CX011', 'CX012', 'CX013', 'CX014', 'CX015', 'CX016', 'CX017', 'CX018', 'CX019', 'CX020', 'CX021', 'CX022', 'CX023', 'CX024', 'CX025', 'CX026']
+        description: "Vendor-specific fault code from the status notification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the charge point vendor reports it. Meaning depends on the charger's OEM - decode via dim_error_codes scoped to that charger's charge_point_vendor, see dim_chargers. Null for chargers whose vendor doesn't populate this field."
       - name: payload
         description: "Original payload from the status notification"
       - name: previous_status
@@ -398,6 +390,23 @@ models:
         description: "Timestamp when the Charger was decommissioned (null if still commissioned)."
       - name: port_count
         description: "Number of Ports on this Charger."
+        data_tests:
+          - not_null
+      - name: charge_point_vendor
+        description: "OEM/manufacturer reported in the charger's OCPP BootNotification. Null until its first BootNotification is ingested."
+
+  - name: int_charger_vendor_info
+    description: "Latest known OCPP chargePointVendor per charger, extracted from BootNotification payloads. Not an event-history model - keeps only the most recent BootNotification per charger. Grain: one row per charger_id."
+    columns:
+      - name: charger_id
+        description: "Charger identifier."
+        data_tests:
+          - not_null
+          - unique
+      - name: charge_point_vendor
+        description: "OEM/manufacturer reported in the charger's OCPP BootNotification. Null until its first BootNotification is ingested."
+      - name: latest_boot_notification_ts
+        description: "Timestamp of the most recent BootNotification processed for this charger."
         data_tests:
           - not_null
 
