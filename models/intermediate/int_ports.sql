@@ -1,7 +1,6 @@
 {{
   config(
-    materialized='table',
-    description='Materialized port reference table. Breaks the live RAW catalog dependency for downstream models. Grain: one row per charger_id + port_id.'
+    materialized='table'
   )
 }}
 

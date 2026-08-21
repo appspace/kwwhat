@@ -1,7 +1,6 @@
 {{
   config(
-    materialized='table',
-    description="One row per location. Physical capacity counts derived from int_connectors and int_chargers. Full refresh — counts are overwritten when ports are commissioned or decommissioned."
+    materialized='table'
   )
 }}
 
