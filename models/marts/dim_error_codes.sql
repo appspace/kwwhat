@@ -7,7 +7,9 @@
 
 with chargex_error_codes as (
     select
-        'ChargeX' as vendor,
+        -- Matches the vendorId ChargeX's guide recommends reporting in StatusNotification
+        -- alongside vendorErrorCode (see the ChargeX Implementation Guide), not the OEM name.
+        'https://chargex.inl.gov' as vendor,
         fault_code,
         error_code_name,
         description

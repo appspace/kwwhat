@@ -92,7 +92,8 @@
 
 {% macro payload_extract_vendor_error_code(action, payload) %}
     -- Vendor-specific fault code (e.g. ChargeX MREC 'CX001', see https://chargex.inl.gov). Meaning is
-    -- OEM-dependent - decode via dim_error_codes scoped to the reporting charger's charge_point_vendor.
+    -- scheme-dependent - decode via dim_error_codes scoped to the reporting connector's vendor_id
+    -- (payload_extract_vendor_id), not the charger's OEM/manufacturer.
     case
         when {{ action }} = 'StatusNotification'
             then cast({{ json_extract(string=payload, string_path="vendorErrorCode") }} as {{ dbt.type_string() }})
@@ -100,11 +101,25 @@
     end
 {% endmacro %}
 
-{% macro payload_extract_charge_point_vendor(action, payload) %}
-    -- OEM/manufacturer reported in the charger's OCPP BootNotification.
+{% macro payload_extract_vendor_id(action, payload) %}
+    -- Identifies the vendor-specific fault-code scheme that vendorErrorCode belongs to (e.g.
+    -- ChargeX's 'https://chargex.inl.gov', see the ChargeX Implementation Guide for Minimum
+    -- Required Error Codes). This is not the charger's OEM/manufacturer - it names the taxonomy
+    -- used to interpret vendorErrorCode, and is what scopes the (vendor, fault_code) lookup in
+    -- dim_error_codes.
     case
-        when {{ action }} = 'BootNotification'
-            then cast({{ json_extract(string=payload, string_path="chargePointVendor") }} as {{ dbt.type_string() }})
+        when {{ action }} = 'StatusNotification'
+            then cast({{ json_extract(string=payload, string_path="vendorId") }} as {{ dbt.type_string() }})
+        else null
+    end
+{% endmacro %}
+
+{% macro payload_extract_info(action, payload) %}
+    -- Additional detail accompanying errorCode/vendorErrorCode - the actual or observed value
+    -- (e.g. '50' for a HighTemperature reading in degrees Celsius). Optional, may be blank.
+    case
+        when {{ action }} = 'StatusNotification'
+            then cast({{ json_extract(string=payload, string_path="info") }} as {{ dbt.type_string() }})
         else null
     end
 {% endmacro %}

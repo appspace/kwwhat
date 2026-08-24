@@ -28,7 +28,7 @@ chargex_error_codes as (
         error_code_key,
         fault_code
     from {{ ref('dim_error_codes') }}
-    where vendor = 'ChargeX'
+    where vendor = 'https://chargex.inl.gov'
 )
 
 select
