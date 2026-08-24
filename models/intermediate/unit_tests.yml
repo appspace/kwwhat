@@ -95,31 +95,27 @@ unit_tests:
     description: >
       A StatusNotification carrying a ChargeX MREC fault code in vendorErrorCode
       (e.g. 'CX003' for HighTemperature) should have it extracted into
-      vendor_error_code, alongside the standard OCPP error_code. A StatusNotification
-      without a vendorErrorCode field should leave vendor_error_code null.
+      vendor_error_code, alongside the standard OCPP error_code, the vendorId
+      ('https://chargex.inl.gov') that scopes how to decode it, and the info field
+      (the actual observed value, e.g. '50'). A StatusNotification without
+      vendorErrorCode/vendorId/info fields should leave all three null.
     model: int_status_changes
     overrides:
       macros:
         is_incremental: false
     given:
-      - input: ref('stg_ocpp_logs')
+      - input: ref('int_ocpp_logs')
         format: sql
         rows: |
-          select cast('2025-10-01 09:59:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-000' as unique_id, '{}' as payload
+          select cast('2025-10-01 09:59:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, cast(null as string) as connector_id, cast(null as string) as port_id, cast(null as string) as location_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-000' as unique_id, '{}' as payload
           union all
-          select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted", "vendorId": "https://chargex.inl.gov", "vendorErrorCode": "CX003"}'
+          select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', '1', 'PORT-001', 'LOC-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "HighTemperature", "info": "50", "status": "Faulted", "vendorId": "https://chargex.inl.gov", "vendorErrorCode": "CX003"}'
           union all
-          select cast('2025-10-01 10:05:00' as timestamp), 'CH-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 2, "errorCode": "NoError", "status": "Available"}'
-      - input: ref('int_connectors')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, '1' as connector_id, 'CCS' as connector_type
-          union all
-          select 'CH-001', 'PORT-002', '2', 'CCS'
+          select cast('2025-10-01 10:05:00' as timestamp), 'CH-001', '2', 'PORT-002', 'LOC-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 2, "errorCode": "NoError", "status": "Available"}'
     expect:
       rows:
-        - {connector_id: '1', status: 'Faulted', error_code: 'HighTemperature', vendor_error_code: 'CX003'}
-        - {connector_id: '2', status: 'Available', error_code: 'NoError', vendor_error_code: null}
+        - {connector_id: '1', status: 'Faulted', error_code: 'HighTemperature', vendor_error_code: 'CX003', vendor_id: 'https://chargex.inl.gov', info: '50'}
+        - {connector_id: '2', status: 'Available', error_code: 'NoError', vendor_error_code: null, vendor_id: null, info: null}
 
   - name: test_status_changes_lag_lead_populated_correctly
     description: >
@@ -169,6 +165,8 @@ unit_tests:
             'Available'                                 as status,
             'NoError'                                   as error_code,
             cast(null as string)                        as vendor_error_code,
+            cast(null as string)                        as vendor_id,
+            cast(null as string)                        as info,
             '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload,
             cast(null as timestamp)                     as payload_ts,
             cast(null as timestamp)                     as confirmation_ingested_ts,
@@ -187,34 +185,6 @@ unit_tests:
       rows:
         - {status: 'Available', previous_status: null,        next_status: 'Preparing'}
         - {status: 'Preparing', previous_status: 'Available', next_status: null}
-
-  # ── int_charger_vendor_info ──────────────────────────────────────────────────
-
-  - name: test_charger_vendor_info_extracts_and_keeps_latest_boot_notification
-    description: >
-      chargePointVendor is extracted from BootNotification CALL payloads and kept per
-      charger, with the most recent BootNotification winning when a charger sends more
-      than one. Non-BootNotification actions (e.g. Heartbeat) produce no row for a
-      charger that has never sent a BootNotification.
-    model: int_charger_vendor_info
-    overrides:
-      macros:
-        is_incremental: false
-    given:
-      - input: ref('stg_ocpp_logs')
-        format: sql
-        rows: |
-          select cast('2025-10-01 10:00:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, 'BootNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"chargePointVendor": "ChargeX", "chargePointModel": "X1"}' as payload
-          union all
-          select cast('2025-10-01 11:00:00' as timestamp), 'CH-001', 'BootNotification', '2', 'UID-002', '{"chargePointVendor": "ABB", "chargePointModel": "X2"}'
-          union all
-          select cast('2025-10-01 10:30:00' as timestamp), 'CH-003', 'Heartbeat', '2', 'UID-003', '{}'
-          union all
-          select cast('2025-10-01 09:00:00' as timestamp), 'CH-002', 'BootNotification', '2', 'UID-004', '{"chargePointVendor": "Kempower"}'
-    expect:
-      rows:
-        - {charger_id: 'CH-001', charge_point_vendor: 'ABB'}
-        - {charger_id: 'CH-002', charge_point_vendor: 'Kempower'}
 
   # ── int_faulted_outages ─────────────────────────────────────────────────────
 
@@ -506,6 +476,8 @@ unit_tests:
             'Available'                                as latest_status,
             'NoError'                                  as latest_error_code,
             cast(null as string)                       as latest_vendor_error_code,
+            cast(null as string)                       as latest_vendor_id,
+            cast(null as string)                       as latest_info,
             cast('2025-10-02 09:00:00' as timestamp)  as latest_status_ts,
             cast('2025-10-02 10:00:00' as timestamp)  as incremental_ts
       - input: ref('int_status_changes')
@@ -519,6 +491,8 @@ unit_tests:
             'Charging'                                 as status,
             'NoError'                                  as error_code,
             cast(null as string)                       as vendor_error_code,
+            cast(null as string)                       as vendor_id,
+            cast(null as string)                       as info,
             cast(null as string)                       as next_status
     expect:
       rows:

@@ -419,8 +419,6 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 1
-      - name: charge_point_vendor
-        description: "OEM/manufacturer reported in the charger's OCPP BootNotification. Null until its first BootNotification is ingested."
 
   - name: dim_ports
     description: >
@@ -499,15 +497,25 @@ models:
       - name: latest_vendor_error_code
         description: >
           Vendor-specific fault code from the most recent StatusNotification (e.g. ChargeX MREC
-          'CX003' for HighTemperature), if the charge point vendor reports it. Meaning depends on
-          the charger's OEM - decode via dim_error_codes scoped to that charger's
-          charge_point_vendor (see dim_chargers), not by fault_code alone. Null for chargers whose
-          vendor doesn't populate this field.
+          'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the
+          fault-code scheme - decode via dim_error_codes scoped to latest_vendor_id, not by
+          fault_code alone. Null for chargers whose vendor doesn't populate this field.
         data_tests:
           - relationships:
               arguments:
                 to: ref('dim_error_codes')
                 field: fault_code
+      - name: latest_vendor_id
+        description: >
+          Identifies the vendor-specific fault-code scheme from the most recent StatusNotification
+          (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how latest_vendor_error_code should
+          be decoded - see dim_error_codes.vendor. Not the charger's OEM/manufacturer. Null for
+          chargers whose vendor doesn't populate this field.
+      - name: latest_info
+        description: >
+          Additional detail from the most recent StatusNotification (e.g. '50' for a
+          HighTemperature reading in degrees Celsius), accompanying latest_error_code /
+          latest_vendor_error_code. Optional - may be null or blank.
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested."
     data_tests:
@@ -529,8 +537,8 @@ models:
       ChargeX's responsible_*/is_* flags) live in separate outrigger dimensions such as
       dim_chargex_mrec_attributes, joined 1:1 on error_code_key - they don't belong here because
       they don't generalize across vendors. Static reference data, SCD Type 1 (overwritten on
-      each refresh). To decode a charger's latest_vendor_error_code, join on both vendor
-      (from dim_chargers.charge_point_vendor for that charger) and fault_code - fault_code alone
+      each refresh). To decode a connector's latest_vendor_error_code, join on both vendor
+      (from dim_connectors.latest_vendor_id for that connector) and fault_code - fault_code alone
       is no longer globally unique once more than one vendor is present.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
@@ -545,12 +553,12 @@ models:
           - not_null
           - unique
       - name: vendor
-        description: "OEM/manufacturer this fault code dictionary belongs to, e.g. 'ChargeX'. Matches dim_chargers.charge_point_vendor for the chargers it applies to."
+        description: "Identifies the fault-code scheme this dictionary decodes, matching the vendorId reported alongside vendorErrorCode in OCPP StatusNotification (e.g. ChargeX's 'https://chargex.inl.gov', see dim_connectors.latest_vendor_id). Not an OEM/manufacturer name."
         data_tests:
           - not_null
           - accepted_values:
               arguments:
-                values: ['ChargeX']
+                values: ['https://chargex.inl.gov']
       - name: fault_code
         description: "Vendor fault code, e.g. 'CX003'. Part of the natural key together with vendor - no longer unique on its own across vendors."
         data_tests:
@@ -574,7 +582,7 @@ models:
       refresh) - only changes if ChargeX revises the standard. See https://chargex.inl.gov
     columns:
       - name: error_code_key
-        description: "Surrogate key shared with dim_error_codes (vendor='ChargeX', fault_code). Owned by dim_error_codes; reused here, not recomputed."
+        description: "Surrogate key shared with dim_error_codes (vendor='https://chargex.inl.gov', fault_code). Owned by dim_error_codes; reused here, not recomputed."
         data_tests:
           - not_null
           - unique

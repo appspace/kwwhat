@@ -63,7 +63,11 @@ models:
         data_tests:
           - not_null
       - name: latest_vendor_error_code
-        description: "Vendor-specific fault code from the most recent StatusNotification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the charge point vendor reports it. Meaning depends on the charger's OEM - decode via dim_error_codes scoped to that charger's charge_point_vendor, see dim_chargers. Null for chargers whose vendor doesn't populate this field."
+        description: "Vendor-specific fault code from the most recent StatusNotification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to latest_vendor_id. Null for chargers whose vendor doesn't populate this field."
+      - name: latest_vendor_id
+        description: "Identifies the vendor-specific fault-code scheme from the most recent StatusNotification's vendorId field (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how latest_vendor_error_code should be decoded. Not the charger's OEM/manufacturer. Null if the vendor doesn't populate this field."
+      - name: latest_info
+        description: "Additional detail from the most recent StatusNotification's info field, accompanying latest_error_code/latest_vendor_error_code (e.g. '50' for a HighTemperature reading in degrees Celsius). Optional - may be null or blank."
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested"
         data_tests:
@@ -113,7 +117,11 @@ models:
         data_tests:
           - not_null
       - name: vendor_error_code
-        description: "Vendor-specific fault code from the status notification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the charge point vendor reports it. Meaning depends on the charger's OEM - decode via dim_error_codes scoped to that charger's charge_point_vendor, see dim_chargers. Null for chargers whose vendor doesn't populate this field."
+        description: "Vendor-specific fault code from the status notification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to vendor_id. Null for chargers whose vendor doesn't populate this field."
+      - name: vendor_id
+        description: "Identifies the vendor-specific fault-code scheme from the status notification's vendorId field (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how vendor_error_code should be decoded. Not the charger's OEM/manufacturer. Null if the vendor doesn't populate this field."
+      - name: info
+        description: "Additional detail from the status notification's info field, accompanying error_code/vendor_error_code (e.g. '50' for a HighTemperature reading in degrees Celsius). Optional - may be null or blank."
       - name: payload
         description: "Original payload from the status notification"
       - name: previous_status
@@ -390,23 +398,6 @@ models:
         description: "Timestamp when the Charger was decommissioned (null if still commissioned)."
       - name: port_count
         description: "Number of Ports on this Charger."
-        data_tests:
-          - not_null
-      - name: charge_point_vendor
-        description: "OEM/manufacturer reported in the charger's OCPP BootNotification. Null until its first BootNotification is ingested."
-
-  - name: int_charger_vendor_info
-    description: "Latest known OCPP chargePointVendor per charger, extracted from BootNotification payloads. Not an event-history model - keeps only the most recent BootNotification per charger. Grain: one row per charger_id."
-    columns:
-      - name: charger_id
-        description: "Charger identifier."
-        data_tests:
-          - not_null
-          - unique
-      - name: charge_point_vendor
-        description: "OEM/manufacturer reported in the charger's OCPP BootNotification. Null until its first BootNotification is ingested."
-      - name: latest_boot_notification_ts
-        description: "Timestamp of the most recent BootNotification processed for this charger."
         data_tests:
           - not_null
 
