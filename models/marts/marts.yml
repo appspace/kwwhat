@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: fact_charge_attempts
-    description: "Incremental marts model that combines charge attempts and transactions data using outer join. Provides comprehensive view of charge attempts with associated transaction details where available."
+    description: "One row per charge attempt: charger_id + connector_id + charge_attempt_start_ts. Incremental marts model that combines charge attempts and transactions data using outer join. Provides comprehensive view of charge attempts with associated transaction details where available."
     columns:
       - name: charge_attempt_id
         description: "Surrogate key for the charge attempt, generated from charger_id, connector_id, and charge_attempt_start_ts."
@@ -112,7 +112,7 @@ models:
             severity: error
 
   - name: fact_interval_data
-    description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
+    description: "One row per charger_id + connector_id + transaction_id + ingested_ts + measurand + unit + phase + 15-minute interval. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
     columns:
       - name: port_key
         description: "Surrogate key for the port the interval was recorded on, generated in place from charger_id + port_id (port_id resolved upstream in int_meter_values via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
@@ -422,7 +422,7 @@ models:
 
   - name: dim_ports
     description: >
-      Port (EVSE) dimension. One row per Port (charger_id + port_id).
+      One row per Port (charger_id + port_id). Port (EVSE) dimension.
       A Port is an independently operated part of a Charger that can deliver energy to one EV at a time.
       Reliability and utilisation metrics (uptime, downtime, charge attempts) are tracked at Port grain.
       Sanity check: the number of Ports at a location answers "how many vehicles can charge simultaneously?".
