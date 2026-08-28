@@ -50,19 +50,19 @@ models:
       - name: confirmation_ingested_ts
         description: "Timestamp when the status change confirmation was received"
       - name: previous_status
-        description: "Status before changing to 'Preparing'"
+        description: "Status before changing to 'Preparing'. Degenerate dimension stored directly on the fact - no separate dimension table exists for status values; usable for filtering and grouping."
       - name: status
-        description: "Current status (should be 'Preparing')"
+        description: "Current status (should be 'Preparing'). Degenerate dimension stored directly on the fact - no separate dimension table exists for status values; usable for filtering and grouping."
         data_tests:
           - accepted_values:
               arguments:
                 values: ['Preparing']
       - name: next_status
-        description: "Next status after 'Preparing' (e.g., 'Charging', 'Available', 'Faulted')"
+        description: "Next status after 'Preparing' (e.g., 'Charging', 'Available', 'Faulted'). Degenerate dimension stored directly on the fact - no separate dimension table exists for status values; usable for filtering and grouping."
       - name: id_tags
-        description: "Array of driver identifiers (id_tag) merged from charge attempt and transaction events. See id_tag for the scalar value."
+        description: "Array of driver identifiers (id_tag) merged from charge attempt and transaction events. See id_tag for the scalar value. Degenerate dimension stored directly on the fact - no separate dimension table exists for it; usable for filtering and grouping."
       - name: id_tag_statuses
-        description: "Array of authorization statuses merged from charge attempt and transaction events"
+        description: "Array of authorization statuses merged from charge attempt and transaction events. Degenerate dimension stored directly on the fact - no separate dimension table exists for it; usable for filtering and grouping."
       - name: id_tag
         description: "Driver identifier (id_tag) for this attempt — first element from the id_tags array. Null for unauthorized attempts."
       - name: id_tag_status
@@ -78,7 +78,7 @@ models:
       - name: transaction_stop_ts
         description: "Timestamp when the transaction stopped"
       - name: transaction_stop_reason
-        description: "Reason for stopping the transaction"
+        description: "Reason for stopping the transaction. Degenerate dimension stored directly on the fact - no separate dimension table exists for stop reasons; usable for filtering and grouping."
       - name: meter_start_wh
         description: "Meter reading at transaction start (Wh)"
       - name: meter_stop_wh
@@ -86,7 +86,7 @@ models:
       - name: energy_transferred_kwh
         description: "Total energy transferred in kWh"
       - name: error_codes
-        description: "Array of error codes from both charge attempt events and StatusNotification events during the transaction"
+        description: "Array of error codes from both charge attempt events and StatusNotification events during the transaction. Degenerate dimension stored directly on the fact - no separate dimension table exists for it; usable for filtering and grouping."
       - name: is_successful
         description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, next status is not 'Faulted', transaction stop reason is 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.01 kWh."
         data_tests:
@@ -229,7 +229,7 @@ models:
               arguments:
                 min_value: 0
       - name: reason
-        description: "Downtime reason: FAULTED or OFFLINE."
+        description: "Downtime reason: FAULTED or OFFLINE. Degenerate dimension stored directly on the fact - no separate dimension table exists for downtime reasons; usable for filtering and grouping."
         data_tests:
           - not_null
           - accepted_values:
@@ -298,9 +298,9 @@ models:
               arguments:
                 min_value: 1
       - name: charger_ids
-        description: "Array of charger IDs used during this visit"
+        description: "Array of charger IDs used during this visit. Kept as an array despite arrays being non-standard in a dimensional fact: a visit can span multiple chargers (e.g. a retry on an adjacent charger), and collapsing to a single value would lose that detail for operational drill-down. Not declared as a dimension or measure in models/semantic/semantic_models.yml, so it is excluded from metric aggregation by construction. Use first_charger_id/last_charger_id for semantic-layer-safe charger attribution."
       - name: charge_attempt_ids
-        description: "Array of charge attempt IDs included in this visit"
+        description: "Array of charge attempt IDs included in this visit. Kept as an array for the same reason as charger_ids - it enables operational drill-down into every attempt in the visit without a separate bridge table. Not declared as a dimension or measure in models/semantic/semantic_models.yml, so it is excluded from metric aggregation by construction. Use first_charge_attempt_id/last_charge_attempt_id for semantic-layer-safe joins."
       - name: first_charge_attempt_id
         description: "Charge attempt ID that started the visit"
       - name: last_charge_attempt_id
