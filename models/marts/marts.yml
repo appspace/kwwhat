@@ -499,12 +499,12 @@ models:
           Vendor-specific fault code from the most recent StatusNotification (e.g. ChargeX MREC
           'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the
           fault-code scheme - decode via dim_error_codes scoped to latest_vendor_id, not by
-          fault_code alone. Null for chargers whose vendor doesn't populate this field.
-        data_tests:
-          - relationships:
-              arguments:
-                to: ref('dim_error_codes')
-                field: fault_code
+          fault_code alone: fault_code is not globally unique once more than one vendor is
+          present, so a single-column relationships test against dim_error_codes.fault_code
+          would pass even when the code doesn't belong to this connector's vendor. The composite
+          (latest_vendor_id, latest_vendor_error_code) -> (vendor, fault_code) check lives in
+          tests/assert_vendor_error_code_matches_vendor_id.sql instead. Null for chargers whose
+          vendor doesn't populate this field.
       - name: latest_vendor_id
         description: >
           Identifies the vendor-specific fault-code scheme from the most recent StatusNotification
@@ -586,6 +586,10 @@ models:
         data_tests:
           - not_null
           - unique
+          - relationships:
+              arguments:
+                to: ref('dim_error_codes')
+                field: error_code_key
       - name: fault_code
         description: "ChargeX fault code, e.g. 'CX003'. Unique here because this table is ChargeX-only."
         data_tests:
