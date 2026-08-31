@@ -9,7 +9,8 @@ with connectors as (
         charger_id,
         port_id,
         connector_id,
-        connector_type
+        connector_type,
+        max_power_kw
     from {{ ref('int_connectors') }}
 ),
 
@@ -33,6 +34,7 @@ select
     connectors.port_id,
     connectors.connector_id,
     connectors.connector_type,
+    connectors.max_power_kw,
     latest_status.latest_status,
     latest_status.latest_error_code,
     latest_status.latest_status_ts

@@ -47,6 +47,8 @@ sources:
             description: "Charger identifier"
           - name: port_id
             description: "Port identifier within the charger"
+          - name: max_power_kw
+            description: "Maximum rated output power of the Port in kilowatts"
 
       - name: connectors
         identifier: "{{ var('connectors_identifier') }}"
@@ -60,6 +62,8 @@ sources:
             description: "Connector identifier within the port"
           - name: connector_type
             description: "Type of connector (e.g., CCS, NACS)"
+          - name: max_power_kw
+            description: "Maximum rated output power of the Connector in kilowatts"
 
 models:
   - name: stg_ocpp_logs
@@ -116,6 +120,14 @@ models:
         description: "Identifier for the Port within the Charger."
         data_tests:
           - not_null
+      - name: max_power_kw
+        description: "Maximum rated output power of the Port in kilowatts (e.g., 50, 150, 350)."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -145,6 +157,14 @@ models:
           - accepted_values:
               arguments:
                 values: ['CCS', 'CHAdeMO', 'NACS', 'Type 2', 'Type 1']
+      - name: max_power_kw
+        description: "Maximum rated output power of the Connector in kilowatts (e.g., 50, 150, 350)."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
