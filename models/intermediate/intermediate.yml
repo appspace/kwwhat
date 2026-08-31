@@ -178,18 +178,22 @@ models:
         description: "Timestamp when the status change confirmation was received"
       - name: id_tags
         description: "Array of driver identifiers (id_tag) from Authorize/StartTransaction messages"
+        data_type: array<string>
       - name: id_tag_statuses
         description: "Array of authorization statuses (e.g., 'Accepted', 'Blocked')"
+        data_type: array<string>
       - name: transaction_id
         description: "Primary transaction ID for this charge attempt (first element from transaction_ids array)"
       - name: error_codes
         description: "Array of error codes from StatusNotification messages"
+        data_type: array<string>
       - name: _unique_transaction_count
         description: "Count of unique transaction IDs for this charge attempt (should be 0 or 1)"
         data_tests:
           - accepted_values:
               arguments:
                 values: [0, 1]
+                quote: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -231,8 +235,10 @@ models:
         description: "Reason for stopping the transaction (e.g., 'EVDisconnected', 'DeAuthorized', 'Local')"
       - name: id_tags
         description: "Array of driver identifiers (id_tag) from Authorize/StartTransaction messages"
+        data_type: array<string>
       - name: id_tag_statuses
         description: "Array of authorization statuses (e.g., 'Accepted', 'Blocked', 'Expired')"
+        data_type: array<string>
       - name: meter_start_wh
         description: "Meter reading at transaction start (Wh)"
       - name: meter_stop_wh
@@ -241,11 +247,13 @@ models:
         description: "Total energy transferred in kWh (calculated from meter_stop_kw - meter_start_kw)"
       - name: error_codes
         description: "Array of error codes from StatusNotification events that occurred during the transaction"
+        data_type: array<string>
       - name: _unique_connectors_count
         data_tests:
           - accepted_values:
               arguments:
                 values: [1]
+                quote: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

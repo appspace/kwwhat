@@ -43,9 +43,11 @@ models:
 
 # Variables for source references
 # This makes it easier to reference sources in models and keeps source names consistent
+# raw_database/raw_schema are deliberately NOT set here: their per-adapter defaults live in
+# the source config in models/staging/raw/staging.yml (dbt_project.yml `vars` values aren't
+# Jinja-rendered, so a target-aware default can't live here). Setting either var in this
+# vars block would shadow that default on every adapter - override via --vars instead.
 vars:
-  raw_database: "RAW"
-  raw_schema: "SEED"
   ocpp_logs_identifier: "ocpp_1_6_synthetic_logs_14d"
   chargers_identifier: "chargers"
   ports_identifier: "ports"

@@ -96,7 +96,7 @@ charge_attempt_events as (
         location_id
     from ocpp_logs
     where action in ({{ "'" + "', '".join(charge_attempt_actions) + "'" }})
-        and message_type_id = {{ var("message_type_ids").CALL }}
+        and message_type_id = '{{ var("message_type_ids").CALL }}'
 ),
 
 charge_attempt_events_conf as (
@@ -105,7 +105,7 @@ charge_attempt_events_conf as (
         {{ payload_extract_transaction_id('req.action', 'req.payload', 'conf.payload') }} as transaction_id
     from charge_attempt_events as req
     left join ocpp_logs as conf on req.unique_id = conf.unique_id
-        and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
+        and conf.message_type_id = '{{ var("message_type_ids").CALLRESULT }}'
         and conf.ingested_ts >= req.ingested_ts
         and conf.ingested_ts <= {{ dbt.dateadd(
             "second", var("transaction_message_retry_interval"), "req.ingested_ts"
@@ -195,11 +195,11 @@ preparing_agg as (
         next_payload_ts,
         payload_ts,
         -- Aggregate extracted details into arrays
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag") }}) as id_tags,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag_status") }}) as id_tag_statuses,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="parent_id_tag") }}) as parent_id_tags,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_id") }}) as transaction_ids,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="error_code") }}) as error_codes
+        {{ array_agg_distinct('id_tag') }} as id_tags,
+        {{ array_agg_distinct('id_tag_status') }} as id_tag_statuses,
+        {{ array_agg_distinct('parent_id_tag') }} as parent_id_tags,
+        {{ array_agg_distinct('transaction_id') }} as transaction_ids,
+        {{ array_agg_distinct('error_code') }} as error_codes
 
     from preparing_details
     group by
@@ -242,15 +242,15 @@ combined_preparing as (
         coalesce(b.previous_payload_ts, n.previous_payload_ts) as previous_payload_ts,
         coalesce(n.next_payload_ts, b.next_payload_ts) as next_payload_ts,
 
-        array_distinct({{ array_concat('n.id_tags', 'b.id_tags') }}) as id_tags,
+        {{ array_distinct(array_concat('n.id_tags', 'b.id_tags')) }} as id_tags,
 
-        array_distinct({{ array_concat('n.id_tag_statuses', 'b.id_tag_statuses') }}) as id_tag_statuses,
+        {{ array_distinct(array_concat('n.id_tag_statuses', 'b.id_tag_statuses')) }} as id_tag_statuses,
 
-        array_distinct({{ array_concat('n.parent_id_tags', 'b.parent_id_tags') }}) as parent_id_tags,
+        {{ array_distinct(array_concat('n.parent_id_tags', 'b.parent_id_tags')) }} as parent_id_tags,
 
-        array_distinct({{ array_concat('n.transaction_ids', 'b.transaction_ids') }}) as transaction_ids,
+        {{ array_distinct(array_concat('n.transaction_ids', 'b.transaction_ids')) }} as transaction_ids,
 
-        array_distinct({{ array_concat('n.error_codes', 'b.error_codes') }}) as error_codes
+        {{ array_distinct(array_concat('n.error_codes', 'b.error_codes')) }} as error_codes
 
     from preparing_agg as n
     left join {{ this }} as b

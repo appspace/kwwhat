@@ -24,7 +24,20 @@
 {% endmacro %}
 
 {% macro bigquery__json_extract(string, string_path) %}
-    json_extract_scalar({{ string }}, '$.{{ string_path }}')
+    {#
+      A root-level array index path (string_path=[1]) needs '$[1]', not '$.[1]' - BigQuery's
+      JSONPath parser rejects the dot before a bracket. Named-field paths still get the dot.
+
+      json_extract_scalar returns null for objects/arrays (only works for scalars) - e.g.
+      OCPP's msg[2]/msg[3] payload object. coalesce with json_extract as fallback covers
+      those compound values, same pattern as duckdb__json_extract above.
+    #}
+    {%- set path_str = string_path | string | trim -%}
+    {%- if path_str.startswith('[') -%}
+        coalesce(json_extract_scalar({{ string }}, '${{ path_str }}'), json_extract({{ string }}, '${{ path_str }}'))
+    {%- else -%}
+        coalesce(json_extract_scalar({{ string }}, '$.{{ path_str }}'), json_extract({{ string }}, '$.{{ path_str }}'))
+    {%- endif -%}
 {% endmacro %}
 
 {% macro redshift__json_extract(string, string_path) %}
