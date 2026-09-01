@@ -292,8 +292,7 @@ new_visits as (
             last_charge_attempt_id,
             last_charger_id,
             last_port_id,
-            is_successful,
-            grouping_key
+            is_successful
         from {{ this }}
         where visit_end_ts >= (select buffer_from_timestamp from incremental_date_range)
     ),
@@ -452,8 +451,8 @@ select
     v.first_port_id,
     v.last_port_id,
     v.is_successful,
-    v.grouping_key,
     {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes,
+    v.grouping_key as _grouping_key,
     (select incremental_ts from incremental) as incremental_ts
 from visits as v
 
