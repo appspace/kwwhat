@@ -452,6 +452,7 @@ select
     v.last_port_id,
     v.is_successful,
     {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes,
+    v.grouping_key as _grouping_key,
     (select incremental_ts from incremental) as incremental_ts
 from visits as v
 

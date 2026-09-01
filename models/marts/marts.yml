@@ -343,6 +343,10 @@ models:
           - accepted_values:
               arguments:
                 values: [true, false]
+      - name: _grouping_key
+        description: "Internal key the grouping algorithm partitioned attempts on to build this visit: location_id + id_tag for authenticated visits, or location_id + charger_id + port_id for unauthenticated visits. Underscore-prefixed because it is a diagnostic artifact of the grouping/merge logic, not a business dimension - exposed to sanity-check why a set of charge attempts did or didn't end up in the same visit, not for BI filtering or grouping."
+        data_tests:
+          - not_null
       - name: incremental_ts
         description: "Latest incremental processing timestamp for incremental processing tracking"
         data_tests:

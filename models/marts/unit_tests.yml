@@ -796,7 +796,7 @@ unit_tests:
               '1' as first_port_id,
               '1' as last_port_id,
               true as is_successful,
-              'LOC-001_TAG-001' as grouping_key,
+              'LOC-001_TAG-001' as _grouping_key,
               cast('2025-10-02 10:00:00' as timestamp) as incremental_ts
       - input: ref('fact_charge_attempts')
         format: sql
@@ -869,7 +869,7 @@ unit_tests:
               '1' as first_port_id,
               '1' as last_port_id,
               false as is_successful,
-              'LOC-001_CH-001_1' as grouping_key,
+              'LOC-001_CH-001_1' as _grouping_key,
               cast('2025-10-02 11:00:00' as timestamp) as incremental_ts
       - input: ref('fact_charge_attempts')
         format: sql
@@ -943,7 +943,7 @@ unit_tests:
               '1' as first_port_id,
               '1' as last_port_id,
               false as is_successful,
-              'LOC-001_CH-001_1' as grouping_key,
+              'LOC-001_CH-001_1' as _grouping_key,
               cast('2025-10-02 12:00:00' as timestamp) as incremental_ts
       - input: ref('fact_charge_attempts')
         format: sql
