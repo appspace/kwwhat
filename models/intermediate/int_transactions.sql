@@ -145,34 +145,6 @@ transactions as (
         charger_id
 ),
 
-status_notifications as (
-    select
-        charger_id,
-        ingested_ts,
-        connector_id,
-        {{ payload_extract_error_code('action', 'payload') }} as error_code
-    from ocpp_logs
-    where action = 'StatusNotification'
-        and message_type_id = {{ var("message_type_ids").CALL }}
-),
-
--- Join StatusNotification events that occurred during each transaction
-transaction_status_notifications as (
-    select
-        t.transaction_id,
-        t.charger_id,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="sn.error_code") }}) as error_codes
-    from transactions as t
-    left join status_notifications as sn
-        on t.charger_id = sn.charger_id
-        and sn.ingested_ts >= t.transaction_start_ts
-        and sn.ingested_ts <= coalesce(t.transaction_stop_ts, t.last_ingested_ts)
-        and {{ array_contains('t.connector_ids', 'sn.connector_id') }}
-    group by
-        t.transaction_id,
-        t.charger_id
-)
-
 {% if is_incremental() and relation_exists %}
 ,
 
@@ -206,7 +178,6 @@ combined_transactions as (
 transactions_final as (
     select
         t.*,
-        tsn.error_codes,
 
         -- Calculate energy transferred from meterStart and meterStop values
         cast(
@@ -233,9 +204,6 @@ transactions_final as (
     {% else %}
         transactions as t
     {% endif %}
-    left join transaction_status_notifications as tsn
-        on t.transaction_id = tsn.transaction_id
-        and t.charger_id = tsn.charger_id
 ),
 
 -- charger_id + connector_id -> port_id (int_connectors); charger_id -> location_id (int_chargers)

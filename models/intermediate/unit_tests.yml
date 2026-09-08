@@ -359,7 +359,6 @@ unit_tests:
             []                                         as id_tag_statuses,
             []                                         as parent_id_tags,
             []                                         as transaction_ids,
-            []                                         as error_codes,
             cast(null as string)                       as transaction_id,
             cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
             0                                          as _unique_transaction_count

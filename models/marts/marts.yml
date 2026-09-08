@@ -85,8 +85,26 @@ models:
         description: "Meter reading at transaction stop (Wh)"
       - name: energy_transferred_kwh
         description: "Total energy transferred in kWh"
-      - name: error_codes
-        description: "Array of error codes from both charge attempt events and StatusNotification events during the transaction"
+      - name: has_error
+        description: "True if at least one StatusNotification error (any error_code other than the NoError sentinel) was observed within the attempt's window (charge_attempt_start_ts to charge_attempt_stop_ts, or this run's processing window for still-open attempts)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: error_count
+        description: "Count of distinct qualifying error_code values (excluding NoError) observed within the attempt's window. 0 when has_error is false."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: last_error_code
+        description: "The error_code from the qualifying StatusNotification with the latest ingested timestamp within the attempt's window. Null when has_error is false. Ties on ingested timestamp are broken arbitrarily by the underlying max_by implementation (consistent with the same idiom used in int_driver_aggregates)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
       - name: is_successful
         description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, next status is not 'Faulted', transaction stop reason is 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.01 kWh."
         data_tests:
@@ -110,6 +128,72 @@ models:
             expression: "charge_attempt_stop_ts is null or charge_attempt_stop_ts >= charge_attempt_start_ts"
           config:
             severity: error
+
+  - name: fact_charge_attempt_errors
+    description: >
+      Bridge fact over fact_charge_attempts: one row per distinct StatusNotification error code observed during a
+      charge attempt. Grain: charge_attempt_id + error_code - an error code that recurs multiple times within the
+      same attempt collapses to a single row. Built directly from fact_charge_attempts (not a re-derivation of its
+      preparing/transaction reconciliation logic) joined to int_ocpp_logs StatusNotification events; NoError
+      (OCPP's "nothing wrong" sentinel) is excluded. Use to analyze which error codes occurred during a charge
+      attempt without scanning raw OCPP logs.
+    columns:
+      - name: charge_attempt_error_id
+        description: "Surrogate key for the row, generated from charge_attempt_id and error_code."
+        data_tests:
+          - not_null
+          - unique
+      - name: charge_attempt_id
+        description: "The charge attempt this error was observed during."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fact_charge_attempts')
+                field: charge_attempt_id
+      - name: port_key
+        description: "Surrogate key for the port, carried from fact_charge_attempts.port_key (already resolved there via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null under the same conditions as fact_charge_attempts.port_key."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_ports')
+                field: port_key
+      - name: location_key
+        description: "Surrogate key for the charger's location, carried from fact_charge_attempts.location_key (already resolved there via int_chargers: charger_id -> location_id). Matches dim_locations.location_key by construction; null under the same conditions as fact_charge_attempts.location_key."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_locations')
+                field: location_key
+      - name: charger_id
+        description: "Identifier for the charger. Kept as a degenerate dimension alongside port_key/location_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use port_key/location_key."
+        data_tests:
+          - not_null
+      - name: connector_id
+        description: "Identifier for the charging connector. Kept as a degenerate dimension alongside port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use port_key."
+        data_tests:
+          - not_null
+      - name: error_code
+        description: "OCPP StatusNotification errorCode value (e.g. ConnectorLockFailure, HighTemperature). NoError is excluded - it is OCPP's 'nothing wrong' sentinel, not a real error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
+      - name: charge_attempt_start_ts
+        description: "Start timestamp of the charge attempt this error belongs to. Matches fact_charge_attempts.charge_attempt_start_ts for the same charge_attempt_id - carried through for time-spine alignment without a join back to fact_charge_attempts."
+        data_tests:
+          - not_null
+      - name: incremental_ts
+        description: "Incremental processing watermark, carried from the source fact_charge_attempts row. Used to detect charge attempts that were added or updated (e.g. late-arriving transaction data) since the last run."
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charge_attempt_id
+              - error_code
 
   - name: fact_interval_data
     description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
