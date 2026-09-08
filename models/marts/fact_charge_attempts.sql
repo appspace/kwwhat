@@ -7,6 +7,8 @@
   )
 }}
 
+-- Incremental merge: left-joins against a buffered slice of {{ this }}, combines via coalesce/array-concat.
+
 {% set VALID_STOP_REASONS = ['Local', 'Remote', 'EVDisconnected'] %}
 {%- set _authorize_threshold = var("authorize_time_threshold_seconds") -%}
 
@@ -19,7 +21,6 @@
 with incremental_date_range as (
     {{ incremental_date_range(
         from_timestamp_caps=from_ts_caps,
-        buffer_minutes=30,
         to_timestamp_caps=[
             "(select max(incremental_ts) from " ~ ref("int_connector_preparing") ~ ")",
             "(select max(incremental_ts) from " ~ ref("int_transactions") ~ ")"
@@ -45,14 +46,12 @@ preparing as (
         id_tags,
         id_tag_statuses,
         transaction_id,
-        incremental_ts,
-
         -- Attempt start timestamp: use payload_ts if available, otherwise ingested_ts
         coalesce(payload_ts, ingested_ts) as preparing_start_ts,
         coalesce(next_payload_ts, next_ingested_ts) as preparing_stop_ts
     from {{ ref('int_connector_preparing') }}
-    where ingested_ts > (select from_timestamp from incremental_date_range)
-        and ingested_ts <= (select to_timestamp from incremental_date_range)
+    where updated_ts > (select from_timestamp from incremental_date_range)
+        and updated_ts <= (select to_timestamp from incremental_date_range)
 ),
 
 transactions as (
@@ -70,11 +69,10 @@ transactions as (
         id_tag_statuses,
         meter_start_wh,
         meter_stop_wh,
-        energy_transferred_kwh,
-        incremental_ts as transaction_incremental_ts
+        energy_transferred_kwh
     from {{ ref('int_transactions') }}
-    where ingested_ts > (select from_timestamp from incremental_date_range)
-        and ingested_ts <= (select to_timestamp from incremental_date_range)
+    where updated_ts > (select from_timestamp from incremental_date_range)
+        and updated_ts <= (select to_timestamp from incremental_date_range)
 ),
 
 incremental as (
@@ -164,10 +162,20 @@ attempts_and_transactions as (
             transaction_stop_reason,
             meter_start_wh,
             meter_stop_wh,
-            energy_transferred_kwh,
-            incremental_ts
-        from {{ this }}
-        where charge_attempt_start_ts > (select buffer_from_timestamp from incremental_date_range)
+            energy_transferred_kwh
+        from {{ this }} as buf
+        -- All attempts with the same transaction from previous runs
+        where buf.transaction_id in (
+            select transaction_id from attempts_and_transactions where transaction_id is not null
+        )
+        or (
+            -- Also pull recent, still-incomplete attempts 
+            (buf.transaction_id is null or buf.preparing_unique_id is null)
+            and buf.charge_attempt_start_ts > (
+                select {{ dbt.dateadd("second", -_authorize_threshold, "min(charge_attempt_start_ts)") }}
+                from attempts_and_transactions
+            )
+        )
     ),
 
     merged_attempts_and_transactions as (
@@ -204,7 +212,24 @@ attempts_and_transactions as (
         from attempts_and_transactions n
         left join charge_attempts_buffer b on n.charger_id = b.charger_id
             and n.connector_id = b.connector_id
-            and n.transaction_id is not null and b.transaction_id is not null and n.transaction_id = b.transaction_id
+            and (
+                (
+                    n.transaction_id is not null and b.transaction_id is not null
+                    and n.transaction_id = b.transaction_id
+                )
+                or (
+                    (
+                        (b.transaction_id is null and n.transaction_id is not null)
+                        or (b.preparing_unique_id is null and n.preparing_unique_id is not null)
+                    )
+                    and n.charge_attempt_start_ts > {{ dbt.dateadd(
+                        "second", -_authorize_threshold, "b.charge_attempt_start_ts"
+                    ) }}
+                    and n.charge_attempt_start_ts <= {{ dbt.dateadd(
+                        "second", _authorize_threshold, "b.charge_attempt_start_ts"
+                    ) }}
+                )
+            )
     )
 {% endif %}
 

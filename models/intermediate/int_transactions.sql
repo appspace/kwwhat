@@ -7,16 +7,14 @@
   )
 }}
 
+-- Incremental merge: left-joins new rows against a buffered slice of {{ this }}, combines via coalesce/greatest.
+
 {% set transaction_related_actions = [
     'StartTransaction', 'StopTransaction',
     'RemoteStartTransaction', 'RemoteStopTransaction', 'MeterValues'
 ] %}
 
-{% set relation_exists = adapter.get_relation(
-    database=this.database, schema=this.schema, identifier=this.identifier
-) %}
-
-{% if is_incremental() and relation_exists %}
+{% if is_incremental() %}
     with incremental_date_range as (
         select
             from_timestamp,
@@ -128,6 +126,10 @@ transactions as (
         min(transaction_start_ts) as transaction_start_ts,
         max(transaction_stop_ts) as transaction_stop_ts,
         max(ingested_ts) as last_ingested_ts,
+        -- Base case for updated_ts (see combined_transactions for the
+        -- incremental case): the latest event timestamp this run knows about
+        -- for this transaction.
+        max(ingested_ts) as updated_ts,
         min(transaction_stop_reason) as transaction_stop_reason,
 
         --Authentication details
@@ -145,7 +147,7 @@ transactions as (
         charger_id
 )
 
-{% if is_incremental() and relation_exists %}
+{% if is_incremental() %}
 ,
 
 combined_transactions as (
@@ -156,6 +158,14 @@ combined_transactions as (
         coalesce(b.transaction_start_ts, n.transaction_start_ts) as transaction_start_ts,
         coalesce(b.transaction_stop_ts, n.transaction_stop_ts) as transaction_stop_ts,
         coalesce(b.last_ingested_ts, n.last_ingested_ts) as last_ingested_ts,
+        -- Always advances: the latest event timestamp seen for this transaction
+        -- across every run that's touched it, not just this run's own events -
+        -- b.updated_ts already carries forward everything known as of the last
+        -- touch, n.updated_ts is this run's newest event.
+        coalesce(
+            greatest(b.updated_ts, n.updated_ts),
+            n.updated_ts
+        ) as updated_ts,
         coalesce(b.transaction_stop_reason, n.transaction_stop_reason) as transaction_stop_reason,
         coalesce(b.meter_start_wh, n.meter_start_wh) as meter_start_wh,
         coalesce(b.meter_stop_wh, n.meter_stop_wh) as meter_stop_wh,
@@ -199,7 +209,7 @@ transactions_final as (
         end as _unique_connectors_count
 
     from
-    {% if is_incremental() and relation_exists %}
+    {% if is_incremental() %}
         combined_transactions as t
     {% else %}
         transactions as t

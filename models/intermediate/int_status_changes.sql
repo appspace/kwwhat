@@ -7,6 +7,8 @@
     )
 }}
 
+-- Incremental merge: unions new + buffered open rows, recomputes lag/lead over the combined set.
+
 {%- if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
 {%- else -%}
@@ -105,7 +107,8 @@ with incremental_date_range as (
             confirmation_ingested_ts,
             previous_status,
             previous_ingested_ts,
-            previous_payload_ts
+            previous_payload_ts,
+            updated_ts
         from {{ this }}
         where (ingested_ts >= (select buffer_from_timestamp from incremental_date_range)
             and ingested_ts <= (select from_timestamp from incremental_date_range))
@@ -117,7 +120,8 @@ with incremental_date_range as (
             *,
             cast(null as {{ dbt.type_string() }}) as previous_status,
             cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts,
-            cast(null as {{ dbt.type_timestamp() }}) as previous_payload_ts
+            cast(null as {{ dbt.type_timestamp() }}) as previous_payload_ts,
+            cast(null as {{ dbt.type_timestamp() }}) as buffered_updated_ts
         from status_with_confirmation
 
         union all
@@ -136,7 +140,8 @@ with incremental_date_range as (
             confirmation_ingested_ts,
             previous_status,
             previous_ingested_ts,
-            previous_payload_ts
+            previous_payload_ts,
+            updated_ts as buffered_updated_ts
         from statuses_buffer
     ),
 
@@ -146,7 +151,8 @@ with incremental_date_range as (
             *,
             cast(null as {{ dbt.type_string() }}) as previous_status,
             cast(null as {{ dbt.type_timestamp() }}) as previous_ingested_ts,
-            cast(null as {{ dbt.type_timestamp() }}) as previous_payload_ts
+            cast(null as {{ dbt.type_timestamp() }}) as previous_payload_ts,
+            cast(null as {{ dbt.type_timestamp() }}) as buffered_updated_ts
         from status_with_confirmation
     ),
 {% endif %}
@@ -166,6 +172,7 @@ with incremental_date_range as (
             payload,
             payload_ts,
             confirmation_ingested_ts,
+            buffered_updated_ts,
 
             coalesce(
                 previous_status,
@@ -228,5 +235,9 @@ select
     next_status,
     next_ingested_ts,
     next_payload_ts,
+    coalesce(
+        greatest(buffered_updated_ts, coalesce(next_ingested_ts, ingested_ts)),
+        coalesce(next_ingested_ts, ingested_ts)
+    ) as updated_ts,
     (select incremental_ts from incremental) as incremental_ts
 from status_with_lead

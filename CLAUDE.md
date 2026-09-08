@@ -262,6 +262,18 @@ After changes:
 - run `dbt test` for affected nodes
 - ensure tests pass
 
+### Bug fixes: red, then green
+
+When fixing a bug (as opposed to adding a new feature), follow this order:
+
+1. Write a unit test that reproduces the bug.
+2. Run it and confirm it fails, for the reason the bug describes, not a syntax error or an unrelated failure.
+3. Fix the bug.
+4. Run the same test again and confirm it now passes.
+5. Re-run the broader affected test suite (e.g. `dbt test --select <model>+,test_type:unit`, then a real `dbt build` where feasible) to confirm nothing else regressed.
+
+A test that only ever ran against the fixed code proves nothing on its own; it may pass for the wrong reason (a mock that doesn't actually exercise the bug) rather than because the fix works. Confirming red before green is what makes both the fix and the test trustworthy.
+
 ---
 
 ## When Unsure
