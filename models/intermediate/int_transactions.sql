@@ -143,7 +143,7 @@ transactions as (
     group by
         transaction_id,
         charger_id
-),
+)
 
 {% if is_incremental() and relation_exists %}
 ,

@@ -41,7 +41,9 @@ attempts as (
 
 -- StatusNotification events within each attempt's window. Open/in-progress attempts
 -- (charge_attempt_stop_ts is null) are bounded by this run's processing window rather
--- than an arbitrary future date, mirroring the error handling in fact_charge_attempts.
+-- than an arbitrary future date, mirroring the error handling previously in
+-- fact_charge_attempts. unique_id is the StatusNotification's own OCPP message
+-- identifier, carried through so each raw occurrence has a stable natural key.
 attempt_status_notifications as (
     select
         att.charge_attempt_id,
@@ -51,6 +53,8 @@ attempt_status_notifications as (
         att.connector_id,
         att.charge_attempt_start_ts,
         att.incremental_ts,
+        logs.unique_id,
+        logs.ingested_timestamp as error_ingested_ts,
         {{ payload_extract_error_code('logs.action', 'logs.payload') }} as error_code
     from attempts as att
     inner join {{ ref('int_ocpp_logs') }} as logs
@@ -74,27 +78,33 @@ attempt_errors as (
         connector_id,
         charge_attempt_start_ts,
         incremental_ts,
-        error_code
+        unique_id,
+        error_code,
+        error_ingested_ts
     from attempt_status_notifications
     where error_code is not null
         and error_code != 'NoError'
 )
 
--- distinct collapses repeated occurrences of the same error_code within the same
--- attempt into a single row. No further aggregation needed: charge_attempt_start_ts,
--- incremental_ts, port_key, location_key, charger_id, and connector_id are all
--- functionally dependent on charge_attempt_id, so distinct on the full projection
--- is equivalent to distinct on (charge_attempt_id, error_code).
-select distinct
+-- Grain: one row per matched StatusNotification-error event (no dedup/collapse across
+-- repeated occurrences of the same error_code - each occurrence is its own row).
+-- is_first/is_last flag the single earliest/latest error event for the whole attempt,
+-- across all its error occurrences. Ties are broken arbitrarily (both rows flagged)
+-- if two events share the exact same timestamp.
+select
     {{ dbt_utils.generate_surrogate_key([
-        'charge_attempt_id', 'error_code'
+        'charge_attempt_id', 'unique_id'
     ]) }} as charge_attempt_error_id,
     charge_attempt_id,
     port_key,
     location_key,
     charger_id,
     connector_id,
+    unique_id,
     error_code,
     charge_attempt_start_ts,
+    error_ingested_ts,
+    error_ingested_ts = min(error_ingested_ts) over (partition by charge_attempt_id) as is_first,
+    error_ingested_ts = max(error_ingested_ts) over (partition by charge_attempt_id) as is_last,
     incremental_ts
 from attempt_errors
