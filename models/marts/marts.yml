@@ -534,18 +534,21 @@ models:
 
   - name: dim_error_codes
     description: >
-      Generic, multi-vendor error-code reference dimension. One row per (taxonomy, fault_code).
-      Currently seeded from the ChargeX Minimum Required Error Code (MREC) standard
-      (CX001-CX026, "Recommendations for Minimum Required Error Codes for Electric Vehicle
-      Charging Infrastructure", ChargeX Consortium, Sept. 2023 - see https://chargex.inl.gov),
-      but the shape is OEM-agnostic: adding a new vendor's fault-code dictionary means adding
-      one more seed and CTE, not new columns. OEM-specific classification taxonomies (like
-      ChargeX's responsible_*/is_* flags) live in separate outrigger dimensions such as
-      dim_chargex_mrec_attributes, joined 1:1 on error_code_key - they don't belong here because
-      they don't generalize across taxonomies. Static reference data, SCD Type 1 (overwritten on
-      each refresh). To decode a connector's latest_vendor_error_code, join on both taxonomy
-      (from dim_connectors.latest_taxonomy for that connector) and fault_code - fault_code alone
-      is no longer globally unique once more than one taxonomy is present.
+      Generic, multi-taxonomy error-code reference dimension. One row per (taxonomy,
+      fault_code). Currently seeded from two sources: the ChargeX Minimum Required Error
+      Code (MREC) standard (CX001-CX026, "Recommendations for Minimum Required Error Codes
+      for Electric Vehicle Charging Infrastructure", ChargeX Consortium, Sept. 2023 - see
+      https://chargex.inl.gov) and the OCPP 1.6 ChargePointErrorCode enumeration (OCPP 1.6
+      Part 2: Application Protocol) - but the shape is source-agnostic: adding another
+      vendor's fault-code dictionary, or a new protocol version, means adding one more seed
+      and CTE, not new columns. Vendor-specific classification taxonomies (like ChargeX's
+      responsible_*/is_* flags) live in separate outrigger dimensions such as
+      dim_chargex_mrec_attributes, joined 1:1 on error_code_key - they don't belong here
+      because they don't generalize across taxonomies. Static reference data, SCD Type 1
+      (overwritten on each refresh). To decode a connector's latest_vendor_error_code or
+      latest_error_code, join on both taxonomy (from dim_connectors.latest_taxonomy for the
+      former, 'ocpp1.6' for the latter) and fault_code - fault_code alone is no longer
+      globally unique once more than one taxonomy is present.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -559,18 +562,18 @@ models:
           - not_null
           - unique
       - name: taxonomy
-        description: "Identifies the fault-code scheme this dictionary decodes, matching the vendorId reported alongside vendorErrorCode in OCPP StatusNotification (e.g. ChargeX's 'https://chargex.inl.gov', see dim_connectors.latest_taxonomy). Not an OEM/manufacturer name."
+        description: "Identifies the fault-code scheme this dictionary decodes: either a vendor's proprietary scheme, matching the vendorId reported alongside vendorErrorCode in OCPP StatusNotification (e.g. ChargeX's 'https://chargex.inl.gov', see dim_connectors.latest_taxonomy), or a protocol standard's own code set (e.g. 'ocpp1.6', a project-assigned literal - OCPP doesn't report a scheme identifier on the wire the way vendorId does). Not an OEM/manufacturer name."
         data_tests:
           - not_null
           - accepted_values:
               arguments:
-                values: ['https://chargex.inl.gov']
+                values: ['https://chargex.inl.gov', 'ocpp1.6']
       - name: fault_code
-        description: "Vendor fault code, e.g. 'CX003'. Part of the natural key together with taxonomy - no longer unique on its own across taxonomies."
+        description: "Fault code within the taxonomy, e.g. ChargeX's 'CX003' or OCPP 1.6's 'HighTemperature'. Part of the natural key together with taxonomy - no longer unique on its own across taxonomies."
         data_tests:
           - not_null
       - name: error_code_name
-        description: "Human-readable error name, e.g. 'HighTemperature'."
+        description: "Human-readable error name, e.g. 'HighTemperature'. For taxonomies where the code and name are the same string (e.g. OCPP 1.6), duplicates fault_code rather than being left null."
         data_tests:
           - not_null
       - name: description

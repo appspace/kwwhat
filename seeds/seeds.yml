@@ -104,3 +104,20 @@ seeds:
           - accepted_values:
               arguments:
                 values: [true, false]
+
+  - name: ocpp_1_6_error_codes
+    description: >
+      Reference data for the OCPP 1.6 ChargePointErrorCode enumeration (OCPP 1.6 Part 2:
+      Application Protocol, Open Charge Alliance). One row per error code, with its
+      description as given in the spec. Static reference data, only changes if the OCPP
+      1.6 spec is revised. Feeds dim_error_codes as the 'ocpp1.6' taxonomy.
+    columns:
+      - name: value
+        description: "OCPP 1.6 ChargePointErrorCode value, e.g. 'GroundFailure'. Unlike ChargeX's fault_code/error_code_name pair, OCPP doesn't distinguish a short code from a human-readable name - this value serves as both once it reaches dim_error_codes. Natural key."
+        data_tests:
+          - not_null
+          - unique
+      - name: description
+        description: "Description of the error condition, as given in the OCPP 1.6 spec."
+        data_tests:
+          - not_null
