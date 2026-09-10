@@ -9,6 +9,7 @@
 
 with chargex_mrec_codes as (
     select
+        taxonomy,
         fault_code,
         in_ocpp_1_6,
         responsible_ev_user,
@@ -26,9 +27,9 @@ with chargex_mrec_codes as (
 chargex_error_codes as (
     select
         error_code_key,
+        taxonomy,
         fault_code
     from {{ ref('dim_error_codes') }}
-    where vendor = 'https://chargex.inl.gov'
 )
 
 select
@@ -46,4 +47,5 @@ select
     chargex_mrec_codes.is_authorization
 from chargex_mrec_codes
 inner join chargex_error_codes
-    on chargex_mrec_codes.fault_code = chargex_error_codes.fault_code
+    on chargex_mrec_codes.taxonomy = chargex_error_codes.taxonomy
+    and chargex_mrec_codes.fault_code = chargex_error_codes.fault_code

@@ -9,16 +9,20 @@ seeds:
       Required Error Codes for Electric Vehicle Charging Infrastructure" (ChargeX
       Consortium, Sept. 2023). See https://chargex.inl.gov. Static reference data,
       only changes if ChargeX revises the standard. Feeds two marts: the generic
-      columns (fault_code, error_code_name, description) into dim_error_codes
-      (tagged vendor = 'ChargeX'), and the ChargeX-specific classification columns
+      columns (taxonomy, fault_code, error_code_name, description) into
+      dim_error_codes, and the ChargeX-specific classification columns
       (responsible_*, is_*) into the dim_chargex_mrec_attributes outrigger. The
       seed's own columns are unchanged by this split.
     config:
       column_types:
         fault_code: varchar(5)
     columns:
+      - name: taxonomy
+        description: "Identifies the fault-code scheme this row belongs to. 'https://chargex.inl.gov' matches the vendorId ChargeX's Implementation Guide recommends reporting in StatusNotification alongside vendorErrorCode - not the OEM name. Same value on every row of this seed - carried as a column, not a SQL literal, so a future OEM's seed can supply its own taxonomy without a model change. Composite natural key together with fault_code."
+        data_tests:
+          - not_null
       - name: fault_code
-        description: "ChargeX fault code, e.g. 'CX003'. Natural key."
+        description: "ChargeX fault code, e.g. 'CX003'. Composite natural key together with taxonomy."
         data_tests:
           - not_null
           - unique
