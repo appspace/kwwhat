@@ -20,7 +20,7 @@ latest_status as (
         latest_status,
         latest_error_code,
         latest_vendor_error_code,
-        latest_vendor_id,
+        latest_vendor_id as latest_taxonomy,
         latest_info,
         latest_status_ts
     from {{ ref('int_connector_latest_status') }}
@@ -39,7 +39,7 @@ select
     latest_status.latest_status,
     latest_status.latest_error_code,
     latest_status.latest_vendor_error_code,
-    latest_status.latest_vendor_id,
+    latest_status.latest_taxonomy,
     latest_status.latest_info,
     latest_status.latest_status_ts
 from connectors

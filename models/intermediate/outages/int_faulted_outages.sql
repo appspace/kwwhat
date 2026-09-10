@@ -45,7 +45,9 @@ status_changes as (
         connector_id,
         ingested_ts,
         status,
+        error_code,
         vendor_error_code,
+        vendor_id,
         next_status,
         next_ingested_ts,
         incremental_ts
@@ -74,7 +76,9 @@ fault_periods as (
         charger_id,
         port_id,
         connector_id,
+        error_code,
         vendor_error_code,
+        vendor_id,
         ingested_ts as from_ts,
         coalesce(next_ingested_ts, (select to_timestamp from incremental_date_range)) as to_ts
     from status_changes
@@ -193,7 +197,9 @@ faulted_outages_with_root_cause as (
         fo.port_id,
         fo.from_ts,
         fo.to_ts,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="fp.vendor_error_code") }}) as vendor_error_codes
+        array_distinct({{ fivetran_utils.array_agg(field_to_agg="fp.error_code") }}) as error_codes,
+        array_distinct({{ fivetran_utils.array_agg(field_to_agg="fp.vendor_error_code") }}) as vendor_error_codes,
+        array_distinct({{ fivetran_utils.array_agg(field_to_agg="fp.vendor_id") }}) as vendor_ids
     from faulted_outages as fo
     left join fault_periods as fp
         on fo.charger_id = fp.charger_id
@@ -220,7 +226,9 @@ select
     from_ts,
     to_ts,
     {{ dbt.datediff('from_ts', 'to_ts', 'minutes') }} as duration_minutes,
+    error_codes,
     vendor_error_codes,
+    vendor_ids,
     (select incremental_ts from incremental) as incremental_ts
 from faulted_outages_with_root_cause
 where to_ts > from_ts

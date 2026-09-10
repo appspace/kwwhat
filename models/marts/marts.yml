@@ -235,6 +235,12 @@ models:
           - accepted_values:
               arguments:
                 values: ['OFFLINE', 'FAULTED']
+      - name: error_codes
+        description: "Distinct OCPP error codes (e.g. 'OtherError', 'GroundFailure') reported during FAULTED outages for this date/charger/port. Null for OFFLINE rows - there's no fault-code source when a charger isn't communicating at all. If a single outage spans multiple days, its full set of codes is repeated on every day it touches rather than split proportionally; multiple separate outages landing on the same day are merged into one deduped array."
+      - name: vendor_error_codes
+        description: "Distinct vendor-specific fault codes (e.g. ChargeX MREC 'CX003' for HighTemperature) reported during FAULTED outages for this date/charger/port. Null for OFFLINE rows. Meaning depends on the fault-code scheme - decode via dim_error_codes/dim_chargex_mrec_attributes scoped to taxonomies, not by fault_code alone. Same multi-day repetition and same-day merge behavior as error_codes."
+      - name: taxonomies
+        description: "Distinct vendor-specific fault-code schemes (e.g. ChargeX's 'https://chargex.inl.gov') scoping how vendor_error_codes should be decoded. Null for OFFLINE rows. Expected to hold at most one value - see int_faulted_outages.vendor_ids and tests/assert_faulted_outage_single_vendor_id.sql for the underlying data quality check. Same multi-day repetition and same-day merge behavior as error_codes."
       - name: downtime_id
         description: "Surrogate key for the downtime record, generated from date_id, charger_id, port_id, and reason"
         data_tests:
@@ -498,18 +504,18 @@ models:
         description: >
           Vendor-specific fault code from the most recent StatusNotification (e.g. ChargeX MREC
           'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the
-          fault-code scheme - decode via dim_error_codes scoped to latest_vendor_id, not by
-          fault_code alone: fault_code is not globally unique once more than one vendor is
+          fault-code scheme - decode via dim_error_codes scoped to latest_taxonomy, not by
+          fault_code alone: fault_code is not globally unique once more than one taxonomy is
           present, so a single-column relationships test against dim_error_codes.fault_code
-          would pass even when the code doesn't belong to this connector's vendor. The composite
-          (latest_vendor_id, latest_vendor_error_code) -> (vendor, fault_code) check lives in
+          would pass even when the code doesn't belong to this connector's taxonomy. The composite
+          (latest_taxonomy, latest_vendor_error_code) -> (taxonomy, fault_code) check lives in
           tests/assert_vendor_error_code_matches_vendor_id.sql instead. Null for chargers whose
           vendor doesn't populate this field.
-      - name: latest_vendor_id
+      - name: latest_taxonomy
         description: >
           Identifies the vendor-specific fault-code scheme from the most recent StatusNotification
           (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how latest_vendor_error_code should
-          be decoded - see dim_error_codes.vendor. Not the charger's OEM/manufacturer. Null for
+          be decoded - see dim_error_codes.taxonomy. Not the charger's OEM/manufacturer. Null for
           chargers whose vendor doesn't populate this field.
       - name: latest_info
         description: >
@@ -528,7 +534,7 @@ models:
 
   - name: dim_error_codes
     description: >
-      Generic, multi-vendor error-code reference dimension. One row per (vendor, fault_code).
+      Generic, multi-vendor error-code reference dimension. One row per (taxonomy, fault_code).
       Currently seeded from the ChargeX Minimum Required Error Code (MREC) standard
       (CX001-CX026, "Recommendations for Minimum Required Error Codes for Electric Vehicle
       Charging Infrastructure", ChargeX Consortium, Sept. 2023 - see https://chargex.inl.gov),
@@ -536,31 +542,31 @@ models:
       one more seed and CTE, not new columns. OEM-specific classification taxonomies (like
       ChargeX's responsible_*/is_* flags) live in separate outrigger dimensions such as
       dim_chargex_mrec_attributes, joined 1:1 on error_code_key - they don't belong here because
-      they don't generalize across vendors. Static reference data, SCD Type 1 (overwritten on
-      each refresh). To decode a connector's latest_vendor_error_code, join on both vendor
-      (from dim_connectors.latest_vendor_id for that connector) and fault_code - fault_code alone
-      is no longer globally unique once more than one vendor is present.
+      they don't generalize across taxonomies. Static reference data, SCD Type 1 (overwritten on
+      each refresh). To decode a connector's latest_vendor_error_code, join on both taxonomy
+      (from dim_connectors.latest_taxonomy for that connector) and fault_code - fault_code alone
+      is no longer globally unique once more than one taxonomy is present.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
-              - vendor
+              - taxonomy
               - fault_code
     columns:
       - name: error_code_key
-        description: "Surrogate key for the error code, generated from vendor and fault_code."
+        description: "Surrogate key for the error code, generated from taxonomy and fault_code."
         data_tests:
           - not_null
           - unique
-      - name: vendor
-        description: "Identifies the fault-code scheme this dictionary decodes, matching the vendorId reported alongside vendorErrorCode in OCPP StatusNotification (e.g. ChargeX's 'https://chargex.inl.gov', see dim_connectors.latest_vendor_id). Not an OEM/manufacturer name."
+      - name: taxonomy
+        description: "Identifies the fault-code scheme this dictionary decodes, matching the vendorId reported alongside vendorErrorCode in OCPP StatusNotification (e.g. ChargeX's 'https://chargex.inl.gov', see dim_connectors.latest_taxonomy). Not an OEM/manufacturer name."
         data_tests:
           - not_null
           - accepted_values:
               arguments:
                 values: ['https://chargex.inl.gov']
       - name: fault_code
-        description: "Vendor fault code, e.g. 'CX003'. Part of the natural key together with vendor - no longer unique on its own across vendors."
+        description: "Vendor fault code, e.g. 'CX003'. Part of the natural key together with taxonomy - no longer unique on its own across taxonomies."
         data_tests:
           - not_null
       - name: error_code_name
@@ -582,7 +588,7 @@ models:
       refresh) - only changes if ChargeX revises the standard. See https://chargex.inl.gov
     columns:
       - name: error_code_key
-        description: "Surrogate key shared with dim_error_codes (vendor='https://chargex.inl.gov', fault_code). Owned by dim_error_codes; reused here, not recomputed."
+        description: "Surrogate key shared with dim_error_codes (taxonomy='https://chargex.inl.gov', fault_code). Owned by dim_error_codes; reused here, not recomputed."
         data_tests:
           - not_null
           - unique

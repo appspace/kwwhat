@@ -50,8 +50,12 @@ models:
         description: "Duration of the faulted outage in minutes (calculated from from_ts to to_ts). Only periods where all connectors for the port are faulted are included."
         data_tests:
           - not_null
+      - name: error_codes
+        description: "Distinct OCPP error codes (e.g. 'OtherError', 'GroundFailure') reported by any connector on this port while faulted during the outage. error_code is a required OCPP field, always populated on the source, unlike the vendor-specific fields below. For root-cause detail scoped to a specific vendor's fault-code scheme, see vendor_error_codes/vendor_ids."
       - name: vendor_error_codes
-        description: "Distinct vendor-specific fault codes (e.g. ChargeX MREC 'CX003' for HighTemperature) reported by any connector on this port while faulted during the outage. Empty array if no connector reported a vendor error code (vendor doesn't populate it, or the notification that triggered the fault carried no vendorErrorCode). Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to the reporting connector's latest_vendor_id, see dim_connectors."
+        description: "Distinct vendor-specific fault codes (e.g. ChargeX MREC 'CX003' for HighTemperature) reported by any connector on this port while faulted during the outage. Empty array if no connector reported a vendor error code (vendor doesn't populate it, or the notification that triggered the fault carried no vendorErrorCode). Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to vendor_ids, not by fault_code alone."
+      - name: vendor_ids
+        description: "Distinct vendor-specific fault-code schemes (e.g. ChargeX's 'https://chargex.inl.gov') reported alongside vendor_error_codes by any connector on this port while faulted during the outage. Scopes how vendor_error_codes should be decoded via dim_error_codes - see dim_connectors.latest_taxonomy. Expected to hold at most one value: a port's connectors are all the same OEM/scheme, so more than one distinct vendor_id here signals a data quality issue, not a legitimate multi-vendor port - checked by tests/assert_faulted_outage_single_vendor_id.sql."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
