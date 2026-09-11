@@ -86,7 +86,7 @@ models:
       - name: energy_transferred_kwh
         description: "Total energy transferred in kWh"
       - name: error_codes
-        description: "Array of error codes from both charge attempt events and StatusNotification events during the transaction"
+        description: "Array of error codes from both charge attempt events and StatusNotification events during the transaction. Decodable via dim_error_codes scoped to taxonomy='ocpp1.6' - checked by tests/assert_charge_attempts_error_codes_are_ocpp_1_6.sql."
       - name: is_successful
         description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, next status is not 'Faulted', transaction stop reason is 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.01 kWh."
         data_tests:
@@ -235,6 +235,12 @@ models:
           - accepted_values:
               arguments:
                 values: ['OFFLINE', 'FAULTED']
+      - name: error_codes
+        description: "Distinct OCPP error codes (e.g. 'OtherError', 'GroundFailure') reported during FAULTED outages for this date/charger/port. Null for OFFLINE rows - there's no fault-code source when a charger isn't communicating at all. If a single outage spans multiple days, its full set of codes is repeated on every day it touches rather than split proportionally; multiple separate outages landing on the same day are merged into one deduped array. Decodable via dim_error_codes scoped to taxonomy='ocpp1.6' (always that one taxonomy, unlike vendor_error_codes which needs taxonomies alongside it) - checked by tests/assert_downtime_daily_error_codes_are_ocpp_1_6.sql."
+      - name: vendor_error_codes
+        description: "Distinct vendor-specific fault codes (e.g. ChargeX MREC 'CX003' for HighTemperature) reported during FAULTED outages for this date/charger/port. Null for OFFLINE rows. Meaning depends on the fault-code scheme - decode via dim_error_codes/dim_chargex_mrec_attributes scoped to taxonomies, not by fault_code alone. Same multi-day repetition and same-day merge behavior as error_codes."
+      - name: taxonomies
+        description: "Distinct vendor-specific fault-code schemes (e.g. ChargeX's 'https://chargex.inl.gov') scoping how vendor_error_codes should be decoded. Null for OFFLINE rows. Expected to hold at most one value - see int_faulted_outages.vendor_ids and tests/assert_faulted_outage_single_vendor_id.sql for the underlying data quality check. Same multi-day repetition and same-day merge behavior as error_codes."
       - name: downtime_id
         description: "Surrogate key for the downtime record, generated from date_id, charger_id, port_id, and reason"
         data_tests:
@@ -493,7 +499,36 @@ models:
               arguments:
                 values: ['Available', 'Preparing', 'Charging', 'SuspendedEVSE', 'SuspendedEV', 'Finishing', 'Reserved', 'Unavailable', 'Faulted']
       - name: latest_error_code
-        description: "Error code from the most recent StatusNotification (e.g. NoError, ConnectorLockFailure)."
+        description: "Error code from the most recent StatusNotification (e.g. NoError, ConnectorLockFailure). Decodable via dim_error_codes scoped to taxonomy='ocpp1.6' - see latest_error_code_key."
+      - name: latest_error_code_key
+        description: "FK to dim_error_codes, resolved from latest_error_code against the 'ocpp1.6' taxonomy. Null wherever latest_error_code is null."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_error_codes')
+                field: error_code_key
+      - name: latest_vendor_error_code
+        description: >
+          Vendor-specific fault code from the most recent StatusNotification (e.g. ChargeX MREC
+          'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the
+          fault-code scheme - decode via dim_error_codes scoped to latest_taxonomy, not by
+          fault_code alone: fault_code is not globally unique once more than one taxonomy is
+          present, so a single-column relationships test against dim_error_codes.fault_code
+          would pass even when the code doesn't belong to this connector's taxonomy. The composite
+          (latest_taxonomy, latest_vendor_error_code) -> (taxonomy, fault_code) check lives in
+          tests/assert_vendor_error_code_matches_vendor_id.sql instead. Null for chargers whose
+          vendor doesn't populate this field.
+      - name: latest_taxonomy
+        description: >
+          Identifies the vendor-specific fault-code scheme from the most recent StatusNotification
+          (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how latest_vendor_error_code should
+          be decoded - see dim_error_codes.taxonomy. Not the charger's OEM/manufacturer. Null for
+          chargers whose vendor doesn't populate this field.
+      - name: latest_info
+        description: >
+          Additional detail from the most recent StatusNotification (e.g. '50' for a
+          HighTemperature reading in degrees Celsius), accompanying latest_error_code /
+          latest_vendor_error_code. Optional - may be null or blank.
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested."
     data_tests:
@@ -503,6 +538,151 @@ models:
               - charger_id
               - port_id
               - connector_id
+
+  - name: dim_error_codes
+    description: >
+      Generic, multi-taxonomy error-code reference dimension. One row per (taxonomy,
+      fault_code). Currently seeded from two sources: the ChargeX Minimum Required Error
+      Code (MREC) standard (CX001-CX026, "Recommendations for Minimum Required Error Codes
+      for Electric Vehicle Charging Infrastructure", ChargeX Consortium, Sept. 2023 - see
+      https://chargex.inl.gov) and the OCPP 1.6 ChargePointErrorCode enumeration (OCPP 1.6
+      Part 2: Application Protocol) - but the shape is source-agnostic: adding another
+      vendor's fault-code dictionary, or a new protocol version, means adding one more seed
+      and CTE, not new columns. Vendor-specific classification taxonomies (like ChargeX's
+      responsible_*/is_* flags) live in separate outrigger dimensions such as
+      dim_chargex_mrec_attributes, joined 1:1 on error_code_key - they don't belong here
+      because they don't generalize across taxonomies. Static reference data, SCD Type 1
+      (overwritten on each refresh). To decode a connector's latest_vendor_error_code or
+      latest_error_code, join on both taxonomy (from dim_connectors.latest_taxonomy for the
+      former, 'ocpp1.6' for the latter) and fault_code - fault_code alone is no longer
+      globally unique once more than one taxonomy is present.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - taxonomy
+              - fault_code
+    columns:
+      - name: error_code_key
+        description: "Surrogate key for the error code, generated from taxonomy and fault_code."
+        data_tests:
+          - not_null
+          - unique
+      - name: taxonomy
+        description: "Identifies the fault-code scheme this dictionary decodes: either a vendor's proprietary scheme, matching the vendorId reported alongside vendorErrorCode in OCPP StatusNotification (e.g. ChargeX's 'https://chargex.inl.gov', see dim_connectors.latest_taxonomy), or a protocol standard's own code set (e.g. 'ocpp1.6', a project-assigned literal - OCPP doesn't report a scheme identifier on the wire the way vendorId does). Not an OEM/manufacturer name."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['https://chargex.inl.gov', 'ocpp1.6']
+      - name: fault_code
+        description: "Fault code within the taxonomy, e.g. ChargeX's 'CX003' or OCPP 1.6's 'HighTemperature'. Part of the natural key together with taxonomy - no longer unique on its own across taxonomies."
+        data_tests:
+          - not_null
+      - name: error_code_name
+        description: "Human-readable error name, e.g. 'HighTemperature'. For taxonomies where the code and name are the same string (e.g. OCPP 1.6), duplicates fault_code rather than being left null."
+        data_tests:
+          - not_null
+      - name: description
+        description: "Full description of the error condition."
+        data_tests:
+          - not_null
+
+  - name: dim_chargex_mrec_attributes
+    description: >
+      Outrigger dimension holding the ChargeX MREC-specific classification taxonomy
+      (responsibility and functional-category flags) that doesn't generalize to other OEMs.
+      One row per ChargeX fault code (CX001-CX026), joined 1:1 to dim_error_codes via
+      error_code_key - this table reuses that key rather than recomputing its own, since the
+      key is owned by dim_error_codes. Static reference data, SCD Type 1 (overwritten on each
+      refresh) - only changes if ChargeX revises the standard. See https://chargex.inl.gov
+    columns:
+      - name: error_code_key
+        description: "Surrogate key shared with dim_error_codes (taxonomy='https://chargex.inl.gov', fault_code). Owned by dim_error_codes; reused here, not recomputed."
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('dim_error_codes')
+                field: error_code_key
+      - name: fault_code
+        description: "ChargeX fault code, e.g. 'CX003'. Unique here because this table is ChargeX-only."
+        data_tests:
+          - not_null
+          - unique
+      - name: ocpp_1_6_error_code
+        description: "The corresponding standard OCPP 1.6 ChargePointErrorCode value (e.g. 'HighTemperature' for CX003), if this ChargeX fault also has a standard equivalent - it's then also reported via the plain errorCode field, not just vendorErrorCode. Null otherwise."
+      - name: ocpp_1_6_error_code_key
+        description: "FK to dim_error_codes, resolved from ocpp_1_6_error_code against the 'ocpp1.6' taxonomy. Null wherever ocpp_1_6_error_code is null - use ocpp_1_6_error_code_key is not null to check whether a standard OCPP equivalent exists, rather than testing the raw string."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_error_codes')
+                field: error_code_key
+      - name: responsible_ev_user
+        description: "True if the EV User is a likely responsible party for resolving this error (e.g. incorrect plug-in)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_cso
+        description: "True if the Charging Station Operator is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_evse
+        description: "True if the EVSE (charging station hardware) is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_ev
+        description: "True if the EV (vehicle) is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_safety
+        description: "True if this error compromises the safety of the user, vehicle, or charging infrastructure."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_security
+        description: "True if this error relates to authentication, data privacy, or secure operation of the charging system."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_maintenance
+        description: "True if this error signals a need for technical service, component repair, or replacement."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_financial
+        description: "True if this error relates to payment processing, pricing, or billing."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_authorization
+        description: "True if this error relates to user access control or authorization communication between the EV and EVSE."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
 
   - name: dim_drivers
     description: "Driver dimension. Grain: one row per distinct RFID id_tag observed in OCPP charge attempts, plus a single UNKNOWN sentinel row for unauthorized visits. Reads from int_driver_aggregates (never scans fact_charge_attempts directly). Type 1 (overwrite on each refresh). Behavioral attributes (first/last seen, authorization status) are derived; lifetime metrics belong in the semantic layer, not on this dim."

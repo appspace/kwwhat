@@ -26,6 +26,9 @@ source_window as (
         port_id,
         status,
         error_code,
+        vendor_error_code,
+        vendor_id,
+        info,
         ingested_ts,
         max(ingested_ts) over () as incremental_ts
     from {{ ref('int_status_changes') }}
@@ -40,6 +43,9 @@ select
     port_id,
     status as latest_status,
     error_code as latest_error_code,
+    vendor_error_code as latest_vendor_error_code,
+    vendor_id as latest_vendor_id,
+    info as latest_info,
     ingested_ts as latest_status_ts,
     incremental_ts
 from source_window

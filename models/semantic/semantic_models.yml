@@ -35,6 +35,9 @@ semantic_models:
       - name: connector
         type: primary
         expr: connector_key
+      - name: error_code
+        type: foreign
+        expr: latest_error_code_key
     dimensions:
       - name: connector_type
         type: categorical
@@ -43,6 +46,51 @@ semantic_models:
       - name: charger_id
         type: categorical
       - name: location_id
+        type: categorical
+
+  - name: error_codes
+    description: "Generic, multi-taxonomy error-code reference dimension. Use to decode fault codes (both vendor-proprietary and OCPP 1.6 standard) reported elsewhere, and to slice metrics by taxonomy or error name."
+    model: ref('dim_error_codes')
+    entities:
+      - name: error_code
+        type: primary
+        expr: error_code_key
+    dimensions:
+      - name: taxonomy
+        type: categorical
+      - name: fault_code
+        type: categorical
+      - name: error_code_name
+        type: categorical
+
+  - name: chargex_mrec_attributes
+    description: "ChargeX MREC-specific classification outrigger. Use to slice ChargeX fault codes by likely responsible party (EV user, CSO, EVSE, EV) or functional category (safety, security, maintenance, financial, authorization)."
+    model: ref('dim_chargex_mrec_attributes')
+    primary_entity: error_code
+    entities:
+      - name: error_code
+        type: foreign
+        expr: error_code_key
+    dimensions:
+      - name: ocpp_1_6_error_code
+        type: categorical
+      - name: responsible_ev_user
+        type: categorical
+      - name: responsible_cso
+        type: categorical
+      - name: responsible_evse
+        type: categorical
+      - name: responsible_ev
+        type: categorical
+      - name: is_safety
+        type: categorical
+      - name: is_security
+        type: categorical
+      - name: is_maintenance
+        type: categorical
+      - name: is_financial
+        type: categorical
+      - name: is_authorization
         type: categorical
 
   - name: visits

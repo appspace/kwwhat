@@ -62,6 +62,12 @@ models:
         description: "Error code from the most recent StatusNotification"
         data_tests:
           - not_null
+      - name: latest_vendor_error_code
+        description: "Vendor-specific fault code from the most recent StatusNotification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to latest_vendor_id. Null for chargers whose vendor doesn't populate this field."
+      - name: latest_vendor_id
+        description: "Identifies the vendor-specific fault-code scheme from the most recent StatusNotification's vendorId field (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how latest_vendor_error_code should be decoded. Not the charger's OEM/manufacturer. Null if the vendor doesn't populate this field."
+      - name: latest_info
+        description: "Additional detail from the most recent StatusNotification's info field, accompanying latest_error_code/latest_vendor_error_code (e.g. '50' for a HighTemperature reading in degrees Celsius). Optional - may be null or blank."
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested"
         data_tests:
@@ -109,7 +115,13 @@ models:
       - name: error_code
         description: "Error code from the status notification payload (NoError if no error to report)"
         data_tests:
-          - not_null        
+          - not_null
+      - name: vendor_error_code
+        description: "Vendor-specific fault code from the status notification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to vendor_id. Null for chargers whose vendor doesn't populate this field."
+      - name: vendor_id
+        description: "Identifies the vendor-specific fault-code scheme from the status notification's vendorId field (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how vendor_error_code should be decoded. Not the charger's OEM/manufacturer. Null if the vendor doesn't populate this field."
+      - name: info
+        description: "Additional detail from the status notification's info field, accompanying error_code/vendor_error_code (e.g. '50' for a HighTemperature reading in degrees Celsius). Optional - may be null or blank."
       - name: payload
         description: "Original payload from the status notification"
       - name: previous_status

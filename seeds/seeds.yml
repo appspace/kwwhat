@@ -1,0 +1,118 @@
+version: 2
+
+seeds:
+  - name: chargex_mrec_codes
+    description: >
+      Reference data for the ChargeX Minimum Required Error Codes (MREC) standard.
+      One row per fault code (CX001-CX026), with its name, description, and the
+      responsibility/functional classifications from "Recommendations for Minimum
+      Required Error Codes for Electric Vehicle Charging Infrastructure" (ChargeX
+      Consortium, Sept. 2023). See https://chargex.inl.gov. Static reference data,
+      only changes if ChargeX revises the standard. Feeds two marts: the generic
+      columns (taxonomy, fault_code, error_code_name, description) into
+      dim_error_codes, and the ChargeX-specific columns (ocpp_1_6_error_code,
+      responsible_*, is_*) into the dim_chargex_mrec_attributes outrigger. The
+      seed's own columns are unchanged by this split.
+    config:
+      column_types:
+        fault_code: varchar(5)
+    columns:
+      - name: taxonomy
+        description: "Identifies the fault-code scheme this row belongs to. 'https://chargex.inl.gov' matches the vendorId ChargeX's Implementation Guide recommends reporting in StatusNotification alongside vendorErrorCode - not the OEM name. Same value on every row of this seed - carried as a column, not a SQL literal, so a future OEM's seed can supply its own taxonomy without a model change. Composite natural key together with fault_code."
+        data_tests:
+          - not_null
+      - name: fault_code
+        description: "ChargeX fault code, e.g. 'CX003'. Composite natural key together with taxonomy."
+        data_tests:
+          - not_null
+          - unique
+      - name: error_code_name
+        description: "Human-readable error name, e.g. 'HighTemperature'."
+        data_tests:
+          - not_null
+      - name: description
+        description: "Full description of the error condition."
+        data_tests:
+          - not_null
+      - name: ocpp_1_6_error_code
+        description: "The corresponding standard OCPP 1.6 ChargePointErrorCode value (e.g. 'HighTemperature' for CX003), if this ChargeX fault also has a standard equivalent - it's then also reported via the plain errorCode field, not just vendorErrorCode. Null otherwise. Resolved to an FK against dim_error_codes' 'ocpp1.6' taxonomy in dim_chargex_mrec_attributes."
+      - name: responsible_ev_user
+        description: "True if the EV User is a likely responsible party for resolving this error (e.g. incorrect plug-in)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_cso
+        description: "True if the Charging Station Operator is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_evse
+        description: "True if the EVSE (charging station hardware) is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: responsible_ev
+        description: "True if the EV (vehicle) is a likely responsible party for resolving this error."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_safety
+        description: "True if this error compromises the safety of the user, vehicle, or charging infrastructure."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_security
+        description: "True if this error relates to authentication, data privacy, or secure operation of the charging system."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_maintenance
+        description: "True if this error signals a need for technical service, component repair, or replacement."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_financial
+        description: "True if this error relates to payment processing, pricing, or billing."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: is_authorization
+        description: "True if this error relates to user access control or authorization communication between the EV and EVSE."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+
+  - name: ocpp_1_6_error_codes
+    description: >
+      Reference data for the OCPP 1.6 ChargePointErrorCode enumeration (OCPP 1.6 Part 2:
+      Application Protocol, Open Charge Alliance). One row per error code, with its
+      description as given in the spec. Static reference data, only changes if the OCPP
+      1.6 spec is revised. Feeds dim_error_codes as the 'ocpp1.6' taxonomy.
+    columns:
+      - name: value
+        description: "OCPP 1.6 ChargePointErrorCode value, e.g. 'GroundFailure'. Unlike ChargeX's fault_code/error_code_name pair, OCPP doesn't distinguish a short code from a human-readable name - this value serves as both once it reaches dim_error_codes. Natural key."
+        data_tests:
+          - not_null
+          - unique
+      - name: description
+        description: "Description of the error condition, as given in the OCPP 1.6 spec."
+        data_tests:
+          - not_null

@@ -32,6 +32,9 @@ faulted_outages as (
         f.from_ts,
         f.to_ts,
         f.duration_minutes,
+        f.error_codes,
+        f.vendor_error_codes,
+        f.vendor_ids as taxonomies,
         f.incremental_ts,
         'FAULTED' as reason
     from {{ ref('int_faulted_outages') }} as f
@@ -51,6 +54,9 @@ offline_outages as (
         o.from_ts,
         o.to_ts,
         o.duration_minutes,
+        cast(null as array) as error_codes,
+        cast(null as array) as vendor_error_codes,
+        cast(null as array) as taxonomies,
         o.incremental_ts,
         'OFFLINE' as reason
     from {{ ref('int_offline_outages') }} as o
@@ -68,9 +74,9 @@ offline_outages as (
 ),
 
 outages as (
-    select charger_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, reason from offline_outages
+    select charger_id, port_id, from_ts, to_ts, duration_minutes, error_codes, vendor_error_codes, taxonomies, incremental_ts, reason from offline_outages
     union all
-    select charger_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, reason from faulted_outages
+    select charger_id, port_id, from_ts, to_ts, duration_minutes, error_codes, vendor_error_codes, taxonomies, incremental_ts, reason from faulted_outages
 ),
 
 filtered_outages as (
@@ -94,6 +100,9 @@ outage_days as (
         o.port_id,
         o.date_id,
         o.reason,
+        o.error_codes,
+        o.vendor_error_codes,
+        o.taxonomies,
         greatest(o.from_ts, o.date_id) as interval_start,
         least(o.to_ts, {{ dbt.dateadd('day', 1, 'o.date_id') }}) as interval_end
     from filtered_outages as o
@@ -105,6 +114,9 @@ per_day as (
         port_id,
         date_id,
         reason,
+        error_codes,
+        vendor_error_codes,
+        taxonomies,
         {{ dbt.datediff('interval_start', 'interval_end', 'minutes') }} as duration_minutes
     from outage_days
 ),
@@ -115,7 +127,10 @@ final as (
         charger_id,
         port_id,
         reason,
-        sum(duration_minutes) as duration_minutes
+        sum(duration_minutes) as duration_minutes,
+        {{ array_concat_agg_distinct('error_codes') }} as error_codes,
+        {{ array_concat_agg_distinct('vendor_error_codes') }} as vendor_error_codes,
+        {{ array_concat_agg_distinct('taxonomies') }} as taxonomies
     from per_day
     group by 1, 2, 3, 4
 ),
@@ -142,5 +157,8 @@ select
     port_id,
     reason,
     duration_minutes,
+    error_codes,
+    vendor_error_codes,
+    taxonomies,
     (select incremental_ts from incremental) as incremental_ts
 from final_with_keys

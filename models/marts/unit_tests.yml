@@ -1368,7 +1368,7 @@ unit_tests:
       - input: ref('int_faulted_outages')
         format: sql
         rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 12:00:00' as timestamp) as to_ts, 120 as duration_minutes, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
+          select 'CH-001' as charger_id, 'PORT-001' as port_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 12:00:00' as timestamp) as to_ts, 120 as duration_minutes, cast(null as array) as error_codes, cast(null as array) as vendor_error_codes, cast(null as array) as vendor_ids, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
       - input: ref('int_offline_outages')
         format: sql
         rows: |
@@ -1401,7 +1401,7 @@ unit_tests:
       - input: ref('int_faulted_outages')
         format: sql
         rows: |
-          select cast(null as string) as charger_id, cast(null as string) as port_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as timestamp) as incremental_ts where false
+          select cast(null as string) as charger_id, cast(null as string) as port_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as array) as error_codes, cast(null as array) as vendor_error_codes, cast(null as array) as vendor_ids, cast(null as timestamp) as incremental_ts where false
       - input: ref('int_offline_outages')
         format: sql
         rows: |
@@ -1424,3 +1424,41 @@ unit_tests:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 120}
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 240}
+
+  - name: test_downtime_daily_same_day_outages_merge_distinct_root_cause_arrays
+    description: >
+      Two separate faulted-outage episodes on the same charger/port/day, with
+      different root-cause codes, should merge into one row for that day with
+      duration_minutes summed and error_codes/vendor_error_codes/taxonomies
+      concatenated and deduped rather than one episode's array overwriting the
+      other's.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        format: sql
+        rows: |
+          select 'CH-001' as charger_id, 'PORT-001' as port_id, cast('2025-10-01 08:00:00' as timestamp) as from_ts, cast('2025-10-01 09:00:00' as timestamp) as to_ts, 60 as duration_minutes, ['OtherError'] as error_codes, ['CX003'] as vendor_error_codes, ['https://chargex.inl.gov'] as vendor_ids, cast('2025-10-01 09:00:00' as timestamp) as incremental_ts
+          union all
+          select 'CH-001', 'PORT-001', cast('2025-10-01 14:00:00' as timestamp), cast('2025-10-01 15:00:00' as timestamp), 60, ['GroundFailure'], ['CX010'], ['https://chargex.inl.gov'], cast('2025-10-01 15:00:00' as timestamp)
+      - input: ref('int_offline_outages')
+        format: sql
+        rows: |
+          select cast(null as string) as charger_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as timestamp) as incremental_ts where false
+      - input: ref('int_chargers')
+        format: sql
+        rows: |
+          select 'CH-001' as charger_id, 'LOC-001' as location_id, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts, 1 as port_count
+      - input: ref('int_ports')
+        format: sql
+        rows: |
+          select 'CH-001' as charger_id, 'PORT-001' as port_id, 1 as connector_count
+      - input: ref('dim_dates')
+        format: sql
+        rows: |
+          select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120, error_codes: ['OtherError', 'GroundFailure'], vendor_error_codes: ['CX003', 'CX010'], taxonomies: ['https://chargex.inl.gov']}
