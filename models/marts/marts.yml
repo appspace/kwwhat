@@ -604,13 +604,15 @@ models:
         data_tests:
           - not_null
           - unique
-      - name: in_ocpp_1_6
-        description: "True if this error already has a corresponding standard OCPP 1.6 ChargePointErrorCode (so it's also reported via the plain errorCode field, not just vendorErrorCode)."
+      - name: ocpp_1_6_error_code
+        description: "The corresponding standard OCPP 1.6 ChargePointErrorCode value (e.g. 'HighTemperature' for CX003), if this ChargeX fault also has a standard equivalent - it's then also reported via the plain errorCode field, not just vendorErrorCode. Null otherwise."
+      - name: ocpp_1_6_error_code_key
+        description: "FK to dim_error_codes, resolved from ocpp_1_6_error_code against the 'ocpp1.6' taxonomy. Null wherever ocpp_1_6_error_code is null - use ocpp_1_6_error_code_key is not null to check whether a standard OCPP equivalent exists, rather than testing the raw string."
         data_tests:
-          - not_null
-          - accepted_values:
+          - relationships:
               arguments:
-                values: [true, false]
+                to: ref('dim_error_codes')
+                field: error_code_key
       - name: responsible_ev_user
         description: "True if the EV User is a likely responsible party for resolving this error (e.g. incorrect plug-in)."
         data_tests:

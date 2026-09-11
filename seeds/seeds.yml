@@ -10,8 +10,8 @@ seeds:
       Consortium, Sept. 2023). See https://chargex.inl.gov. Static reference data,
       only changes if ChargeX revises the standard. Feeds two marts: the generic
       columns (taxonomy, fault_code, error_code_name, description) into
-      dim_error_codes, and the ChargeX-specific classification columns
-      (responsible_*, is_*) into the dim_chargex_mrec_attributes outrigger. The
+      dim_error_codes, and the ChargeX-specific columns (ocpp_1_6_error_code,
+      responsible_*, is_*) into the dim_chargex_mrec_attributes outrigger. The
       seed's own columns are unchanged by this split.
     config:
       column_types:
@@ -34,13 +34,8 @@ seeds:
         description: "Full description of the error condition."
         data_tests:
           - not_null
-      - name: in_ocpp_1_6
-        description: "True if this error already has a corresponding standard OCPP 1.6 ChargePointErrorCode (so it's also reported via the plain errorCode field, not just vendorErrorCode)."
-        data_tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values: [true, false]
+      - name: ocpp_1_6_error_code
+        description: "The corresponding standard OCPP 1.6 ChargePointErrorCode value (e.g. 'HighTemperature' for CX003), if this ChargeX fault also has a standard equivalent - it's then also reported via the plain errorCode field, not just vendorErrorCode. Null otherwise. Resolved to an FK against dim_error_codes' 'ocpp1.6' taxonomy in dim_chargex_mrec_attributes."
       - name: responsible_ev_user
         description: "True if the EV User is a likely responsible party for resolving this error (e.g. incorrect plug-in)."
         data_tests:
