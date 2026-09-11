@@ -51,7 +51,7 @@ models:
         data_tests:
           - not_null
       - name: error_codes
-        description: "Distinct OCPP error codes (e.g. 'OtherError', 'GroundFailure') reported by any connector on this port while faulted during the outage. error_code is a required OCPP field, always populated on the source, unlike the vendor-specific fields below. For root-cause detail scoped to a specific vendor's fault-code scheme, see vendor_error_codes/vendor_ids."
+        description: "Distinct OCPP error codes (e.g. 'OtherError', 'GroundFailure') reported by any connector on this port while faulted during the outage. error_code is a required OCPP field, always populated on the source, unlike the vendor-specific fields below. Decodable via dim_error_codes scoped to taxonomy='ocpp1.6'. For root-cause detail scoped to a specific vendor's fault-code scheme, see vendor_error_codes/vendor_ids."
       - name: vendor_error_codes
         description: "Distinct vendor-specific fault codes (e.g. ChargeX MREC 'CX003' for HighTemperature) reported by any connector on this port while faulted during the outage. Empty array if no connector reported a vendor error code (vendor doesn't populate it, or the notification that triggered the fault carried no vendorErrorCode). Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to vendor_ids, not by fault_code alone."
       - name: vendor_ids
