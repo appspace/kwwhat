@@ -11,7 +11,7 @@ with chargex_mrec_codes as (
     select
         taxonomy,
         fault_code,
-        in_ocpp_1_6,
+        ocpp_1_6_error_code,
         responsible_ev_user,
         responsible_cso,
         responsible_evse,
@@ -30,12 +30,21 @@ chargex_error_codes as (
         taxonomy,
         fault_code
     from {{ ref('dim_error_codes') }}
+),
+
+ocpp_error_codes as (
+    select
+        error_code_key,
+        fault_code
+    from {{ ref('dim_error_codes') }}
+    where taxonomy = 'ocpp1.6'
 )
 
 select
     chargex_error_codes.error_code_key,
     chargex_mrec_codes.fault_code,
-    chargex_mrec_codes.in_ocpp_1_6,
+    chargex_mrec_codes.ocpp_1_6_error_code,
+    ocpp_error_codes.error_code_key as ocpp_1_6_error_code_key,
     chargex_mrec_codes.responsible_ev_user,
     chargex_mrec_codes.responsible_cso,
     chargex_mrec_codes.responsible_evse,
@@ -49,3 +58,5 @@ from chargex_mrec_codes
 inner join chargex_error_codes
     on chargex_mrec_codes.taxonomy = chargex_error_codes.taxonomy
     and chargex_mrec_codes.fault_code = chargex_error_codes.fault_code
+left join ocpp_error_codes
+    on chargex_mrec_codes.ocpp_1_6_error_code = ocpp_error_codes.fault_code
