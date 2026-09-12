@@ -66,7 +66,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               5.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               true as is_successful,
               cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
           union all
@@ -94,7 +94,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               6.2 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               true as is_successful,
               cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
       - input: ref('dim_connectors')
@@ -106,6 +106,85 @@ unit_tests:
     expect:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7}
+
+  - name: test_visit_last_error_code_carries_from_earlier_attempt_when_last_has_none
+    description: >
+      A visit's last_error_code reflects the most recent error across the whole visit,
+      not necessarily the visit's last attempt. When the first attempt had an error but
+      the second (final) attempt did not, the visit still surfaces the earlier error
+      instead of null.
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('fact_charge_attempts')
+        format: sql
+        rows: |
+          select
+              'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
+              'CH-001' as charger_id,
+              '1' as connector_id,
+              cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 10:10:00' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 10:00:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TAG-001' as id_tag,
+              'TXN-001' as transaction_id,
+              cast('2025-10-02 10:00:00' as timestamp) as transaction_start_ts,
+              cast('2025-10-02 10:10:00' as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              5.5 as energy_transferred_kwh,
+              'HighTemperature' as last_error_code,
+              false as is_successful,
+              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
+          union all
+          select
+              'CH-002' || '1' || '2025-10-02 10:15:00' as charge_attempt_id,
+              'CH-002' as charger_id,
+              '1' as connector_id,
+              cast('2025-10-02 10:25:00' as timestamp) as charge_attempt_start_ts,
+              cast('2025-10-02 10:35:00' as timestamp) as charge_attempt_stop_ts,
+              cast('2025-10-02 10:25:00' as timestamp) as preparing_ingested_ts,
+              cast(null as string) as preparing_unique_id,
+              cast(null as string) as previous_status,
+              cast(null as string) as status,
+              cast(null as string) as next_status,
+              cast(null as timestamp) as preparing_payload_ts,
+              cast(null as timestamp) as preparing_next_payload_ts,
+              ['TAG-001'] as id_tags,
+              ['Accepted'] as id_tag_statuses,
+              'TAG-001' as id_tag,
+              'TXN-002' as transaction_id,
+              cast('2025-10-02 10:15:00' as timestamp) as transaction_start_ts,
+              cast('2025-10-02 10:25:00' as timestamp) as transaction_stop_ts,
+              cast(null as timestamp) as transaction_ingested_ts,
+              cast(null as string) as transaction_stop_reason,
+              cast(null as numeric) as meter_start_wh,
+              cast(null as numeric) as meter_stop_wh,
+              6.2 as energy_transferred_kwh,
+              cast(null as string) as last_error_code,
+              true as is_successful,
+              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
+      - input: ref('dim_connectors')
+        format: sql
+        fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, last_error_code: 'HighTemperature'}
 
   - name: test_authorized_visits_15min_apart_different_location
     description: "Two authorized attempts 15 minutes apart in different locations should result in two separate visits (authorized visits group by location_id + idTag)"
@@ -141,7 +220,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               5.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               true as is_successful,
               cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
           union all
@@ -169,7 +248,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               6.2 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               true as is_successful,
               cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
       - input: ref('dim_connectors')
@@ -217,7 +296,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               5.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               true as is_successful,
               cast('2025-10-02 10:40:00' as timestamp) as incremental_ts
           union all
@@ -245,7 +324,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               6.2 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               true as is_successful,
               cast('2025-10-02 10:40:00' as timestamp) as incremental_ts
       - input: ref('dim_connectors')
@@ -293,7 +372,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               3.0 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
           union all
@@ -321,7 +400,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               2.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
       - input: ref('dim_connectors')
@@ -368,7 +447,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               3.0 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
           union all
@@ -395,7 +474,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               2.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
       - input: ref('dim_connectors')
@@ -442,7 +521,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               3.0 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 12:20:00' as timestamp) as incremental_ts
           union all
@@ -470,7 +549,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               2.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 12:20:00' as timestamp) as incremental_ts
       - input: ref('dim_connectors')
@@ -518,7 +597,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               3.0 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
           union all
@@ -546,7 +625,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               2.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
       - input: ref('dim_connectors')
@@ -593,7 +672,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               3.0 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 13:20:00' as timestamp) as incremental_ts
           union all
@@ -621,7 +700,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               2.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 13:20:00' as timestamp) as incremental_ts
       - input: ref('dim_connectors')
@@ -669,7 +748,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               3.0 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
           union all        
@@ -697,7 +776,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               3.0 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
           union all
@@ -725,7 +804,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               2.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
           union all
@@ -753,7 +832,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               2.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:20:00' as timestamp) as incremental_ts              
       - input: ref('dim_connectors')
@@ -825,7 +904,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               6.2 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               true as is_successful,
               cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
       - input: ref('dim_connectors')
@@ -897,7 +976,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               2.5 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               false as is_successful,
               cast('2025-10-02 11:02:00' as timestamp) as incremental_ts
 
@@ -972,7 +1051,7 @@ unit_tests:
               cast(null as numeric) as meter_start_wh,
               cast(null as numeric) as meter_stop_wh,
               6.2 as energy_transferred_kwh,
-              cast(null as array) as error_codes,
+              cast(null as string) as last_error_code,
               true as is_successful,
               cast('2025-10-02 12:05:00' as timestamp) as incremental_ts
 
@@ -1342,69 +1421,128 @@ unit_tests:
       rows:
         - {is_successful: true, transaction_stop_reason: 'Local', energy_transferred_kwh: 5.0}
 
-  # fact_charge_attempts no longer carries any error columns and no longer joins
-  # int_ocpp_logs at all - error matching/aggregation coverage lives entirely under
-  # fact_charge_attempt_errors below.
-
-  # ── fact_charge_attempt_errors ──────────────────────────────────────────────
-
-  - name: test_charge_attempt_errors_populates_row_for_matching_error
+  - name: test_charge_attempt_has_error_false_when_no_matching_status_notifications
     description: >
-      A qualifying StatusNotification error within the attempt's window produces one
-      row with the expected charge_attempt_id, error_code, and unique_id.
-    model: fact_charge_attempt_errors
+      An attempt with no StatusNotification events on its charger/connector within its
+      window has has_error=false, last_error_code=null. The one StatusNotification
+      present in int_ocpp_logs is on a different charger and must not match.
+    model: fact_charge_attempts
     overrides:
       macros:
         is_incremental: false
     given:
-      - input: ref('fact_charge_attempts')
+      - input: ref('int_connector_preparing')
         format: sql
         rows: |
           select
-            'CA-001'                                   as charge_attempt_id,
-            'PK-001'                                    as port_key,
-            'LK-001'                                    as location_key,
-            'CH-001'                                    as charger_id,
-            '1'                                         as connector_id,
-            cast('2025-10-01 10:00:00' as timestamp)   as charge_attempt_start_ts,
-            cast('2025-10-01 10:30:00' as timestamp)   as charge_attempt_stop_ts,
-            cast('2025-10-01 10:30:00' as timestamp)   as incremental_ts
+            'CH-001'                                   as charger_id,
+            '1'                                        as connector_id,
+            'PORT-001'                                  as port_id,
+            'LOC-001'                                   as location_id,
+            'UID-001'                                  as unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            cast(null as string) as id_tag,
+            cast(null as string)                       as transaction_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_transactions')
+        format: sql
+        rows: |
+          select
+            cast(null as string)    as transaction_id,
+            cast(null as string)    as charger_id,
+            cast(null as string)    as connector_id,
+            cast(null as string)    as port_id,
+            cast(null as string)    as location_id,
+            cast('1900-01-01 00:00:00' as timestamp) as ingested_ts,
+            cast(null as timestamp) as transaction_start_ts,
+            cast(null as timestamp) as transaction_stop_ts,
+            cast(null as string)    as transaction_stop_reason,
+            cast(null as array)     as id_tags,
+            cast(null as array)     as id_tag_statuses,
+            cast(null as numeric)   as meter_start_wh,
+            cast(null as numeric)   as meter_stop_wh,
+            cast(null as numeric)   as energy_transferred_kwh,
+            cast('2025-10-01 10:30:00' as timestamp) as incremental_ts
       - input: ref('int_ocpp_logs')
         format: sql
         rows: |
           select
             cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp,
-            'CH-001'                                 as charger_id,
+            'CH-999'                                 as charger_id,
             '1'                                       as connector_id,
             cast(null as string)                      as port_id,
             cast(null as string)                      as location_id,
             'StatusNotification'                      as action,
             '2'                                        as message_type_id,
-            'UID-910'                                  as unique_id,
+            'UID-900'                                  as unique_id,
             '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}' as payload
     expect:
       rows:
-        - {charge_attempt_id: 'CA-001', unique_id: 'UID-910', error_code: 'ConnectorLockFailure', is_first: true, is_last: true}
+        - {has_error: false, last_error_code: null}
 
-  - name: test_charge_attempt_errors_excludes_no_error
-    description: "StatusNotification events reporting errorCode=NoError must produce no bridge rows."
-    model: fact_charge_attempt_errors
+  - name: test_charge_attempt_has_error_false_when_only_no_error_events
+    description: >
+      StatusNotification events reporting errorCode=NoError (OCPP's "nothing wrong"
+      sentinel) within the attempt's window must not count as errors.
+    model: fact_charge_attempts
     overrides:
       macros:
         is_incremental: false
     given:
-      - input: ref('fact_charge_attempts')
+      - input: ref('int_connector_preparing')
         format: sql
         rows: |
           select
-            'CA-001'                                   as charge_attempt_id,
-            'PK-001'                                    as port_key,
-            'LK-001'                                    as location_key,
-            'CH-001'                                    as charger_id,
-            '1'                                         as connector_id,
-            cast('2025-10-01 10:00:00' as timestamp)   as charge_attempt_start_ts,
-            cast('2025-10-01 10:30:00' as timestamp)   as charge_attempt_stop_ts,
-            cast('2025-10-01 10:30:00' as timestamp)   as incremental_ts
+            'CH-001'                                   as charger_id,
+            '1'                                        as connector_id,
+            'PORT-001'                                  as port_id,
+            'LOC-001'                                   as location_id,
+            'UID-001'                                  as unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            cast(null as string) as id_tag,
+            cast(null as string)                       as transaction_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_transactions')
+        format: sql
+        rows: |
+          select
+            cast(null as string)    as transaction_id,
+            cast(null as string)    as charger_id,
+            cast(null as string)    as connector_id,
+            cast(null as string)    as port_id,
+            cast(null as string)    as location_id,
+            cast('1900-01-01 00:00:00' as timestamp) as ingested_ts,
+            cast(null as timestamp) as transaction_start_ts,
+            cast(null as timestamp) as transaction_stop_ts,
+            cast(null as string)    as transaction_stop_reason,
+            cast(null as array)     as id_tags,
+            cast(null as array)     as id_tag_statuses,
+            cast(null as numeric)   as meter_start_wh,
+            cast(null as numeric)   as meter_stop_wh,
+            cast(null as numeric)   as energy_transferred_kwh,
+            cast('2025-10-01 10:30:00' as timestamp) as incremental_ts
       - input: ref('int_ocpp_logs')
         format: sql
         rows: |
@@ -1416,100 +1554,172 @@ unit_tests:
             cast(null as string)                      as location_id,
             'StatusNotification'                      as action,
             '2'                                        as message_type_id,
-            'UID-912'                                  as unique_id,
+            'UID-901'                                  as unique_id,
             '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload
-    expect:
-      rows: []
-
-  - name: test_charge_attempt_errors_repeated_code_produces_one_row_per_occurrence
-    description: >
-      The same error_code occurring twice within the same attempt produces two separate
-      rows (one per StatusNotification event, keyed by unique_id) rather than collapsing
-      to a single row. The earlier occurrence is flagged is_first, the later is_last.
-    model: fact_charge_attempt_errors
-    overrides:
-      macros:
-        is_incremental: false
-    given:
-      - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select
-            'CA-001'                                   as charge_attempt_id,
-            'PK-001'                                    as port_key,
-            'LK-001'                                    as location_key,
-            'CH-001'                                    as charger_id,
-            '1'                                         as connector_id,
-            cast('2025-10-01 10:00:00' as timestamp)   as charge_attempt_start_ts,
-            cast('2025-10-01 10:30:00' as timestamp)   as charge_attempt_stop_ts,
-            cast('2025-10-01 10:30:00' as timestamp)   as incremental_ts
-      - input: ref('int_ocpp_logs')
-        format: sql
-        rows: |
-          select
-            cast('2025-10-01 10:15:00' as timestamp) as ingested_timestamp,
-            'CH-001'                                 as charger_id,
-            '1'                                       as connector_id,
-            cast(null as string)                      as port_id,
-            cast(null as string)                      as location_id,
-            'StatusNotification'                      as action,
-            '2'                                        as message_type_id,
-            'UID-913'                                  as unique_id,
-            '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}' as payload
-          union all
-          select
-            cast('2025-10-01 10:05:00' as timestamp), 'CH-001', '1', cast(null as string), cast(null as string),
-            'StatusNotification', '2', 'UID-914',
-            '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'
-    expect:
-      rows:
-        - {charge_attempt_id: 'CA-001', unique_id: 'UID-914', error_code: 'ConnectorLockFailure', is_first: true, is_last: false}
-        - {charge_attempt_id: 'CA-001', unique_id: 'UID-913', error_code: 'ConnectorLockFailure', is_first: false, is_last: true}
-
-  - name: test_charge_attempt_errors_marks_first_and_last_across_multiple_codes
-    description: >
-      With two distinct error codes at different timestamps, the earliest-occurring
-      code is flagged is_first and the latest-occurring code is flagged is_last; neither
-      flag is true for both codes.
-    model: fact_charge_attempt_errors
-    overrides:
-      macros:
-        is_incremental: false
-    given:
-      - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select
-            'CA-001'                                   as charge_attempt_id,
-            'PK-001'                                    as port_key,
-            'LK-001'                                    as location_key,
-            'CH-001'                                    as charger_id,
-            '1'                                         as connector_id,
-            cast('2025-10-01 10:00:00' as timestamp)   as charge_attempt_start_ts,
-            cast('2025-10-01 10:30:00' as timestamp)   as charge_attempt_stop_ts,
-            cast('2025-10-01 10:30:00' as timestamp)   as incremental_ts
-      - input: ref('int_ocpp_logs')
-        format: sql
-        rows: |
-          select
-            cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp,
-            'CH-001'                                 as charger_id,
-            '1'                                       as connector_id,
-            cast(null as string)                      as port_id,
-            cast(null as string)                      as location_id,
-            'StatusNotification'                      as action,
-            '2'                                        as message_type_id,
-            'UID-920'                                  as unique_id,
-            '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}' as payload
           union all
           select
             cast('2025-10-01 10:20:00' as timestamp), 'CH-001', '1', cast(null as string), cast(null as string),
-            'StatusNotification', '2', 'UID-921',
+            'StatusNotification', '2', 'UID-902',
+            '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'
+    expect:
+      rows:
+        - {has_error: false, last_error_code: null}
+
+  - name: test_charge_attempt_last_error_code_across_multiple_codes
+    description: >
+      Multiple distinct error codes observed within the attempt's window produce
+      last_error_code equal to the one with the latest ingested timestamp, regardless
+      of how many distinct codes or repeated occurrences were observed.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_connector_preparing')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charger_id,
+            '1'                                        as connector_id,
+            'PORT-001'                                  as port_id,
+            'LOC-001'                                   as location_id,
+            'UID-001'                                  as unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            cast(null as string) as id_tag,
+            cast(null as string)                       as transaction_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_transactions')
+        format: sql
+        rows: |
+          select
+            cast(null as string)    as transaction_id,
+            cast(null as string)    as charger_id,
+            cast(null as string)    as connector_id,
+            cast(null as string)    as port_id,
+            cast(null as string)    as location_id,
+            cast('1900-01-01 00:00:00' as timestamp) as ingested_ts,
+            cast(null as timestamp) as transaction_start_ts,
+            cast(null as timestamp) as transaction_stop_ts,
+            cast(null as string)    as transaction_stop_reason,
+            cast(null as array)     as id_tags,
+            cast(null as array)     as id_tag_statuses,
+            cast(null as numeric)   as meter_start_wh,
+            cast(null as numeric)   as meter_stop_wh,
+            cast(null as numeric)   as energy_transferred_kwh,
+            cast('2025-10-01 10:30:00' as timestamp) as incremental_ts
+      - input: ref('int_ocpp_logs')
+        format: sql
+        rows: |
+          select
+            cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp,
+            'CH-001'                                 as charger_id,
+            '1'                                       as connector_id,
+            cast(null as string)                      as port_id,
+            cast(null as string)                      as location_id,
+            'StatusNotification'                      as action,
+            '2'                                        as message_type_id,
+            'UID-903'                                  as unique_id,
+            '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}' as payload
+          union all
+          select
+            cast('2025-10-01 10:10:00' as timestamp), 'CH-001', '1', cast(null as string), cast(null as string),
+            'StatusNotification', '2', 'UID-904',
+            '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'
+          union all
+          select
+            cast('2025-10-01 10:20:00' as timestamp), 'CH-001', '1', cast(null as string), cast(null as string),
+            'StatusNotification', '2', 'UID-905',
             '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted"}'
     expect:
       rows:
-        - {charge_attempt_id: 'CA-001', error_code: 'ConnectorLockFailure', is_first: true, is_last: false}
-        - {charge_attempt_id: 'CA-001', error_code: 'HighTemperature', is_first: false, is_last: true}
+        - {has_error: true, last_error_code: 'HighTemperature'}
+
+  - name: test_charge_attempt_last_error_code_unaffected_by_trailing_no_error
+    description: >
+      A real error followed later by a NoError event (the connector recovering) does
+      not clear or change last_error_code. NoError is excluded from matching entirely,
+      so the earlier HighTemperature event remains the only - and therefore last -
+      qualifying error.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_connector_preparing')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charger_id,
+            '1'                                        as connector_id,
+            'PORT-001'                                  as port_id,
+            'LOC-001'                                   as location_id,
+            'UID-001'                                  as unique_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            cast(null as string) as id_tag,
+            cast(null as string)                       as transaction_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_transactions')
+        format: sql
+        rows: |
+          select
+            cast(null as string)    as transaction_id,
+            cast(null as string)    as charger_id,
+            cast(null as string)    as connector_id,
+            cast(null as string)    as port_id,
+            cast(null as string)    as location_id,
+            cast('1900-01-01 00:00:00' as timestamp) as ingested_ts,
+            cast(null as timestamp) as transaction_start_ts,
+            cast(null as timestamp) as transaction_stop_ts,
+            cast(null as string)    as transaction_stop_reason,
+            cast(null as array)     as id_tags,
+            cast(null as array)     as id_tag_statuses,
+            cast(null as numeric)   as meter_start_wh,
+            cast(null as numeric)   as meter_stop_wh,
+            cast(null as numeric)   as energy_transferred_kwh,
+            cast('2025-10-01 10:30:00' as timestamp) as incremental_ts
+      - input: ref('int_ocpp_logs')
+        format: sql
+        rows: |
+          select
+            cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp,
+            'CH-001'                                 as charger_id,
+            '1'                                       as connector_id,
+            cast(null as string)                      as port_id,
+            cast(null as string)                      as location_id,
+            'StatusNotification'                      as action,
+            '2'                                        as message_type_id,
+            'UID-906'                                  as unique_id,
+            '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted"}' as payload
+          union all
+          select
+            cast('2025-10-01 10:20:00' as timestamp), 'CH-001', '1', cast(null as string), cast(null as string),
+            'StatusNotification', '2', 'UID-907',
+            '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
+    expect:
+      rows:
+        - {has_error: true, last_error_code: 'HighTemperature'}
 
   # ── fact_downtime_daily ─────────────────────────────────────────────────────
 

@@ -218,6 +218,55 @@ attempts_final as (
     {% else %}
         attempts_and_transactions
     {% endif %}
+),
+
+-- StatusNotification events within each attempt's window. Open/in-progress attempts
+-- (charge_attempt_stop_ts is null) are bounded by this run's processing window rather
+-- than an arbitrary future date - mirrors the transaction_stop_ts/last_ingested_ts
+-- fallback pattern previously used in int_transactions.
+attempt_status_notifications as (
+    select
+        af.charger_id,
+        af.connector_id,
+        af.charge_attempt_start_ts,
+        logs.ingested_timestamp as error_ingested_ts,
+        {{ payload_extract_error_code('logs.action', 'logs.payload') }} as error_code
+    from attempts_final as af
+    inner join {{ ref('int_ocpp_logs') }} as logs
+        on af.charger_id = logs.charger_id
+        and af.connector_id = logs.connector_id
+        and logs.action = 'StatusNotification'
+        and logs.message_type_id = {{ var("message_type_ids").CALL }}
+        and logs.ingested_timestamp >= af.charge_attempt_start_ts
+        and logs.ingested_timestamp <= coalesce(
+            af.charge_attempt_stop_ts, (select to_timestamp from incremental_date_range)
+        )
+),
+
+-- NoError is OCPP's "nothing wrong" sentinel, not a real error - excluded here.
+attempt_errors as (
+    select
+        charger_id,
+        connector_id,
+        charge_attempt_start_ts,
+        error_ingested_ts,
+        error_code
+    from attempt_status_notifications
+    where error_code is not null
+        and error_code != 'NoError'
+),
+
+attempt_errors_agg as (
+    select
+        charger_id as error_agg_charger_id,
+        connector_id as error_agg_connector_id,
+        charge_attempt_start_ts as error_agg_charge_attempt_start_ts,
+        {{ max_by('error_code', 'error_ingested_ts') }} as last_error_code
+    from attempt_errors
+    group by
+        charger_id,
+        connector_id,
+        charge_attempt_start_ts
 )
 
 select
@@ -261,6 +310,8 @@ select
     meter_start_wh,
     meter_stop_wh,
     energy_transferred_kwh,
+    errors.last_error_code is not null as has_error,
+    errors.last_error_code,
     case
         when transaction_id is not null
             and (next_status is null or next_status != 'Faulted')
@@ -272,3 +323,7 @@ select
     end as is_successful,
     (select incremental_ts from incremental) as incremental_ts
 from attempts_final
+left join attempt_errors_agg as errors
+    on attempts_final.charger_id = errors.error_agg_charger_id
+    and attempts_final.connector_id = errors.error_agg_connector_id
+    and attempts_final.charge_attempt_start_ts = errors.error_agg_charge_attempt_start_ts

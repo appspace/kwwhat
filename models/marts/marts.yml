@@ -85,6 +85,19 @@ models:
         description: "Meter reading at transaction stop (Wh)"
       - name: energy_transferred_kwh
         description: "Total energy transferred in kWh"
+      - name: has_error
+        description: "True if at least one StatusNotification error (any error_code other than the NoError sentinel) was observed within the attempt's window (charge_attempt_start_ts to charge_attempt_stop_ts, or this run's processing window for still-open attempts)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: last_error_code
+        description: "The error_code from the qualifying StatusNotification with the latest ingested timestamp within the attempt's window. Null when has_error is false. Ties on ingested timestamp are broken arbitrarily by the underlying max_by implementation (consistent with the same idiom used in int_driver_aggregates)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
       - name: is_successful
         description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, next status is not 'Faulted', transaction stop reason is 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.01 kWh."
         data_tests:
@@ -108,91 +121,6 @@ models:
             expression: "charge_attempt_stop_ts is null or charge_attempt_stop_ts >= charge_attempt_start_ts"
           config:
             severity: error
-
-  - name: fact_charge_attempt_errors
-    description: >
-      One row per matched StatusNotification error event observed during a charge attempt. Grain:
-      charge_attempt_id + unique_id (the StatusNotification's own OCPP message identifier) - repeated
-      occurrences of the same error_code within an attempt are NOT collapsed, each occurrence gets its
-      own row. is_first/is_last flag the single earliest/latest error event for the whole attempt, across
-      all its error occurrences regardless of code. Built directly from fact_charge_attempts joined to
-      int_ocpp_logs StatusNotification events; NoError (OCPP's "nothing wrong" sentinel) is excluded. This
-      is the only place in the marts layer that reads StatusNotification events for error detail -
-      fact_charge_attempts does not carry any error columns and does not join int_ocpp_logs. Use to
-      analyze which error codes occurred, and when, during a charge attempt without scanning raw OCPP logs.
-    columns:
-      - name: charge_attempt_error_id
-        description: "Surrogate key for the row, generated from charge_attempt_id and unique_id."
-        data_tests:
-          - not_null
-          - unique
-      - name: charge_attempt_id
-        description: "The charge attempt this error was observed during."
-        data_tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('fact_charge_attempts')
-                field: charge_attempt_id
-      - name: port_key
-        description: "Surrogate key for the port, carried from fact_charge_attempts.port_key (already resolved there via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null under the same conditions as fact_charge_attempts.port_key."
-        data_tests:
-          - relationships:
-              arguments:
-                to: ref('dim_ports')
-                field: port_key
-      - name: location_key
-        description: "Surrogate key for the charger's location, carried from fact_charge_attempts.location_key (already resolved there via int_chargers: charger_id -> location_id). Matches dim_locations.location_key by construction; null under the same conditions as fact_charge_attempts.location_key."
-        data_tests:
-          - relationships:
-              arguments:
-                to: ref('dim_locations')
-                field: location_key
-      - name: charger_id
-        description: "Identifier for the charger. Kept as a degenerate dimension alongside port_key/location_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use port_key/location_key."
-        data_tests:
-          - not_null
-      - name: connector_id
-        description: "Identifier for the charging connector. Kept as a degenerate dimension alongside port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use port_key."
-        data_tests:
-          - not_null
-      - name: unique_id
-        description: "OCPP message identifier of the StatusNotification event that reported this error. Carried from int_ocpp_logs; part of this model's grain, so the same error_code can appear multiple times per attempt as separate rows."
-        data_tests:
-          - not_null
-      - name: error_code
-        description: "OCPP StatusNotification errorCode value (e.g. ConnectorLockFailure, HighTemperature). NoError is excluded - it is OCPP's 'nothing wrong' sentinel, not a real error."
-        data_tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
-      - name: charge_attempt_start_ts
-        description: "Start timestamp of the charge attempt this error belongs to. Matches fact_charge_attempts.charge_attempt_start_ts for the same charge_attempt_id - carried through for time-spine alignment without a join back to fact_charge_attempts."
-        data_tests:
-          - not_null
-      - name: error_ingested_ts
-        description: "Timestamp when this StatusNotification error event was ingested."
-        data_tests:
-          - not_null
-      - name: is_first
-        description: "True when this event's error_ingested_ts is the earliest observed error for the attempt, across all error_codes. True for more than one row if multiple events share the exact same earliest timestamp (arbitrary tie-break)."
-        data_tests:
-          - not_null
-      - name: is_last
-        description: "True when this event's error_ingested_ts is the most recent observed error for the attempt, across all error_codes. True for more than one row if multiple events share the exact same latest timestamp (arbitrary tie-break)."
-        data_tests:
-          - not_null
-      - name: incremental_ts
-        description: "Incremental processing watermark, carried from the source fact_charge_attempts row. Used to detect charge attempts that were added or updated (e.g. late-arriving transaction data) since the last run."
-        data_tests:
-          - not_null
-    data_tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns:
-              - charge_attempt_id
-              - unique_id
 
   - name: fact_interval_data
     description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
@@ -426,6 +354,12 @@ models:
           - accepted_values:
               arguments:
                 values: [true, false]
+      - name: last_error_code
+        description: "The error_code of the most recent StatusNotification error observed across all attempts in the visit - not necessarily from the visit's last attempt. If the last attempt had no error but an earlier attempt in the visit did, that earlier error still carries forward. Null when no attempt in the visit had an error."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
       - name: incremental_ts
         description: "Latest incremental processing timestamp for incremental processing tracking"
         data_tests:

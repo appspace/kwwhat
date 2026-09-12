@@ -94,6 +94,9 @@ semantic_models:
         type: categorical
         description: "True when the visit did not end in a successful charge."
         expr: case when is_successful then false else true end
+      - name: last_error_code
+        type: categorical
+        description: "The error_code of the most recent StatusNotification error observed across all attempts in the visit - not necessarily from the visit's last attempt. Null when no attempt in the visit had an error."
     measures:
       - name: visits_count
         description: "Total number of visits."
@@ -189,6 +192,12 @@ semantic_models:
         type: categorical
       - name: status
         type: categorical
+      - name: has_error
+        type: categorical
+        description: "True if at least one StatusNotification error (any error_code other than the NoError sentinel) was observed during the attempt."
+      - name: last_error_code
+        type: categorical
+        description: "The error_code of the most recent StatusNotification error observed during the attempt. Null when has_error is false."
     measures:
       - name: attempts_count
         description: "Total number of charge attempts."
@@ -226,50 +235,6 @@ semantic_models:
         description: "Average success rate among attempts that had transactions."
         agg: average
         expr: case when transaction_id is not null then cast(is_successful as integer) else null end
-
-  - name: charge_attempt_errors
-    description: >
-      Bridge semantic model for per-error-code detail during a charge attempt. Also backs the
-      charge_attempts.last_error_code dimension via a filtered join (is_last = true). 
-      Use to slice metrics by the first or last error of an attempt.
-    model: ref('fact_charge_attempt_errors')
-    defaults:
-      agg_time_dimension: charge_attempt_start_ts
-    entities:
-      - name: charge_attempt_error
-        type: primary
-        expr: charge_attempt_error_id
-      - name: charge_attempt
-        type: foreign
-        expr: charge_attempt_id
-      - name: port
-        type: foreign
-        expr: port_key
-      - name: location
-        type: foreign
-        expr: location_key
-    dimensions:
-      - name: charge_attempt_start_ts
-        type: time
-        type_params:
-          time_granularity: day
-      - name: error_code
-        type: categorical
-      - name: is_first
-        type: categorical
-        description: "True when this error_code's earliest occurrence is the earliest observed error for the attempt."
-      - name: is_last
-        type: categorical
-        description: "True when this error_code's latest occurrence is the most recent observed error for the attempt."
-      - name: charger_id
-        type: categorical
-      - name: connector_id
-        type: categorical
-    measures:
-      - name: charge_attempt_errors_count
-        description: "Total number of distinct (charge_attempt_id, error_code) error rows."
-        agg: count
-        expr: charge_attempt_error_id
 
   - name: drivers
     description: "Driver dimension. One row per RFID id_tag observed in OCPP charge attempts, plus an UNKNOWN sentinel for unauthorized visits."

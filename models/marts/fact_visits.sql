@@ -36,7 +36,8 @@ charge_attempts_with_location as (
         att.energy_transferred_kwh,
         att.is_successful,
         att.preparing_ingested_ts,
-        att.id_tag
+        att.id_tag,
+        att.last_error_code
     from {{ ref("fact_charge_attempts") }} as att
     inner join {{ ref("dim_connectors") }} as c
         on att.charger_id = c.charger_id
@@ -131,6 +132,7 @@ attempts_with_inferred_id_tags as (
         att.energy_transferred_kwh,
         att.location_id,
         att.is_successful,
+        att.last_error_code,
         b.step1_group_start_ts,
         -- Assign idTag to whole group if any attempt in the group has an idTag
         max(att.id_tag) over (
@@ -227,6 +229,7 @@ attempts_grouping as (
         att.id_tag_statuses,
         att.energy_transferred_kwh,
         att.is_successful,
+        att.last_error_code,
         b.visit_start_ts,
         att.grouping_key,
         att.time_window_minutes,
@@ -262,6 +265,12 @@ new_visits as (
             'minute'
         ) }} as visit_duration_minutes,
         max(case when is_last_attempt then is_successful end) as is_successful,
+        -- Most recent error across the whole visit, not necessarily from the last
+        -- attempt: if the last attempt had no error but an earlier one did, that
+        -- earlier attempt's error still carries forward. case-when-null trick makes
+        -- max_by skip attempts with no error entirely rather than returning null
+        -- just because the single most recent attempt happened to be error-free.
+        {{ max_by('last_error_code', 'case when last_error_code is not null then charge_attempt_start_ts end') }} as last_error_code,
         min(case when is_first_attempt then charge_attempt_id end) as first_charge_attempt_id,
         max(case when is_last_attempt then charge_attempt_id end) as last_charge_attempt_id,
         min(case when is_first_attempt then charger_id end) as first_charger_id,
@@ -293,6 +302,7 @@ new_visits as (
             last_charger_id,
             last_port_id,
             is_successful,
+            last_error_code,
             grouping_key
         from {{ this }}
         where visit_end_ts >= (select buffer_from_timestamp from incremental_date_range)
@@ -316,7 +326,8 @@ new_visits as (
             b.last_charger_id,
             b.first_port_id,
             b.last_port_id,
-            b.is_successful
+            b.is_successful,
+            b.last_error_code
         from visits_buffer b
         left join new_visits auth on b.id_tag is null  -- Only for unauthorized visits
             and auth.id_tag is not null
@@ -346,6 +357,7 @@ new_visits as (
             first_port_id,
             last_port_id,
             is_successful,
+            last_error_code,
             case
                 when id_tag is not null
                     then location_id || '_' || id_tag
@@ -375,6 +387,11 @@ new_visits as (
             nv.last_charger_id,
             coalesce(b.first_port_id, nv.first_port_id) as first_port_id,
             nv.last_port_id,
+            -- nv's attempts are always chronologically after b's (join condition below
+            -- requires b.visit_end_ts < nv.visit_start_ts), so if nv had any error at
+            -- all it's necessarily the more recent one; only fall back to b's error
+            -- when none of nv's attempts had one.
+            coalesce(nv.last_error_code, b.last_error_code) as last_error_code,
             nv.grouping_key
         from new_visits nv
         left join visits_buffer_with_grouping_strategies b
@@ -400,6 +417,7 @@ new_visits as (
             last_charger_id,
             first_port_id,
             last_port_id,
+            last_error_code,
             grouping_key
         from merged_visits
     )
@@ -423,6 +441,7 @@ new_visits as (
             last_charger_id,
             first_port_id,
             last_port_id,
+            last_error_code,
             grouping_key
         from new_visits
     )
@@ -452,6 +471,7 @@ select
     v.first_port_id,
     v.last_port_id,
     v.is_successful,
+    v.last_error_code,
     v.grouping_key,
     {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes,
     (select incremental_ts from incremental) as incremental_ts
