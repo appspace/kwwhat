@@ -85,8 +85,19 @@ models:
         description: "Meter reading at transaction stop (Wh)"
       - name: energy_transferred_kwh
         description: "Total energy transferred in kWh"
-      - name: error_codes
-        description: "Array of error codes from both charge attempt events and StatusNotification events during the transaction"
+      - name: has_error
+        description: "True if at least one StatusNotification error (any error_code other than the NoError sentinel) was observed within the attempt's window (charge_attempt_start_ts to charge_attempt_stop_ts, or this run's processing window for still-open attempts)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: last_error_code
+        description: "The error_code from the qualifying StatusNotification with the latest ingested timestamp within the attempt's window. Null when has_error is false. Ties on ingested timestamp are broken arbitrarily by the underlying max_by implementation (consistent with the same idiom used in int_driver_aggregates)."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
       - name: is_successful
         description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, next status is not 'Faulted', transaction stop reason is 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.01 kWh."
         data_tests:
@@ -343,6 +354,12 @@ models:
           - accepted_values:
               arguments:
                 values: [true, false]
+      - name: last_error_code
+        description: "The error_code of the most recent StatusNotification error observed across all attempts in the visit - not necessarily from the visit's last attempt. If the last attempt had no error but an earlier attempt in the visit did, that earlier error still carries forward. Null when no attempt in the visit had an error."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
       - name: incremental_ts
         description: "Latest incremental processing timestamp for incremental processing tracking"
         data_tests:
