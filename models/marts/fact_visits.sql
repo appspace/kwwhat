@@ -270,7 +270,10 @@ new_visits as (
         -- earlier attempt's error still carries forward. case-when-null trick makes
         -- max_by skip attempts with no error entirely rather than returning null
         -- just because the single most recent attempt happened to be error-free.
-        {{ max_by('last_error_code', 'case when last_error_code is not null then charge_attempt_start_ts end') }} as last_error_code,
+        {{ max_by(
+            'last_error_code',
+            'case when last_error_code is not null then charge_attempt_start_ts end'
+        ) }} as last_error_code,
         min(case when is_first_attempt then charge_attempt_id end) as first_charge_attempt_id,
         max(case when is_last_attempt then charge_attempt_id end) as last_charge_attempt_id,
         min(case when is_first_attempt then charger_id end) as first_charger_id,
@@ -476,4 +479,3 @@ select
     {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes,
     (select incremental_ts from incremental) as incremental_ts
 from visits as v
-
