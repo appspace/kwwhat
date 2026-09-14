@@ -1,0 +1,11 @@
+name: troubled_error_code_check
+prompt: "What's the most frequent error code for troubled success?"
+sql: |
+    SELECT last_error_code, count(*) AS visit_count
+    FROM analytics.ANALYTICS.fact_visits
+    WHERE
+        is_successful = true
+        AND charge_attempt_count > 1
+        AND last_error_code IS NOT NULL
+    GROUP BY last_error_code
+    ORDER BY visit_count DESC

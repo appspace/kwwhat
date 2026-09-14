@@ -167,10 +167,7 @@ preparing_details as (
         {{ payload_extract_id_tag_status('action', 'conf_payload') }} as id_tag_status,
         {{ payload_extract_parent_id_tag('action', 'payload', 'conf_payload') }} as parent_id_tag,
         -- Transaction details
-        {{ payload_extract_transaction_id('action', 'payload', 'conf_payload') }} as transaction_id,
-
-        -- Error details
-        {{ payload_extract_error_code('action', 'payload') }} as error_code
+        {{ payload_extract_transaction_id('action', 'payload', 'conf_payload') }} as transaction_id
     from preparing_events_chaining as p
 ),
 
@@ -198,8 +195,7 @@ preparing_agg as (
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag") }}) as id_tags,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag_status") }}) as id_tag_statuses,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="parent_id_tag") }}) as parent_id_tags,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_id") }}) as transaction_ids,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="error_code") }}) as error_codes
+        array_distinct({{ fivetran_utils.array_agg(field_to_agg="transaction_id") }}) as transaction_ids
 
     from preparing_details
     group by
@@ -248,9 +244,7 @@ combined_preparing as (
 
         array_distinct({{ array_concat('n.parent_id_tags', 'b.parent_id_tags') }}) as parent_id_tags,
 
-        array_distinct({{ array_concat('n.transaction_ids', 'b.transaction_ids') }}) as transaction_ids,
-
-        array_distinct({{ array_concat('n.error_codes', 'b.error_codes') }}) as error_codes
+        array_distinct({{ array_concat('n.transaction_ids', 'b.transaction_ids') }}) as transaction_ids
 
     from preparing_agg as n
     left join {{ this }} as b
@@ -295,7 +289,6 @@ select
     id_tag_statuses,
     parent_id_tags,
     transaction_ids,
-    error_codes,
     case
         when transaction_ids is not null and {{ array_size('transaction_ids') }} > 0
             then {{ array_first('transaction_ids') }}
