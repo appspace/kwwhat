@@ -94,6 +94,9 @@ semantic_models:
         type: categorical
         description: "True when the visit did not end in a successful charge."
         expr: case when is_successful then false else true end
+      - name: last_error_code
+        type: categorical
+        description: "The error_code of the most recent StatusNotification error observed across all attempts in the visit - not necessarily from the visit's last attempt. Null when no attempt in the visit had an error."
     measures:
       - name: visits_count
         description: "Total number of visits."
@@ -189,6 +192,12 @@ semantic_models:
         type: categorical
       - name: status
         type: categorical
+      - name: has_error
+        type: categorical
+        description: "True if at least one StatusNotification error (any error_code other than the NoError sentinel) was observed during the attempt."
+      - name: last_error_code
+        type: categorical
+        description: "The error_code of the most recent StatusNotification error observed during the attempt. Null when has_error is false."
     measures:
       - name: attempts_count
         description: "Total number of charge attempts."
