@@ -7,6 +7,8 @@
   )
 }}
 
+-- Incremental merge: left-joins new rows against a buffered slice of {{ this }}, combines via coalesce/greatest.
+
 {% set charge_attempt_actions = [
     'Authorize', 'StartTransaction', 'StopTransaction',
     'StatusNotification', 'RemoteStartTransaction', 'RemoteStopTransaction'
@@ -48,7 +50,7 @@ status_changes_to_preparing as (
         next_ingested_ts,
         next_payload_ts,
         error_code,
-        incremental_ts,
+        updated_ts,
 
         -- Confirmation details
         confirmation_ingested_ts
@@ -77,7 +79,7 @@ ocpp_logs as (
 
 incremental as (
     select
-        max(ingested_ts) as incremental_ts
+        max(updated_ts) as incremental_ts
     from status_changes_to_preparing
 ),
 
@@ -191,6 +193,11 @@ preparing_agg as (
         previous_payload_ts,
         next_payload_ts,
         payload_ts,
+        -- Base case for updated_ts (see combined_preparing for the incremental
+        -- case): the latest event timestamp this run knows about for this
+        -- status change - next_ingested_ts once known, else the Preparing
+        -- event's own ingested_ts.
+        coalesce(next_ingested_ts, ingested_ts) as updated_ts,
         -- Aggregate extracted details into arrays
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag") }}) as id_tags,
         array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag_status") }}) as id_tag_statuses,
@@ -244,7 +251,14 @@ combined_preparing as (
 
         array_distinct({{ array_concat('n.parent_id_tags', 'b.parent_id_tags') }}) as parent_id_tags,
 
-        array_distinct({{ array_concat('n.transaction_ids', 'b.transaction_ids') }}) as transaction_ids
+        -- Always advances: the latest event timestamp seen for this status
+        -- change across every run that's touched it, not just this run's own
+        -- events - b.updated_ts already carries forward everything known as of
+        -- the last touch, n.updated_ts is this run's newest event.
+        coalesce(
+            greatest(b.updated_ts, n.updated_ts),
+            n.updated_ts
+        ) as updated_ts
 
     from preparing_agg as n
     left join {{ this }} as b
@@ -289,6 +303,7 @@ select
     id_tag_statuses,
     parent_id_tags,
     transaction_ids,
+    updated_ts,
     case
         when transaction_ids is not null and {{ array_size('transaction_ids') }} > 0
             then {{ array_first('transaction_ids') }}

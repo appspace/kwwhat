@@ -37,7 +37,7 @@ models:
             # table hasn't been reloaded from it). Drop to error once reloaded.
 
   - name: int_connector_latest_status
-    description: "Latest OCPP status snapshot per connector. View over int_status_changes filtered to rows where next_status is null. Grain: one row per charger_id + connector_id + port_id."
+    description: "Latest OCPP status snapshot per connector. Incremental model over int_status_changes filtered to rows where next_status is null. Grain: one row per charger_id + connector_id + port_id."
     columns:
       - name: charger_id
         description: "Identifier for the charge point"
@@ -122,6 +122,8 @@ models:
         description: "Timestamp of the next status notification for the same charge point and connector (null for last status)"
       - name: confirmation_ingested_ts
         description: "Timestamp when the confirmation was ingested"
+      - name: updated_ts
+        description: "The latest real event timestamp incorporated into this row so far - next_ingested_ts once known, else the status event's own ingested_ts - carried forward and advanced (via greatest()) across every incremental run that touches the row. Downstream consumers (int_connector_preparing) use this, not ingested_ts, to avoid understating their own progress when a row is re-emitted with newly-known next_status."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -188,6 +190,10 @@ models:
           - accepted_values:
               arguments:
                 values: [0, 1]
+      - name: updated_ts
+        description: "The latest real event timestamp incorporated into this row so far - next_ingested_ts once known, else the Preparing event's own ingested_ts - carried forward and advanced (via greatest()) across every incremental run that touches the row. Downstream consumers (fact_charge_attempts) filter on this, not ingested_ts, to avoid missing later updates to an already-emitted row."
+        data_tests:
+          - not_null
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -242,6 +248,10 @@ models:
           - accepted_values:
               arguments:
                 values: [1]
+      - name: updated_ts
+        description: "The latest real event timestamp incorporated into this transaction so far (max(ingested_ts) across its events), carried forward and advanced (via greatest()) across every incremental run that touches the row - e.g. jumps to the StopTransaction timestamp once the transaction completes. Downstream consumers (fact_charge_attempts) filter on this, not ingested_ts, to avoid missing later updates to an already-emitted row."
+        data_tests:
+          - not_null
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

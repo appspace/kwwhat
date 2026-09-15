@@ -147,7 +147,8 @@ unit_tests:
             cast(null as string)                        as next_status,
             cast(null as timestamp)                     as next_ingested_ts,
             cast(null as timestamp)                     as next_payload_ts,
-            cast('2025-10-01 10:00:00' as timestamp)   as incremental_ts
+            cast('2025-10-01 10:00:00' as timestamp)   as incremental_ts,
+            cast('2025-10-01 09:45:00' as timestamp)   as updated_ts
       - input: ref('int_ocpp_logs')
         format: sql
         rows: |
@@ -156,6 +157,93 @@ unit_tests:
       rows:
         - {status: 'Available', previous_status: null,        next_status: 'Preparing'}
         - {status: 'Preparing', previous_status: 'Available', next_status: null}
+
+  - name: test_status_changes_buffer_captures_event_within_30_min_window
+    description: >
+      from_timestamp (the table-wide max incremental_ts) is 2025-10-01 10:00:00, so
+      buffer_from_timestamp is 09:30:00. A buffered row with next_status=null whose
+      own ingested_ts (09:45:00) falls inside that 30-minute lookback is pulled back
+      into scope and correctly gets next_status/next_ingested_ts populated from the
+      new event.
+    model: int_status_changes
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charger_id,
+            '1'                                        as connector_id,
+            'PORT-001'                                  as port_id,
+            'LOC-001'                                   as location_id,
+            cast('2025-10-01 09:45:00' as timestamp)  as ingested_ts,
+            'UID-000'                                   as unique_id,
+            'Available'                                 as status,
+            'NoError'                                   as error_code,
+            '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload,
+            cast(null as timestamp)                     as payload_ts,
+            cast(null as timestamp)                     as confirmation_ingested_ts,
+            cast(null as string)                        as previous_status,
+            cast(null as timestamp)                     as previous_ingested_ts,
+            cast(null as timestamp)                     as previous_payload_ts,
+            cast(null as string)                        as next_status,
+            cast(null as timestamp)                     as next_ingested_ts,
+            cast(null as timestamp)                     as next_payload_ts,
+            cast('2025-10-01 10:00:00' as timestamp)   as incremental_ts,
+            cast('2025-10-01 09:45:00' as timestamp)   as updated_ts
+      - input: ref('int_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, '1' as connector_id, 'PORT-001' as port_id, 'LOC-001' as location_id, 'StatusNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}' as payload
+    expect:
+      rows:
+        - {status: 'Available', previous_status: null,        next_status: 'Preparing'}
+        - {status: 'Preparing', previous_status: 'Available', next_status: null}
+
+  - name: test_status_changes_buffer_ignores_event_outside_30_min_window
+    description: >
+      Same from_timestamp/buffer_from_timestamp as the within-window test (10:00:00 /
+      09:30:00), but the buffered row's own ingested_ts (09:20:00) falls outside that
+      30-minute lookback. It is never pulled back into scope, so the new event has no
+      visibility into it and gets previous_status=null instead of 'Available' - the
+      buffered row is silently left unmerged for this run.
+    model: int_status_changes
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charger_id,
+            '1'                                        as connector_id,
+            'PORT-001'                                  as port_id,
+            'LOC-001'                                   as location_id,
+            cast('2025-10-01 09:20:00' as timestamp)  as ingested_ts,
+            'UID-000'                                   as unique_id,
+            'Available'                                 as status,
+            'NoError'                                   as error_code,
+            '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload,
+            cast(null as timestamp)                     as payload_ts,
+            cast(null as timestamp)                     as confirmation_ingested_ts,
+            cast(null as string)                        as previous_status,
+            cast(null as timestamp)                     as previous_ingested_ts,
+            cast(null as timestamp)                     as previous_payload_ts,
+            cast(null as string)                        as next_status,
+            cast(null as timestamp)                     as next_ingested_ts,
+            cast(null as timestamp)                     as next_payload_ts,
+            cast('2025-10-01 10:00:00' as timestamp)   as incremental_ts,
+            cast('2025-10-01 09:20:00' as timestamp)   as updated_ts
+      - input: ref('int_ocpp_logs')
+        format: sql
+        rows: |
+          select cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, '1' as connector_id, 'PORT-001' as port_id, 'LOC-001' as location_id, 'StatusNotification' as action, '2' as message_type_id, 'UID-001' as unique_id, '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}' as payload
+    expect:
+      rows:
+        - {status: 'Preparing', previous_status: null, next_status: null}
 
   # ── int_faulted_outages ─────────────────────────────────────────────────────
 
@@ -332,7 +420,89 @@ unit_tests:
     description: >
       In incremental mode, a buffered Preparing row whose next_status is null
       should be updated when the new run's int_status_changes now contains the
-      subsequent status transition.
+      subsequent status transition. Also verifies that once next_ingested_ts
+      becomes known, event chaining (preparing_events_chaining) picks up a
+      StartTransaction + confirmation pair that falls within the newly-known
+      (ingested_ts, next_ingested_ts] window, and transaction_id gets populated
+      from it - not just next_status/incremental_ts. And that updated_ts (this
+      model's own per-row "last touched" signal, distinct from incremental_ts)
+      advances from the buffered to greatest() of the buffered value and this 
+      run's newly-known next_ingested_ts.
+    model: int_connector_preparing
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        format: dict
+        rows:
+          - {
+              charger_id: 'CH-001',
+              connector_id: '1',
+              unique_id: 'UID-001',
+              ingested_ts: 2025-10-01 10:00:00,
+              status: 'Preparing',
+              next_status: null,
+              next_ingested_ts: null,
+              incremental_ts: 2025-10-01 10:00:00,
+              updated_ts: 2025-10-01 10:00:00,
+            }
+      - input: ref('int_status_changes')
+        format: dict
+        rows:
+          - {
+              charger_id: 'CH-001',
+              connector_id: '1',
+              unique_id: 'UID-001',
+              ingested_ts: 2025-10-01 10:00:00,
+              status: 'Preparing',
+              next_status: 'Charging',
+              next_ingested_ts: 2025-10-01 10:10:00,
+              incremental_ts: 2025-10-01 10:10:00,
+              updated_ts: 2025-10-01 10:10:00,
+            }
+      - input: ref('int_ocpp_logs')
+        format: dict
+        rows:
+          # StartTransaction request, falling inside the (ingested_ts, next_ingested_ts]
+          # window that only becomes valid this run, now that next_ingested_ts is known.
+          - {
+              charger_id: 'CH-001',
+              connector_id: '1',
+              action: 'StartTransaction',
+              ingested_timestamp: 2025-10-01 10:00:05,
+              message_type_id: '2',
+              unique_id: 'start-001',
+              payload: '{}',
+            }
+          # Its CALLRESULT confirmation, carrying the transactionId.
+          - {
+              charger_id: 'CH-001',
+              ingested_timestamp: 2025-10-01 10:00:06,
+              message_type_id: '3',
+              unique_id: 'start-001',
+              payload: '{"transactionId": 1001}',
+            }
+    expect:
+      rows:
+        - {
+            charger_id: 'CH-001',
+            connector_id: '1',
+            status: 'Preparing',
+            next_status: 'Charging',
+            incremental_ts: '2025-10-01 10:10:00',
+            updated_ts: '2025-10-01 10:10:00',
+            transaction_id: '1001',
+            _unique_transaction_count: 1,
+          }
+
+  - name: test_connector_preparing_buffer_captures_event_within_30_min_window
+    description: >
+      from_timestamp (the buffered row's own incremental_ts - the table-wide max as
+      of the last run) is 10:00:00, so buffer_from_timestamp is 09:30:00. The buffered
+      Preparing row's own ingested_ts (09:45:00, when it actually happened) falls
+      inside that 30-minute lookback, so status_changes_to_preparing re-scans it and
+      the buffer-merge correctly picks up its now-known next_status.
     model: int_connector_preparing
     overrides:
       macros:
@@ -345,7 +515,7 @@ unit_tests:
             'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             'UID-001'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast('2025-10-01 09:45:00' as timestamp)  as ingested_ts,
             cast(null as timestamp)                    as payload_ts,
             cast(null as string)                       as previous_status,
             'Preparing'                                as status,
@@ -361,6 +531,7 @@ unit_tests:
             []                                         as transaction_ids,
             cast(null as string)                       as transaction_id,
             cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            cast('2025-10-01 09:45:00' as timestamp)  as updated_ts,
             0                                          as _unique_transaction_count
       - input: ref('int_status_changes')
         format: sql
@@ -369,25 +540,26 @@ unit_tests:
             'CH-001'                                   as charger_id,
             '1'                                        as connector_id,
             'PORT-001'                                 as port_id,
-            'LOC-001'                                  as location_id,
+            'LOC-001'                                   as location_id,
             'UID-001'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
+            cast('2025-10-01 09:45:00' as timestamp)  as ingested_ts,
             cast(null as timestamp)                    as payload_ts,
             cast(null as string)                       as previous_status,
             'Preparing'                                as status,
             'Charging'                                 as next_status,
             cast(null as timestamp)                    as confirmation_ingested_ts,
             cast(null as timestamp)                    as previous_ingested_ts,
-            cast('2025-10-01 10:10:00' as timestamp)  as next_ingested_ts,
+            cast('2025-10-01 09:55:00' as timestamp)  as next_ingested_ts,
             cast(null as timestamp)                    as previous_payload_ts,
             cast(null as timestamp)                    as next_payload_ts,
             'NoError'                                  as error_code,
-            cast('2025-10-01 10:10:00' as timestamp)  as incremental_ts
+            cast('2025-10-01 09:55:00' as timestamp)  as incremental_ts,
+            cast('2025-10-01 09:55:00' as timestamp)  as updated_ts
       - input: ref('int_ocpp_logs')
         format: sql
         rows: |
           select
-            cast('2025-10-01 10:10:00' as timestamp) as ingested_timestamp,
+            cast('2025-10-01 09:55:00' as timestamp) as ingested_timestamp,
             'CH-001' as charger_id,
             cast(null as string) as connector_id,
             cast(null as string) as port_id,
@@ -399,6 +571,142 @@ unit_tests:
     expect:
       rows:
         - {charger_id: 'CH-001', connector_id: '1', status: 'Preparing', next_status: 'Charging'}
+
+  - name: test_connector_preparing_buffer_ignores_event_outside_30_min_window
+    description: >
+      Same from_timestamp/buffer_from_timestamp as the within-window test (10:00:00 /
+      09:30:00), but the buffered Preparing row's own ingested_ts (09:20:00) falls
+      outside that 30-minute lookback. status_changes_to_preparing never re-scans it,
+      so this run produces no output row at all for it - not updated, not duplicated,
+      just silently left as-is in the underlying table.
+    model: int_connector_preparing
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charger_id,
+            '1'                                        as connector_id,
+            'UID-001'                                  as unique_id,
+            cast('2025-10-01 09:20:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            cast(null as string)                       as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast(null as timestamp)                    as next_ingested_ts,
+            cast(null as timestamp)                    as previous_payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            []                                         as parent_id_tags,
+            []                                         as transaction_ids,
+            cast(null as string)                       as transaction_id,
+            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
+            cast('2025-10-01 09:20:00' as timestamp)  as updated_ts,
+            0                                          as _unique_transaction_count
+      - input: ref('int_status_changes')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charger_id,
+            '1'                                        as connector_id,
+            'PORT-001'                                 as port_id,
+            'LOC-001'                                   as location_id,
+            'UID-001'                                  as unique_id,
+            cast('2025-10-01 09:20:00' as timestamp)  as ingested_ts,
+            cast(null as timestamp)                    as payload_ts,
+            cast(null as string)                       as previous_status,
+            'Preparing'                                as status,
+            'Charging'                                 as next_status,
+            cast(null as timestamp)                    as confirmation_ingested_ts,
+            cast(null as timestamp)                    as previous_ingested_ts,
+            cast('2025-10-01 09:30:00' as timestamp)  as next_ingested_ts,
+            cast(null as timestamp)                    as previous_payload_ts,
+            cast(null as timestamp)                    as next_payload_ts,
+            'NoError'                                  as error_code,
+            cast('2025-10-01 09:30:00' as timestamp)  as incremental_ts,
+            cast('2025-10-01 09:30:00' as timestamp)  as updated_ts
+      - input: ref('int_ocpp_logs')
+        format: sql
+        rows: |
+          select
+            cast('2025-10-01 09:30:00' as timestamp) as ingested_timestamp,
+            'CH-001' as charger_id,
+            cast(null as string) as connector_id,
+            cast(null as string) as port_id,
+            cast(null as string) as location_id,
+            cast(null as string) as action,
+            '2' as message_type_id,
+            'UID-999' as unique_id,
+            '{}' as payload
+    expect:
+      rows: []
+
+  # ── int_transactions ────────────────────────────────────────────────────────
+
+  - name: test_transactions_incremental_ts_advances_on_transaction_completion
+    description: >
+      incremental_ts is max(ingested_ts) over ALL raw ocpp_logs scanned this run
+      (unlike int_connector_preparing, this scan isn't pre-filtered to one action
+      type), so it correctly advances to the StopTransaction event's own timestamp
+      even though the transaction row's own ingested_ts (min() across its events)
+      stays anchored to the StartTransaction time. updated_ts (this model's own
+      per-row "last touched" signal, distinct from incremental_ts) also advances,
+      from the buffered 10:01:00 to 10:29:00 - greatest() of the buffered value
+      and this run's newest event (the StopTransaction itself).
+    model: int_transactions
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        format: sql
+        rows: |
+          select
+            'CH-001'                                   as charger_id,
+            'TXN-001'                                  as transaction_id,
+            cast('2025-10-01 10:01:00' as timestamp)  as ingested_ts,
+            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
+            cast(null as timestamp)                    as transaction_stop_ts,
+            cast('2025-10-01 10:01:00' as timestamp)  as last_ingested_ts,
+            cast(null as string)                       as transaction_stop_reason,
+            1000                                       as meter_start_wh,
+            cast(null as numeric)                      as meter_stop_wh,
+            ['1']                                      as connector_ids,
+            []                                         as id_tags,
+            []                                         as id_tag_statuses,
+            cast('2025-10-01 10:01:00' as timestamp)  as incremental_ts,
+            cast('2025-10-01 10:01:00' as timestamp)  as updated_ts
+      - input: ref('int_ocpp_logs')
+        format: sql
+        rows: |
+          select
+            'CH-001'                                    as charger_id,
+            'StopTransaction'                           as action,
+            cast('2025-10-01 10:29:00' as timestamp)   as ingested_timestamp,
+            '2'                                         as message_type_id,
+            'UID-100'                                   as unique_id,
+            '{"transactionId": "TXN-001", "timestamp": "2025-10-01 10:29:00", "meterStop": 6000, "reason": "Local"}' as payload,
+            '1'                                         as connector_id
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_chargers')
+        rows: []
+    expect:
+      rows:
+        - {
+            transaction_id: 'TXN-001',
+            transaction_stop_ts: '2025-10-01 10:29:00',
+            transaction_stop_reason: 'Local',
+            meter_stop_wh: 6000,
+            incremental_ts: '2025-10-01 10:29:00',
+            updated_ts: '2025-10-01 10:29:00',
+          }
 
   # ── int_connector_latest_status ─────────────────────────────────────────────
 

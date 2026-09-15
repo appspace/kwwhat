@@ -7,6 +7,8 @@
     )
 }}
 
+-- Incremental merge: left-joins against {{ this }}, combines via weighted average.
+
 {% set relation_exists = adapter.get_relation(
     database=this.database, schema=this.schema, identifier=this.identifier
 ) %}
