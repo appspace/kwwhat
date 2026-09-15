@@ -7,6 +7,8 @@
   )
 }}
 
+-- Incremental merge: left-joins against still-open outages in {{ this }}, extends via least/greatest.
+
 {% set charge_point_initiated_actions = [
     'Authorize', 'BootNotification', 'DataTransfer',
     'DiagnosticStatusNotification', 'FirmwareStatusNotification',

@@ -7,6 +7,8 @@
   )
 }}
 
+-- Incremental merge: no buffer - relies on dbt's merge upsert alone.
+
 {% if is_incremental() %}
     with incremental_date_range as (
         select

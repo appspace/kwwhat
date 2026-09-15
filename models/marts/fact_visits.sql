@@ -7,6 +7,8 @@
   )
 }}
 
+-- Incremental merge: left-joins against a buffered slice of {{ this }}, combines via coalesce/array-concat.
+
 {%- if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
 {%- else -%}
