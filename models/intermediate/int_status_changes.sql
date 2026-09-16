@@ -9,7 +9,7 @@
 
 -- Incremental merge: unions new + buffered open rows, recomputes lag/lead over the combined set.
 
-{%- if is_incremental() -%}
+{% if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
 {%- else -%}
     {%- set from_ts_caps = [

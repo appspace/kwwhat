@@ -1,8 +1,7 @@
 -- SCD Type 1
 {{
   config(
-    materialized='table',
-    scd_type='1'
+    materialized='table'
   )
 }}
 
