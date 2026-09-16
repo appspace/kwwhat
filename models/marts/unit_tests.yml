@@ -40,63 +40,9 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:10:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:00:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-001' as transaction_id,
-              cast('2025-10-02 10:00:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 10:10:00' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              5.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              true as is_successful,
-              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
-          union all
-          select 
-              'CH-002' || '1' || '2025-10-02 10:15:00' as charge_attempt_id,
-              'CH-002' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 10:25:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:35:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:25:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-002' as transaction_id,
-              cast('2025-10-02 10:15:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 10:25:00' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              6.2 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              true as is_successful,
-              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, incremental_ts: 2025-10-02 10:20:00}
+          - {charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:25:00, charge_attempt_stop_ts: 2025-10-02 10:35:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, incremental_ts: 2025-10-02 10:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -119,63 +65,9 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select
-              'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:10:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:00:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-001' as transaction_id,
-              cast('2025-10-02 10:00:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 10:10:00' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              5.5 as energy_transferred_kwh,
-              'HighTemperature' as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
-          union all
-          select
-              'CH-002' || '1' || '2025-10-02 10:15:00' as charge_attempt_id,
-              'CH-002' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 10:25:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:35:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:25:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-002' as transaction_id,
-              cast('2025-10-02 10:15:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 10:25:00' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              6.2 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              true as is_successful,
-              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, last_error_code: 'HighTemperature', is_successful: false, incremental_ts: 2025-10-02 10:20:00}
+          - {charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:25:00, charge_attempt_stop_ts: 2025-10-02 10:35:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, incremental_ts: 2025-10-02 10:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -194,63 +86,9 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:10:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:00:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-001' as transaction_id,
-              cast('2025-10-02 10:00:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 10:10:00' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              5.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              true as is_successful,
-              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
-          union all
-          select 
-              'CH-003' || '1' || '2025-10-02 10:25:00' as charge_attempt_id,
-              'CH-003' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 10:25:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:35:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:25:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-002' as transaction_id,
-              cast('2025-10-02 10:15:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 10:25:00' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              6.2 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              true as is_successful,
-              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, incremental_ts: 2025-10-02 10:20:00}
+          - {charger_id: 'CH-003', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:25:00, charge_attempt_stop_ts: 2025-10-02 10:35:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, incremental_ts: 2025-10-02 10:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -270,63 +108,9 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CH-001' || '1' || '2025-10-02 10:00:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 10:00:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:05:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:00:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-001' as transaction_id,
-              cast('2025-10-02 10:00:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 10:05:00' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              5.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              true as is_successful,
-              cast('2025-10-02 10:40:00' as timestamp) as incremental_ts
-          union all
-          select 
-              'CH-001' || '1' || '2025-10-02 10:40:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 10:40:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:41:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:40:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-002' as transaction_id,
-              cast('2025-10-02 10:40:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 10:41:00' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              6.2 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              true as is_successful,
-              cast('2025-10-02 10:40:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:05:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, incremental_ts: 2025-10-02 10:40:00}
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:40:00, charge_attempt_stop_ts: 2025-10-02 10:41:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, incremental_ts: 2025-10-02 10:40:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -346,63 +130,9 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 11:10:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 11:00:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              'TXN-003' as transaction_id,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              3.0 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
-          union all
-          select 
-              'CH-001' || '1' || '2025-10-02 11:25:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '2' as connector_id,
-              cast('2025-10-02 11:25:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 11:35:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 11:25:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              'TXN-004' as transaction_id,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              2.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:10:00, energy_transferred_kwh: 3.0, is_successful: false, incremental_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: '2', charge_attempt_start_ts: 2025-10-02 11:25:00, charge_attempt_stop_ts: 2025-10-02 11:35:00, energy_transferred_kwh: 2.5, is_successful: false, incremental_ts: 2025-10-02 11:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -422,61 +152,9 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 11:00:30' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 11:00:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              3.0 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
-          union all
-          select 
-              'CH-001' || '1' || '2025-10-02 11:01:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '2' as connector_id,
-              cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 11:01:35' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 11:01:30' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              2.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, energy_transferred_kwh: 3.0, is_successful: false, incremental_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: '2', charge_attempt_start_ts: 2025-10-02 11:01:30, charge_attempt_stop_ts: 2025-10-02 11:01:35, energy_transferred_kwh: 2.5, is_successful: false, incremental_ts: 2025-10-02 11:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -495,63 +173,9 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CH-001' || '1' || '2025-10-02 12:00:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 12:00:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 12:00:30' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 12:00:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              'TXN-005' as transaction_id,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              3.0 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 12:20:00' as timestamp) as incremental_ts
-          union all
-          select 
-              'CH-001' || '1' || '2025-10-02 12:01:30' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '3' as connector_id,
-              cast('2025-10-02 12:01:30' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 12:01:35' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 12:01:30' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              'TXN-006' as transaction_id,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              2.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 12:20:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 12:00:00, charge_attempt_stop_ts: 2025-10-02 12:00:30, energy_transferred_kwh: 3.0, is_successful: false, incremental_ts: 2025-10-02 12:20:00}
+          - {charger_id: 'CH-001', connector_id: '3', charge_attempt_start_ts: 2025-10-02 12:01:30, charge_attempt_stop_ts: 2025-10-02 12:01:35, energy_transferred_kwh: 2.5, is_successful: false, incremental_ts: 2025-10-02 12:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -571,63 +195,9 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 11:00:30' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 11:00:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              'TXN-003' as transaction_id,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              3.0 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
-          union all
-          select 
-              'CH-001' || '1' || '2025-10-02 11:01:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 11:01:35' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 11:01:30' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-004' as transaction_id,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              2.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, incremental_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:01:30, charge_attempt_stop_ts: 2025-10-02 11:01:35, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, incremental_ts: 2025-10-02 11:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -646,63 +216,9 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CH-001' || '1' || '2025-10-02 13:00:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 13:00:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 13:00:30' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 13:00:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              'TXN-007' as transaction_id,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              3.0 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 13:20:00' as timestamp) as incremental_ts
-          union all
-          select 
-              'CH-001' || '1' || '2025-10-02 13:03:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 13:03:30' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 13:03:35' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 13:03:30' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-008' as transaction_id,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              2.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 13:20:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 13:00:00, charge_attempt_stop_ts: 2025-10-02 13:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, incremental_ts: 2025-10-02 13:20:00}
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 13:03:30, charge_attempt_stop_ts: 2025-10-02 13:03:35, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, incremental_ts: 2025-10-02 13:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -722,119 +238,11 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CH-001' || '1' || '2025-10-02 10:58:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 10:58:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:58:30' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:58:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              'TXN-003' as transaction_id,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              3.0 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
-          union all        
-          select           
-              'CH-001' || '1' || '2025-10-02 11:00:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 11:00:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 11:00:30' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 11:00:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              'TXN-003' as transaction_id,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              3.0 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
-          union all
-          select 
-              'CH-001' || '1' || '2025-10-02 11:01:00' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 11:01:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 11:01:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-004' as transaction_id,
-              cast('2025-10-02 11:01:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 11:01:30' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              2.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts
-          union all
-          select 
-              'CH-002' || '1' || '2025-10-02 11:20:00' as charge_attempt_id,
-              'CH-002' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 11:20:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 11:20:30' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 11:20:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-005' as transaction_id,
-              cast('2025-10-02 11:20:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 11:20:30' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              2.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:20:00' as timestamp) as incremental_ts              
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:58:00, charge_attempt_stop_ts: 2025-10-02 10:58:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, incremental_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, incremental_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:01:00, charge_attempt_stop_ts: 2025-10-02 11:01:30, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, incremental_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:20:00, charge_attempt_stop_ts: 2025-10-02 11:20:30, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, incremental_ts: 2025-10-02 11:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -855,59 +263,14 @@ unit_tests:
         start_processing_date: '2025-10-02 09:00:00'
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-              'VISIT-001' as visit_id,
-              'LOC-001' as location_id,
-              ['CH-001'] as charger_ids,
-              'TAG-001' as id_tag,
-              cast('2025-10-02 10:00:00' as timestamp) as visit_start_ts,
-              cast('2025-10-02 10:10:00' as timestamp) as visit_end_ts,
-              10 as visit_duration_minutes,
-              1 as charge_attempt_count,
-              ['CHA1'] as charge_attempt_ids,
-              5.5 as total_energy_transferred_kwh,
-              'CHA1' as first_charge_attempt_id,
-              'CHA1' as last_charge_attempt_id,
-              'CH-001' as first_charger_id,
-              'CH-001' as last_charger_id,
-              '1' as first_port_id,
-              '1' as last_port_id,
-              true as is_successful,
-              cast(null as string) as last_error_code,
-              'LOC-001_TAG-001' as grouping_key,
-              cast('2025-10-02 10:00:00' as timestamp) as incremental_ts
+        rows:
+          - {location_id: 'LOC-001', id_tag: 'TAG-001', visit_start_ts: 2025-10-02 10:00:00, visit_end_ts: 2025-10-02 10:10:00, visit_duration_minutes: 10, charge_attempt_count: 1, total_energy_transferred_kwh: 5.5, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: true, grouping_key: 'LOC-001_TAG-001', incremental_ts: 2025-10-02 10:00:00}
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CHA2' as charge_attempt_id,
-              'CH-002' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 10:15:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 10:20:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 10:15:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-002' as transaction_id,
-              cast('2025-10-02 10:15:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 10:20:00' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              6.2 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              true as is_successful,
-              cast('2025-10-02 10:20:00' as timestamp) as incremental_ts
+        rows:
+          # preparing_ingested_ts drives fact_visits' own output incremental_ts
+          # (asserted below), separately from this row's own window-filter
+          # incremental_ts.
+          - {charge_attempt_id: 'CHA2', charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:15:00, charge_attempt_stop_ts: 2025-10-02 10:20:00, preparing_ingested_ts: 2025-10-02 10:15:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, incremental_ts: 2025-10-02 10:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -929,61 +292,14 @@ unit_tests:
         start_processing_date: '2025-10-02 10:00:00'
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-              'VISIT-002' as visit_id,
-              'LOC-001' as location_id,
-              ['CH-001'] as charger_ids,
-              cast(null as string) as id_tag,
-              cast('2025-10-02 11:00:00' as timestamp) as visit_start_ts,
-              cast('2025-10-02 11:00:30' as timestamp) as visit_end_ts,
-              1 as visit_duration_minutes,
-              1 as charge_attempt_count,
-              ['CHA1'] as charge_attempt_ids,
-              3.0 as total_energy_transferred_kwh,
-              'CHA1' as first_charge_attempt_id,
-              'CHA1' as last_charge_attempt_id,
-              'CH-001' as first_charger_id,
-              'CH-001' as last_charger_id,
-              '1' as first_port_id,
-              '1' as last_port_id,
-              false as is_successful,
-              cast(null as string) as last_error_code,
-              'LOC-001_CH-001_1' as grouping_key,
-              cast('2025-10-02 11:00:00' as timestamp) as incremental_ts
+        rows:
+          - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 11:00:00, visit_end_ts: 2025-10-02 11:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: false, grouping_key: 'LOC-001_CH-001_1', incremental_ts: 2025-10-02 11:00:00}
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CHA2' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 11:01:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 11:01:30' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 11:01:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              [] as id_tags,
-              [] as id_tag_statuses,
-              cast(null as string) as id_tag,
-              cast(null as timestamp) as transaction_start_ts,
-              cast(null as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              2.5 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              false as is_successful,
-              cast('2025-10-02 11:02:00' as timestamp) as incremental_ts
-
-
-
+        rows:
+          # preparing_ingested_ts drives fact_visits' own output incremental_ts
+          # (asserted below), separately from this row's own window-filter
+          # incremental_ts.
+          - {charge_attempt_id: 'CHA2', charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:01:00, charge_attempt_stop_ts: 2025-10-02 11:01:30, preparing_ingested_ts: 2025-10-02 11:01:00, energy_transferred_kwh: 2.5, is_successful: false, incremental_ts: 2025-10-02 11:02:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -1004,62 +320,11 @@ unit_tests:
         start_processing_date: '2025-10-02 10:00:00'
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-              'VISIT-003' as visit_id,
-              'LOC-001' as location_id,
-              ['CH-001'] as charger_ids,
-              cast(null as string) as id_tag,
-              cast('2025-10-02 12:00:00' as timestamp) as visit_start_ts,
-              cast('2025-10-02 12:00:30' as timestamp) as visit_end_ts,
-              1 as visit_duration_minutes,
-              1 as charge_attempt_count,
-              ['CHA1'] as charge_attempt_ids,
-              3.0 as total_energy_transferred_kwh,
-              'CHA1' as first_charge_attempt_id,
-              'CHA1' as last_charge_attempt_id,
-              'CH-001' as first_charger_id,
-              'CH-001' as last_charger_id,
-              '1' as first_port_id,
-              '1' as last_port_id,
-              false as is_successful,
-              cast(null as string) as last_error_code,
-              'LOC-001_CH-001_1' as grouping_key,
-              cast('2025-10-02 12:00:00' as timestamp) as incremental_ts
+        rows:
+          - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 12:00:00, visit_end_ts: 2025-10-02 12:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: false, grouping_key: 'LOC-001_CH-001_1', incremental_ts: 2025-10-02 12:00:00}
       - input: ref('fact_charge_attempts')
-        format: sql
-        rows: |
-          select 
-              'CHA2' as charge_attempt_id,
-              'CH-001' as charger_id,
-              '1' as connector_id,
-              cast('2025-10-02 12:01:00' as timestamp) as charge_attempt_start_ts,
-              cast('2025-10-02 12:05:00' as timestamp) as charge_attempt_stop_ts,
-              cast('2025-10-02 12:01:00' as timestamp) as preparing_ingested_ts,
-              cast(null as string) as preparing_unique_id,
-              cast(null as string) as previous_status,
-              cast(null as string) as status,
-              cast(null as string) as next_status,
-              cast(null as timestamp) as preparing_payload_ts,
-              cast(null as timestamp) as preparing_next_payload_ts,
-              ['TAG-001'] as id_tags,
-              ['Accepted'] as id_tag_statuses,
-              'TAG-001' as id_tag,
-              'TXN-003' as transaction_id,
-              cast('2025-10-02 12:01:00' as timestamp) as transaction_start_ts,
-              cast('2025-10-02 12:05:00' as timestamp) as transaction_stop_ts,
-              cast(null as timestamp) as transaction_ingested_ts,
-              cast(null as string) as transaction_stop_reason,
-              cast(null as numeric) as meter_start_wh,
-              cast(null as numeric) as meter_stop_wh,
-              6.2 as energy_transferred_kwh,
-              cast(null as string) as last_error_code,
-              true as is_successful,
-              cast('2025-10-02 12:05:00' as timestamp) as incremental_ts
-
-
-
+        rows:
+          - {charge_attempt_id: 'CHA2', charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 12:01:00, charge_attempt_stop_ts: 2025-10-02 12:05:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, incremental_ts: 2025-10-02 12:05:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -1186,87 +451,23 @@ unit_tests:
       be merged with a new run that now has the StopTransaction details, yielding
       is_successful=true on the merged record.
     model: fact_charge_attempts
-    config:
-      enabled: true
     overrides:
       macros:
         is_incremental: true
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as charge_attempt_start_ts,
-            cast(null as timestamp)                    as charge_attempt_stop_ts,
-            'UID-001'                                  as preparing_unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)   as preparing_ingested_ts,
-            cast(null as string)                       as previous_status,
-            cast(null as string)                       as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as preparing_payload_ts,
-            cast(null as timestamp)                    as preparing_next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            'TXN-001'                                  as transaction_id,
-            cast('2025-10-01 10:00:00' as timestamp)   as transaction_ingested_ts,
-            cast('2025-10-01 10:01:00' as timestamp)   as transaction_start_ts,
-            cast(null as timestamp)                    as transaction_stop_ts,
-            cast(null as string)                       as transaction_stop_reason,
-            cast(null as numeric)                      as meter_start_wh,
-            cast(null as numeric)                      as meter_stop_wh,
-            cast(null as numeric)                      as energy_transferred_kwh,
-            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', transaction_id: 'TXN-001', transaction_start_ts: 2025-10-01 10:01:00, incremental_ts: 2025-10-01 10:00:00}
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          -- No new preparing events for this attempt this run - only a row for an
-          -- unrelated charger, so int_connector_preparing's own incremental_ts high
-          -- watermark stays valid (a genuinely empty ref makes the LEAST()-based
-          -- to_timestamp computation resolve to null and starves every CTE).
-          select
-            'CH-999'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-999'                                  as port_id,
-            'LOC-999'                                   as location_id,
-            'UID-999'                                  as unique_id,
-            cast('2025-10-01 09:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast(null as timestamp)                    as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2099-01-01 00:00:00' as timestamp)  as incremental_ts,
-            cast('2099-01-01 00:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          # No new preparing events for this attempt this run - a row must still
+          # exist so the model's own least()-based to_timestamp has a valid
+          # incremental_ts to read (a genuinely empty ref resolves to null and
+          # starves every downstream CTE).
+          - {incremental_ts: 2099-01-01 00:00:00, updated_ts: 2099-01-01 00:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            'TXN-001'                                  as transaction_id,
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            cast('2025-10-01 10:29:00' as timestamp)  as ingested_ts,
-            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
-            cast('2025-10-01 10:29:00' as timestamp)  as transaction_stop_ts,
-            'Local'                                    as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            1000                                       as meter_start_wh,
-            6000                                       as meter_stop_wh,
-            cast(5.0 as numeric)                       as energy_transferred_kwh,
-            cast('2025-10-01 10:29:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:29:00' as timestamp)  as updated_ts
+        rows:
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:29:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, incremental_ts: 2025-10-01 10:29:00, updated_ts: 2025-10-01 10:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -1284,63 +485,14 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            'UID-001'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, incremental_ts: 2025-10-01 10:00:00, updated_ts: 2025-10-01 10:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            cast(null as string)    as transaction_id,
-            cast(null as string)    as charger_id,
-            cast(null as string)    as connector_id,
-            cast(null as string)    as port_id,
-            cast(null as string)    as location_id,
-            cast('1900-01-01 00:00:00' as timestamp) as ingested_ts,
-            cast(null as timestamp) as transaction_start_ts,
-            cast(null as timestamp) as transaction_stop_ts,
-            cast(null as string)    as transaction_stop_reason,
-            cast(null as array)     as id_tags,
-            cast(null as array)     as id_tag_statuses,
-            cast(null as numeric)   as meter_start_wh,
-            cast(null as numeric)   as meter_stop_wh,
-            cast(null as numeric)   as energy_transferred_kwh,
-            cast('2025-10-01 10:30:00' as timestamp) as incremental_ts,
-            cast('2025-10-01 10:30:00' as timestamp) as updated_ts
+        rows:
+          - {transaction_id: null, incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_ocpp_logs')
-        format: sql
-        rows: |
-          select
-            cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp,
-            'CH-999'                                 as charger_id,
-            '1'                                       as connector_id,
-            cast(null as string)                      as port_id,
-            cast(null as string)                      as location_id,
-            'StatusNotification'                      as action,
-            '2'                                        as message_type_id,
-            'UID-900'                                  as unique_id,
-            '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}' as payload
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-999', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'}
     expect:
       rows:
         - {has_error: false, last_error_code: null}
@@ -1355,68 +507,15 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            'UID-001'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, incremental_ts: 2025-10-01 10:00:00, updated_ts: 2025-10-01 10:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            cast(null as string)    as transaction_id,
-            cast(null as string)    as charger_id,
-            cast(null as string)    as connector_id,
-            cast(null as string)    as port_id,
-            cast(null as string)    as location_id,
-            cast('1900-01-01 00:00:00' as timestamp) as ingested_ts,
-            cast(null as timestamp) as transaction_start_ts,
-            cast(null as timestamp) as transaction_stop_ts,
-            cast(null as string)    as transaction_stop_reason,
-            cast(null as array)     as id_tags,
-            cast(null as array)     as id_tag_statuses,
-            cast(null as numeric)   as meter_start_wh,
-            cast(null as numeric)   as meter_stop_wh,
-            cast(null as numeric)   as energy_transferred_kwh,
-            cast('2025-10-01 10:30:00' as timestamp) as incremental_ts,
-            cast('2025-10-01 10:30:00' as timestamp) as updated_ts
+        rows:
+          - {transaction_id: null, incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_ocpp_logs')
-        format: sql
-        rows: |
-          select
-            cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp,
-            'CH-001'                                 as charger_id,
-            '1'                                       as connector_id,
-            cast(null as string)                      as port_id,
-            cast(null as string)                      as location_id,
-            'StatusNotification'                      as action,
-            '2'                                        as message_type_id,
-            'UID-901'                                  as unique_id,
-            '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}' as payload
-          union all
-          select
-            cast('2025-10-01 10:20:00' as timestamp), 'CH-001', '1', cast(null as string), cast(null as string),
-            'StatusNotification', '2', 'UID-902',
-            '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'}
+          - {ingested_timestamp: 2025-10-01 10:20:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'}
     expect:
       rows:
         - {has_error: false, last_error_code: null}
@@ -1432,73 +531,16 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            'UID-001'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, incremental_ts: 2025-10-01 10:00:00, updated_ts: 2025-10-01 10:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            cast(null as string)    as transaction_id,
-            cast(null as string)    as charger_id,
-            cast(null as string)    as connector_id,
-            cast(null as string)    as port_id,
-            cast(null as string)    as location_id,
-            cast('1900-01-01 00:00:00' as timestamp) as ingested_ts,
-            cast(null as timestamp) as transaction_start_ts,
-            cast(null as timestamp) as transaction_stop_ts,
-            cast(null as string)    as transaction_stop_reason,
-            cast(null as array)     as id_tags,
-            cast(null as array)     as id_tag_statuses,
-            cast(null as numeric)   as meter_start_wh,
-            cast(null as numeric)   as meter_stop_wh,
-            cast(null as numeric)   as energy_transferred_kwh,
-            cast('2025-10-01 10:30:00' as timestamp) as incremental_ts,
-            cast('2025-10-01 10:30:00' as timestamp) as updated_ts
+        rows:
+          - {transaction_id: null, incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_ocpp_logs')
-        format: sql
-        rows: |
-          select
-            cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp,
-            'CH-001'                                 as charger_id,
-            '1'                                       as connector_id,
-            cast(null as string)                      as port_id,
-            cast(null as string)                      as location_id,
-            'StatusNotification'                      as action,
-            '2'                                        as message_type_id,
-            'UID-903'                                  as unique_id,
-            '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}' as payload
-          union all
-          select
-            cast('2025-10-01 10:10:00' as timestamp), 'CH-001', '1', cast(null as string), cast(null as string),
-            'StatusNotification', '2', 'UID-904',
-            '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'
-          union all
-          select
-            cast('2025-10-01 10:20:00' as timestamp), 'CH-001', '1', cast(null as string), cast(null as string),
-            'StatusNotification', '2', 'UID-905',
-            '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted"}'
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'}
+          - {ingested_timestamp: 2025-10-01 10:10:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'}
+          - {ingested_timestamp: 2025-10-01 10:20:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted"}'}
     expect:
       rows:
         - {has_error: true, last_error_code: 'HighTemperature'}
@@ -1515,68 +557,15 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            'UID-001'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, incremental_ts: 2025-10-01 10:00:00, updated_ts: 2025-10-01 10:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            cast(null as string)    as transaction_id,
-            cast(null as string)    as charger_id,
-            cast(null as string)    as connector_id,
-            cast(null as string)    as port_id,
-            cast(null as string)    as location_id,
-            cast('1900-01-01 00:00:00' as timestamp) as ingested_ts,
-            cast(null as timestamp) as transaction_start_ts,
-            cast(null as timestamp) as transaction_stop_ts,
-            cast(null as string)    as transaction_stop_reason,
-            cast(null as array)     as id_tags,
-            cast(null as array)     as id_tag_statuses,
-            cast(null as numeric)   as meter_start_wh,
-            cast(null as numeric)   as meter_stop_wh,
-            cast(null as numeric)   as energy_transferred_kwh,
-            cast('2025-10-01 10:30:00' as timestamp) as incremental_ts,
-            cast('2025-10-01 10:30:00' as timestamp) as updated_ts
+        rows:
+          - {transaction_id: null, incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_ocpp_logs')
-        format: sql
-        rows: |
-          select
-            cast('2025-10-01 10:05:00' as timestamp) as ingested_timestamp,
-            'CH-001'                                 as charger_id,
-            '1'                                       as connector_id,
-            cast(null as string)                      as port_id,
-            cast(null as string)                      as location_id,
-            'StatusNotification'                      as action,
-            '2'                                        as message_type_id,
-            'UID-906'                                  as unique_id,
-            '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted"}' as payload
-          union all
-          select
-            cast('2025-10-01 10:20:00' as timestamp), 'CH-001', '1', cast(null as string), cast(null as string),
-            'StatusNotification', '2', 'UID-907',
-            '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted"}'}
+          - {ingested_timestamp: 2025-10-01 10:20:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'}
     expect:
       rows:
         - {has_error: true, last_error_code: 'HighTemperature'}
@@ -1594,79 +583,17 @@ unit_tests:
         is_incremental: true
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as charge_attempt_start_ts,
-            cast(null as timestamp)                    as charge_attempt_stop_ts,
-            'UID-001'                                  as preparing_unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as preparing_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as preparing_payload_ts,
-            cast(null as timestamp)                    as preparing_next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            'TXN-001'                                  as transaction_id,
-            cast(null as timestamp)                    as transaction_ingested_ts,
-            cast(null as timestamp)                    as transaction_start_ts,
-            cast(null as timestamp)                    as transaction_stop_ts,
-            cast(null as string)                       as transaction_stop_reason,
-            cast(null as numeric)                      as meter_start_wh,
-            cast(null as numeric)                      as meter_stop_wh,
-            cast(null as numeric)                      as energy_transferred_kwh,
-            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', status: 'Preparing', transaction_id: 'TXN-001', incremental_ts: 2025-10-01 10:00:00}
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          -- No new preparing events this run - placeholder for an unrelated charger
-          -- only, so int_connector_preparing's own incremental_ts stays valid (an
-          -- actually-empty ref starves the model's least()-based to_timestamp).
-          select
-            'CH-999'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-999'                                  as port_id,
-            'LOC-999'                                   as location_id,
-            'UID-999'                                  as unique_id,
-            cast('2025-10-01 09:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast(null as timestamp)                    as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2099-01-01 00:00:00' as timestamp)  as incremental_ts,
-            cast('2099-01-01 00:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          # No new preparing events this run - a row must still exist so the model's
+          # own least()-based to_timestamp has a valid incremental_ts to read (a
+          # genuinely empty ref resolves to null and starves every downstream CTE).
+          - {incremental_ts: 2099-01-01 00:00:00, updated_ts: 2099-01-01 00:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            'TXN-001'                                  as transaction_id,
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            cast('2025-10-01 10:30:00' as timestamp)  as ingested_ts,
-            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
-            cast('2025-10-01 10:29:00' as timestamp)  as transaction_stop_ts,
-            'Local'                                    as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            1000                                       as meter_start_wh,
-            6000                                       as meter_stop_wh,
-            cast(5.0 as numeric)                       as energy_transferred_kwh,
-            cast('2025-10-01 10:30:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:30:00' as timestamp)  as updated_ts
+        rows:
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:30:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -1691,50 +618,11 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            'UID-001'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast('2025-10-01 10:30:00' as timestamp)  as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            'TXN-002'                                  as transaction_id,
-            cast('2025-10-01 10:30:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:30:00' as timestamp)  as updated_ts,
-            1                                          as _unique_transaction_count
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-002', incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            'TXN-002'                                  as transaction_id,
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            cast('2025-10-01 10:29:00' as timestamp)  as ingested_ts,
-            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
-            cast('2025-10-01 10:29:00' as timestamp)  as transaction_stop_ts,
-            'Local'                                    as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            1000                                       as meter_start_wh,
-            6000                                       as meter_stop_wh,
-            cast(5.0 as numeric)                       as energy_transferred_kwh,
-            cast('2025-10-01 10:30:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:30:00' as timestamp)  as updated_ts
+        rows:
+          - {transaction_id: 'TXN-002', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:29:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -1762,55 +650,14 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          -- A row must exist here so the model's own least()-based to_timestamp
-          -- computation has a valid incremental_ts to read - a genuinely empty ref
-          -- makes it resolve to null and starves every downstream CTE. Its
-          -- ingested_ts is set far in the past so it never actually satisfies the
-          -- preparing CTE's own window filter and never joins to anything.
-          select
-            'CH-999'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-999'                                  as port_id,
-            'LOC-999'                                   as location_id,
-            'UID-999'                                  as unique_id,
-            cast('1900-01-01 00:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast(null as timestamp)                    as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2099-01-01 00:00:00' as timestamp)  as incremental_ts,
-            cast('2099-01-01 00:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          # A row must exist here so the model's own least()-based to_timestamp
+          # computation has a valid incremental_ts to read - a genuinely empty ref
+          # resolves to null and starves every downstream CTE.
+          - {incremental_ts: 2099-01-01 00:00:00, updated_ts: 2099-01-01 00:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            'TXN-003'                                  as transaction_id,
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            cast('2025-10-01 10:01:00' as timestamp)  as ingested_ts,
-            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
-            cast('2025-10-01 10:29:00' as timestamp)  as transaction_stop_ts,
-            'Local'                                    as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            1000                                       as meter_start_wh,
-            6000                                       as meter_stop_wh,
-            cast(5.0 as numeric)                       as energy_transferred_kwh,
-            cast('2025-10-01 10:29:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:29:00' as timestamp)  as updated_ts
+        rows:
+          - {transaction_id: 'TXN-003', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:01:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, incremental_ts: 2025-10-01 10:29:00, updated_ts: 2025-10-01 10:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -1834,55 +681,14 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            'UID-001'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast('2025-10-01 10:15:00' as timestamp)  as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            'Available'                                as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2025-10-01 10:15:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:15:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:15:00, status: 'Preparing', next_status: 'Available', transaction_id: null, incremental_ts: 2025-10-01 10:15:00, updated_ts: 2025-10-01 10:15:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          -- A row must exist here so the model's own least()-based to_timestamp
-          -- computation has a valid incremental_ts to read - a genuinely empty ref
-          -- makes it resolve to null and starves every downstream CTE. Its
-          -- ingested_ts is set far in the past so it never actually satisfies the
-          -- transactions CTE's own window filter and never joins to anything.
-          select
-            'TXN-999'                                  as transaction_id,
-            'CH-999'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-999'                                  as port_id,
-            'LOC-999'                                   as location_id,
-            cast('1900-01-01 00:00:00' as timestamp)  as ingested_ts,
-            cast('1900-01-01 00:00:00' as timestamp)  as transaction_start_ts,
-            cast('1900-01-01 00:10:00' as timestamp)  as transaction_stop_ts,
-            'Local'                                    as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            1000                                       as meter_start_wh,
-            2000                                       as meter_stop_wh,
-            cast(1.0 as numeric)                       as energy_transferred_kwh,
-            cast('2099-01-01 00:00:00' as timestamp)  as incremental_ts,
-            cast('2099-01-01 00:00:00' as timestamp)  as updated_ts
+        rows:
+          # A row must exist here so the model's own least()-based to_timestamp
+          # computation has a valid incremental_ts to read - a genuinely empty ref
+          # resolves to null and starves every downstream CTE.
+          - {incremental_ts: 2099-01-01 00:00:00, updated_ts: 2099-01-01 00:00:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -1911,85 +717,21 @@ unit_tests:
         is_incremental: true
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as charge_attempt_start_ts,
-            cast(null as timestamp)                    as charge_attempt_stop_ts,
-            'UID-001'                                  as preparing_unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as preparing_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as preparing_payload_ts,
-            cast(null as timestamp)                    as preparing_next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string)                       as transaction_id,
-            cast(null as timestamp)                    as transaction_ingested_ts,
-            cast(null as timestamp)                    as transaction_start_ts,
-            cast(null as timestamp)                    as transaction_stop_ts,
-            cast(null as string)                       as transaction_stop_reason,
-            cast(null as numeric)                      as meter_start_wh,
-            cast(null as numeric)                      as meter_stop_wh,
-            cast(null as numeric)                      as energy_transferred_kwh,
-            cast('2025-10-01 10:00:00' as timestamp)  as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', status: 'Preparing', transaction_id: null, incremental_ts: 2025-10-01 10:00:00}
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          -- Same underlying status-change event as the buffered row (same
-          -- charger/connector/unique_id/ingested_ts) but now enriched with the
-          -- next status change, as int_connector_preparing's own incremental merge
-          -- would emit it once the Available status change has been ingested.
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            'UID-001'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast('2025-10-01 10:15:00' as timestamp)  as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            'Available'                                as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2025-10-01 10:15:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:15:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          # Same underlying status-change event as the buffered row (same
+          # charger/connector/unique_id/ingested_ts) but now enriched with the
+          # next status change, as int_connector_preparing's own incremental merge
+          # would emit it once the Available status change has been ingested.
+          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:15:00, status: 'Preparing', next_status: 'Available', transaction_id: null, incremental_ts: 2025-10-01 10:15:00, updated_ts: 2025-10-01 10:15:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          -- A row must exist here so the model's own least()-based to_timestamp
-          -- computation has a valid incremental_ts to read - a genuinely empty ref
-          -- makes it resolve to null and starves every downstream CTE. Its
-          -- ingested_ts is set far in the past so it never actually satisfies the
-          -- transactions CTE's own window filter and never joins to anything.
-          select
-            'TXN-999'                                  as transaction_id,
-            'CH-999'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-999'                                  as port_id,
-            'LOC-999'                                   as location_id,
-            cast('1900-01-01 00:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as transaction_start_ts,
-            cast(null as timestamp)                    as transaction_stop_ts,
-            cast(null as string)                       as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as numeric)                      as meter_start_wh,
-            cast(null as numeric)                      as meter_stop_wh,
-            cast(null as numeric)                      as energy_transferred_kwh,
-            cast('2099-01-01 00:00:00' as timestamp)  as incremental_ts,
-            cast('2099-01-01 00:00:00' as timestamp)  as updated_ts
+        rows:
+          # A row must exist here so the model's own least()-based to_timestamp
+          # computation has a valid incremental_ts to read - a genuinely empty ref
+          # resolves to null and starves every downstream CTE.
+          - {incremental_ts: 2099-01-01 00:00:00, updated_ts: 2099-01-01 00:00:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -2008,78 +750,17 @@ unit_tests:
         is_incremental: true
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            cast('2025-10-01 10:01:00' as timestamp)  as charge_attempt_start_ts,
-            cast(null as timestamp)                    as charge_attempt_stop_ts,
-            cast(null as string)                       as preparing_unique_id,
-            cast(null as timestamp)                    as preparing_ingested_ts,
-            cast(null as string)                       as previous_status,
-            cast(null as string)                       as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as preparing_payload_ts,
-            cast(null as timestamp)                    as preparing_next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            'TXN-004'                                  as transaction_id,
-            cast('2025-10-01 10:01:00' as timestamp)  as transaction_ingested_ts,
-            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
-            cast(null as timestamp)                    as transaction_stop_ts,
-            cast(null as string)                       as transaction_stop_reason,
-            1000                                       as meter_start_wh,
-            cast(null as numeric)                      as meter_stop_wh,
-            cast(null as numeric)                      as energy_transferred_kwh,
-            cast('2025-10-01 10:01:00' as timestamp)  as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:01:00, transaction_id: 'TXN-004', transaction_start_ts: 2025-10-01 10:01:00, meter_start_wh: 1000, incremental_ts: 2025-10-01 10:01:00}
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          -- Placeholder for an unrelated charger only - see note on the equivalent
-          -- fixture above for why a genuinely empty ref isn't safe here.
-          select
-            'CH-999'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-999'                                  as port_id,
-            'LOC-999'                                   as location_id,
-            'UID-999'                                  as unique_id,
-            cast('2025-10-01 09:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast(null as timestamp)                    as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2099-01-01 00:00:00' as timestamp)  as incremental_ts,
-            cast('2099-01-01 00:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          # Placeholder row only - see note on the equivalent fixture in
+          # test_charge_attempt_merge_scenario_preparing_then_transaction_next_run
+          # for why a genuinely empty ref isn't safe here.
+          - {incremental_ts: 2099-01-01 00:00:00, updated_ts: 2099-01-01 00:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            'TXN-004'                                  as transaction_id,
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            cast('2025-10-01 10:29:00' as timestamp)  as ingested_ts,
-            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
-            cast('2025-10-01 10:29:00' as timestamp)  as transaction_stop_ts,
-            'Remote'                                   as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            1000                                       as meter_start_wh,
-            8000                                       as meter_stop_wh,
-            cast(7.0 as numeric)                       as energy_transferred_kwh,
-            cast('2025-10-01 10:29:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:29:00' as timestamp)  as updated_ts
+        rows:
+          - {transaction_id: 'TXN-004', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:29:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Remote', meter_start_wh: 1000, meter_stop_wh: 8000, energy_transferred_kwh: 7.0, incremental_ts: 2025-10-01 10:29:00, updated_ts: 2025-10-01 10:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -2113,82 +794,22 @@ unit_tests:
         is_incremental: true
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            cast('2025-10-01 08:00:00' as timestamp)  as charge_attempt_start_ts,
-            cast(null as timestamp)                    as charge_attempt_stop_ts,
-            'UID-005'                                  as preparing_unique_id,
-            cast('2025-10-01 08:00:00' as timestamp)  as preparing_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            'Charging'                                 as next_status,
-            cast(null as timestamp)                    as preparing_payload_ts,
-            cast(null as timestamp)                    as preparing_next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            'TXN-005'                                  as transaction_id,
-            cast('2025-10-01 08:00:01' as timestamp)  as transaction_ingested_ts,
-            cast('2025-10-01 08:00:01' as timestamp)  as transaction_start_ts,
-            cast(null as timestamp)                    as transaction_stop_ts,
-            cast(null as string)                       as transaction_stop_reason,
-            1000                                       as meter_start_wh,
-            cast(null as numeric)                      as meter_stop_wh,
-            cast(null as numeric)                      as energy_transferred_kwh,
-            -- The table's own watermark has advanced to just before this run (lots
-            -- of other, later activity processed since this row was created) even
-            -- though this specific row's own charge_attempt_start_ts is 4 days old -
-            -- that gap between the two is exactly what the fix has to survive.
-            cast('2025-10-05 09:00:00' as timestamp)  as incremental_ts
+        rows:
+          # The table's own watermark (incremental_ts) has advanced 4 days past this
+          # row's own charge_attempt_start_ts (lots of other, later activity processed
+          # since this row was created) - that gap is exactly what the fix has to
+          # survive: charge_attempts_buffer must scope by transaction_id, not a time
+          # window, or this row is never read back.
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 08:00:00, preparing_unique_id: 'UID-005', transaction_id: 'TXN-005', incremental_ts: 2025-10-05 09:00:00}
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          -- Placeholder for an unrelated charger only - see note on the equivalent
-          -- fixture above for why a genuinely empty ref isn't safe here.
-          select
-            'CH-999'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-999'                                  as port_id,
-            'LOC-999'                                   as location_id,
-            'UID-999'                                  as unique_id,
-            cast('2025-10-01 07:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast(null as timestamp)                    as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2099-01-01 00:00:00' as timestamp)  as incremental_ts,
-            cast('2099-01-01 00:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          # Placeholder row only - see note on the equivalent fixture in
+          # test_charge_attempt_merge_scenario_preparing_then_transaction_next_run
+          # for why a genuinely empty ref isn't safe here.
+          - {incremental_ts: 2099-01-01 00:00:00, updated_ts: 2099-01-01 00:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            'TXN-005'                                  as transaction_id,
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            cast('2025-10-05 10:29:00' as timestamp)  as ingested_ts,
-            cast('2025-10-01 08:00:01' as timestamp)  as transaction_start_ts,
-            cast('2025-10-05 10:29:00' as timestamp)  as transaction_stop_ts,
-            'Remote'                                   as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            1000                                       as meter_start_wh,
-            8000                                       as meter_stop_wh,
-            cast(7.0 as numeric)                       as energy_transferred_kwh,
-            cast('2025-10-05 10:29:00' as timestamp)  as incremental_ts,
-            cast('2025-10-05 10:29:00' as timestamp)  as updated_ts
+        rows:
+          - {transaction_id: 'TXN-005', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-05 10:29:00, transaction_start_ts: 2025-10-01 08:00:01, transaction_stop_ts: 2025-10-05 10:29:00, transaction_stop_reason: 'Remote', energy_transferred_kwh: 7.0, incremental_ts: 2025-10-05 10:29:00, updated_ts: 2025-10-05 10:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -2221,79 +842,18 @@ unit_tests:
         is_incremental: true
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            cast('2025-10-01 09:00:00' as timestamp)  as charge_attempt_start_ts,
-            cast(null as timestamp)                    as charge_attempt_stop_ts,
-            cast(null as string)                       as preparing_unique_id,
-            cast(null as timestamp)                    as preparing_ingested_ts,
-            cast(null as string)                       as previous_status,
-            cast(null as string)                       as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as preparing_payload_ts,
-            cast(null as timestamp)                    as preparing_next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            'TXN-010'                                  as transaction_id,
-            cast('2025-10-01 09:00:00' as timestamp)  as transaction_ingested_ts,
-            cast('2025-10-01 09:00:00' as timestamp)  as transaction_start_ts,
-            cast(null as timestamp)                    as transaction_stop_ts,
-            cast(null as string)                       as transaction_stop_reason,
-            1000                                       as meter_start_wh,
-            cast(null as numeric)                      as meter_stop_wh,
-            cast(null as numeric)                      as energy_transferred_kwh,
-            cast('2025-10-01 09:00:00' as timestamp)  as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 09:00:00, preparing_unique_id: null, status: null, transaction_id: 'TXN-010', transaction_start_ts: 2025-10-01 09:00:00, incremental_ts: 2025-10-01 09:00:00}
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          -- No Preparing status change is ever captured for this attempt -
-          -- placeholder for an unrelated charger only, see note on the equivalent
-          -- fixture above for why a genuinely empty ref isn't safe here.
-          select
-            'CH-999'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-999'                                  as port_id,
-            'LOC-999'                                   as location_id,
-            'UID-999'                                  as unique_id,
-            cast('2025-10-01 08:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast(null as timestamp)                    as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2099-01-01 00:00:00' as timestamp)  as incremental_ts,
-            cast('2099-01-01 00:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          # No Preparing status change is ever captured for this attempt -
+          # placeholder row only, see note on the equivalent fixture in
+          # test_charge_attempt_merge_scenario_preparing_then_transaction_next_run
+          # for why a genuinely empty ref isn't safe here.
+          - {incremental_ts: 2099-01-01 00:00:00, updated_ts: 2099-01-01 00:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            'TXN-010'                                  as transaction_id,
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            cast('2025-10-01 09:29:00' as timestamp)  as ingested_ts,
-            cast('2025-10-01 09:00:00' as timestamp)  as transaction_start_ts,
-            cast('2025-10-01 09:29:00' as timestamp)  as transaction_stop_ts,
-            'Local'                                    as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            1000                                       as meter_start_wh,
-            6000                                       as meter_stop_wh,
-            cast(5.0 as numeric)                       as energy_transferred_kwh,
-            cast('2025-10-01 09:29:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 09:29:00' as timestamp)  as updated_ts
+        rows:
+          - {transaction_id: 'TXN-010', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 09:29:00, transaction_start_ts: 2025-10-01 09:00:00, transaction_stop_ts: 2025-10-01 09:29:00, transaction_stop_reason: 'Local', energy_transferred_kwh: 5.0, incremental_ts: 2025-10-01 09:29:00, updated_ts: 2025-10-01 09:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -2331,84 +891,23 @@ unit_tests:
         is_incremental: true
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            cast('2025-10-01 10:01:00' as timestamp)  as charge_attempt_start_ts,
-            cast(null as timestamp)                    as charge_attempt_stop_ts,
-            cast(null as string)                       as preparing_unique_id,
-            cast(null as timestamp)                    as preparing_ingested_ts,
-            cast(null as string)                       as previous_status,
-            cast(null as string)                       as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as preparing_payload_ts,
-            cast(null as timestamp)                    as preparing_next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            'TXN-100'                                  as transaction_id,
-            cast('2025-10-01 10:01:00' as timestamp)  as transaction_ingested_ts,
-            cast('2025-10-01 10:01:00' as timestamp)  as transaction_start_ts,
-            cast(null as timestamp)                    as transaction_stop_ts,
-            cast(null as string)                       as transaction_stop_reason,
-            1000                                       as meter_start_wh,
-            cast(null as numeric)                      as meter_stop_wh,
-            cast(null as numeric)                      as energy_transferred_kwh,
-            cast('2025-10-01 10:01:00' as timestamp)  as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:01:00, preparing_unique_id: null, transaction_id: 'TXN-100', transaction_start_ts: 2025-10-01 10:01:00, incremental_ts: 2025-10-01 10:01:00}
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          -- The Preparing event for this same attempt, arriving late. Its own
-          -- transaction_id is still null here - event chaining hasn't resolved it
-          -- yet (e.g. the StartTransaction CALLRESULT confirmation is still in
-          -- flight) - an ordinary, not-contrived, lag.
-          select
-            'CH-001'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-001'                                  as port_id,
-            'LOC-001'                                   as location_id,
-            'UID-100'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast(null as timestamp)                    as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2025-10-01 10:05:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 10:05:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          # The Preparing event for this same attempt, arriving late. Its own
+          # transaction_id is still null here - event chaining hasn't resolved it
+          # yet (e.g. the StartTransaction CALLRESULT confirmation is still in
+          # flight) - an ordinary, not-contrived, lag.
+          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-100', ingested_ts: 2025-10-01 10:00:00, status: 'Preparing', transaction_id: null, incremental_ts: 2025-10-01 10:05:00, updated_ts: 2025-10-01 10:05:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          -- No new int_transactions rows this run - TXN-100 was already fully
-          -- processed and buffered in a prior run. Placeholder for an unrelated
-          -- charger only, see note on the equivalent fixture above for why a
-          -- genuinely empty ref isn't safe here.
-          select
-            'TXN-999'                                  as transaction_id,
-            'CH-999'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-999'                                  as port_id,
-            'LOC-999'                                   as location_id,
-            cast('1900-01-01 00:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as transaction_start_ts,
-            cast(null as timestamp)                    as transaction_stop_ts,
-            cast(null as string)                       as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as numeric)                      as meter_start_wh,
-            cast(null as numeric)                      as meter_stop_wh,
-            cast(null as numeric)                      as energy_transferred_kwh,
-            cast('2099-01-01 00:00:00' as timestamp)  as incremental_ts,
-            cast('2099-01-01 00:00:00' as timestamp)  as updated_ts
+        rows:
+          # No new int_transactions rows this run - TXN-100 was already fully
+          # processed and buffered in a prior run. Placeholder row only, see note
+          # on the equivalent fixture in
+          # test_charge_attempt_merge_scenario_preparing_only_no_transaction for
+          # why a genuinely empty ref isn't safe here.
+          - {incremental_ts: 2099-01-01 00:00:00, updated_ts: 2099-01-01 00:00:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -2438,80 +937,19 @@ unit_tests:
         is_incremental: true
     given:
       - input: this
-        format: sql
-        rows: |
-          select
-            'CH-002'                                   as charger_id,
-            '1'                                        as connector_id,
-            cast('2025-10-01 11:00:00' as timestamp)  as charge_attempt_start_ts,
-            cast(null as timestamp)                    as charge_attempt_stop_ts,
-            'UID-200'                                  as preparing_unique_id,
-            cast('2025-10-01 11:00:00' as timestamp)  as preparing_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as preparing_payload_ts,
-            cast(null as timestamp)                    as preparing_next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string)                       as transaction_id,
-            cast(null as timestamp)                    as transaction_ingested_ts,
-            cast(null as timestamp)                    as transaction_start_ts,
-            cast(null as timestamp)                    as transaction_stop_ts,
-            cast(null as string)                       as transaction_stop_reason,
-            cast(null as numeric)                      as meter_start_wh,
-            cast(null as numeric)                      as meter_stop_wh,
-            cast(null as numeric)                      as energy_transferred_kwh,
-            cast('2025-10-01 11:00:00' as timestamp)  as incremental_ts
+        rows:
+          - {charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-01 11:00:00, preparing_unique_id: 'UID-200', status: 'Preparing', transaction_id: null, incremental_ts: 2025-10-01 11:00:00}
       - input: ref('int_connector_preparing')
-        format: sql
-        rows: |
-          -- No new Preparing row this run for this attempt - it's already fully
-          -- buffered and still open. Placeholder for an unrelated charger only,
-          -- see note on the equivalent fixture above for why a genuinely empty ref
-          -- isn't safe here.
-          select
-            'CH-999'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-999'                                  as port_id,
-            'LOC-999'                                   as location_id,
-            'UID-999'                                  as unique_id,
-            cast('2025-10-01 10:00:00' as timestamp)  as ingested_ts,
-            cast(null as timestamp)                    as previous_ingested_ts,
-            cast(null as timestamp)                    as next_ingested_ts,
-            cast(null as string)                       as previous_status,
-            'Preparing'                                as status,
-            cast(null as string)                       as next_status,
-            cast(null as timestamp)                    as confirmation_ingested_ts,
-            cast(null as timestamp)                    as payload_ts,
-            cast(null as timestamp)                    as next_payload_ts,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            cast(null as string) as id_tag,
-            cast(null as string)                       as transaction_id,
-            cast('2099-01-01 00:00:00' as timestamp)  as incremental_ts,
-            cast('2099-01-01 00:00:00' as timestamp)  as updated_ts,
-            0                                          as _unique_transaction_count
+        rows:
+          # No new Preparing row this run for this attempt - it's already fully
+          # buffered and still open. Placeholder row only, see note on the
+          # equivalent fixture in
+          # test_charge_attempt_merge_scenario_preparing_then_transaction_next_run
+          # for why a genuinely empty ref isn't safe here.
+          - {incremental_ts: 2099-01-01 00:00:00, updated_ts: 2099-01-01 00:00:00}
       - input: ref('int_transactions')
-        format: sql
-        rows: |
-          select
-            'TXN-200'                                  as transaction_id,
-            'CH-002'                                   as charger_id,
-            '1'                                        as connector_id,
-            'PORT-002'                                  as port_id,
-            'LOC-002'                                   as location_id,
-            cast('2025-10-01 11:29:00' as timestamp)  as ingested_ts,
-            cast('2025-10-01 11:00:01' as timestamp)  as transaction_start_ts,
-            cast('2025-10-01 11:29:00' as timestamp)  as transaction_stop_ts,
-            'Local'                                    as transaction_stop_reason,
-            []                                         as id_tags,
-            []                                         as id_tag_statuses,
-            1000                                       as meter_start_wh,
-            6000                                       as meter_stop_wh,
-            cast(5.0 as numeric)                       as energy_transferred_kwh,
-            cast('2025-10-01 11:29:00' as timestamp)  as incremental_ts,
-            cast('2025-10-01 11:29:00' as timestamp)  as updated_ts
+        rows:
+          - {transaction_id: 'TXN-200', charger_id: 'CH-002', connector_id: '1', ingested_ts: 2025-10-01 11:29:00, transaction_start_ts: 2025-10-01 11:00:01, transaction_stop_ts: 2025-10-01 11:29:00, transaction_stop_reason: 'Local', energy_transferred_kwh: 5.0, incremental_ts: 2025-10-01 11:29:00, updated_ts: 2025-10-01 11:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -2537,25 +975,20 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_faulted_outages')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, cast('2025-10-01 10:00:00' as timestamp) as from_ts, cast('2025-10-01 12:00:00' as timestamp) as to_ts, 120 as duration_minutes, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, incremental_ts: 2025-10-01 12:00:00}
       - input: ref('int_offline_outages')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, cast('2025-10-01 10:30:00' as timestamp) as from_ts, cast('2025-10-01 12:30:00' as timestamp) as to_ts, 120 as duration_minutes, cast('2025-10-01 12:30:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', from_ts: 2025-10-01 10:30:00, to_ts: 2025-10-01 12:30:00, duration_minutes: 120, incremental_ts: 2025-10-01 12:30:00}
       - input: ref('int_chargers')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'LOC-001' as location_id, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts, 1 as port_count
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001'}
       - input: ref('int_ports')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, 1 as connector_count
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001'}
       - input: ref('dim_dates')
-        format: sql
-        rows: |
-          select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
+        rows:
+          - {date_id: 2025-10-01}
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120}
@@ -2570,27 +1003,20 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_faulted_outages')
-        format: sql
-        rows: |
-          select cast(null as string) as charger_id, cast(null as string) as port_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as timestamp) as incremental_ts where false
+        rows: []
       - input: ref('int_offline_outages')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, cast('2025-10-01 22:00:00' as timestamp) as from_ts, cast('2025-10-02 04:00:00' as timestamp) as to_ts, 360 as duration_minutes, cast('2025-10-02 12:00:00' as timestamp) as incremental_ts
+        rows:
+          - {charger_id: 'CH-001', from_ts: 2025-10-01 22:00:00, to_ts: 2025-10-02 04:00:00, duration_minutes: 360, incremental_ts: 2025-10-02 12:00:00}
       - input: ref('int_chargers')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'LOC-001' as location_id, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts, 1 as port_count
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001'}
       - input: ref('int_ports')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, 1 as connector_count
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001'}
       - input: ref('dim_dates')
-        format: sql
-        rows: |
-          select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
-          union all
-          select cast('2025-10-02' as date), cast('2025-10-02' as date)
+        rows:
+          - {date_id: 2025-10-01}
+          - {date_id: 2025-10-02}
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 120}
