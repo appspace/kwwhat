@@ -251,6 +251,8 @@ combined_preparing as (
 
         array_distinct({{ array_concat('n.parent_id_tags', 'b.parent_id_tags') }}) as parent_id_tags,
 
+        array_distinct({{ array_concat('n.transaction_ids', 'b.transaction_ids') }}) as transaction_ids,
+
         -- Always advances: the latest event timestamp seen for this status
         -- change across every run that's touched it, not just this run's own
         -- events - b.updated_ts already carries forward everything known as of
