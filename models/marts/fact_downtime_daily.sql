@@ -9,7 +9,7 @@
 
 -- Incremental merge: no buffer - relies on dbt's merge upsert alone.
 
-{%- if is_incremental() -%}
+{% if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
 {%- else -%}
     {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
