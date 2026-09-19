@@ -1,3 +1,4 @@
 {"id": "q001", "input": "How many ports are currently decommissioned?"}
 {"id": "q002", "input": "What is the overall uptime percentage of my EV charging network for the full history?"}
 {"id": "q003", "input": "What is the charge point availability index?"}
+{"id": "q004", "input": "What's the most frequent error code for troubled success?", "expected_output": "WeakSignal"}
