@@ -26,12 +26,12 @@ latest_status as (
     from {{ ref('int_connector_latest_status') }}
 ),
 
-ocpp_error_codes as (
+error_codes as (
     select
         error_code_key,
+        taxonomy,
         fault_code
     from {{ ref('dim_error_codes') }}
-    where taxonomy = 'ocpp1.6'
 )
 
 select
@@ -48,6 +48,7 @@ select
     latest_status.latest_error_code,
     ocpp_error_codes.error_code_key as latest_error_code_key,
     latest_status.latest_vendor_error_code,
+    vendor_error_codes.error_code_key as latest_vendor_error_code_key,
     latest_status.latest_taxonomy,
     latest_status.latest_info,
     latest_status.latest_status_ts
@@ -55,5 +56,9 @@ from connectors
 left join latest_status
     on connectors.charger_id = latest_status.charger_id
     and connectors.connector_id = latest_status.connector_id
-left join ocpp_error_codes
-    on latest_status.latest_error_code = ocpp_error_codes.fault_code
+left join error_codes as ocpp_error_codes
+    on ocpp_error_codes.taxonomy = 'ocpp1.6'
+    and latest_status.latest_error_code = ocpp_error_codes.fault_code
+left join error_codes as vendor_error_codes
+    on latest_status.latest_taxonomy = vendor_error_codes.taxonomy
+    and latest_status.latest_vendor_error_code = vendor_error_codes.fault_code

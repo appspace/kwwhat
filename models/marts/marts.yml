@@ -530,11 +530,19 @@ models:
           'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the
           fault-code scheme - decode via dim_error_codes scoped to latest_taxonomy, not by
           fault_code alone: fault_code is not globally unique once more than one taxonomy is
-          present, so a single-column relationships test against dim_error_codes.fault_code
-          would pass even when the code doesn't belong to this connector's taxonomy. The composite
-          (latest_taxonomy, latest_vendor_error_code) -> (taxonomy, fault_code) check lives in
-          tests/assert_vendor_error_code_matches_vendor_id.sql instead. Null for chargers whose
+          present. Pre-resolved as latest_vendor_error_code_key below. Null for chargers whose
           vendor doesn't populate this field.
+      - name: latest_vendor_error_code_key
+        description: >
+          FK to dim_error_codes, resolved from (latest_taxonomy, latest_vendor_error_code)
+          rather than a hardcoded taxonomy, since a vendor's fault-code scheme (unlike
+          latest_error_code's, which is always OCPP's own) varies by connector. Null wherever
+          latest_vendor_error_code is null. No relationships test here: because this key is
+          itself produced by a left join to dim_error_codes, an unmapped vendor code resolves
+          to null rather than a dangling reference, so a standard relationships test on this
+          column could never fail. The real unmapped-code check - latest_vendor_error_code
+          present but no match in dim_error_codes - lives in
+          tests/assert_vendor_error_code_matches_vendor_id.sql instead.
       - name: latest_taxonomy
         description: >
           Identifies the vendor-specific fault-code scheme from the most recent StatusNotification
