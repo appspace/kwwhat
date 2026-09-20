@@ -16,7 +16,7 @@ with chargex_error_codes as (
 
 ocpp_error_codes as (
     select
-        'ocpp1.6' as taxonomy,
+        taxonomy,
         value as fault_code,
         value as error_code_name,
         description
