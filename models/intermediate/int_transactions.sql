@@ -119,7 +119,7 @@ transactions as (
         transaction_id,
         charger_id,
 
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="connector_id") }}) as connector_ids,
+        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="connector_id")) }} as connector_ids,
 
         -- Transaction timing details
         min(ingested_ts) as ingested_ts,
@@ -133,8 +133,8 @@ transactions as (
         min(transaction_stop_reason) as transaction_stop_reason,
 
         --Authentication details
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag") }}) as id_tags,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="id_tag_status") }}) as id_tag_statuses,
+        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="id_tag")) }} as id_tags,
+        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="id_tag_status")) }} as id_tag_statuses,
 
         -- Energy transfer details
         min(meter_start) as meter_start_wh,
@@ -171,9 +171,9 @@ combined_transactions as (
         coalesce(b.meter_stop_wh, n.meter_stop_wh) as meter_stop_wh,
 
         -- Merge arrays using array_concat
-        array_distinct({{ array_concat('n.id_tags', 'b.id_tags') }}) as id_tags,
-        array_distinct({{ array_concat('n.id_tag_statuses', 'b.id_tag_statuses') }}) as id_tag_statuses,
-        array_distinct({{ array_concat('n.connector_ids', 'b.connector_ids') }}) as connector_ids
+        {{ array_distinct(array_concat('n.id_tags', 'b.id_tags')) }} as id_tags,
+        {{ array_distinct(array_concat('n.id_tag_statuses', 'b.id_tag_statuses')) }} as id_tag_statuses,
+        {{ array_distinct(array_concat('n.connector_ids', 'b.connector_ids')) }} as connector_ids
 
     from transactions as n
     left join {{ this }} as b

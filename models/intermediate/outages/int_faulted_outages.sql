@@ -199,9 +199,9 @@ faulted_outages_with_root_cause as (
         fo.port_id,
         fo.from_ts,
         fo.to_ts,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="fp.error_code") }}) as error_codes,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="fp.vendor_error_code") }}) as vendor_error_codes,
-        array_distinct({{ fivetran_utils.array_agg(field_to_agg="fp.vendor_id") }}) as vendor_ids
+        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.error_code")) }} as error_codes,
+        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.vendor_error_code")) }} as vendor_error_codes,
+        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.vendor_id")) }} as vendor_ids
     from faulted_outages as fo
     left join fault_periods as fp
         on fo.charger_id = fp.charger_id
