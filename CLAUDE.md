@@ -228,6 +228,21 @@ Every model must include:
 
 Write docs for **humans**, not for dbt.
 
+### Model descriptions
+
+State what the model is about in business terms, then the grain. Leave out
+implementation details (join type, incremental strategy, CTE steps) - those
+live in the SQL, not the yml.
+
+Pattern: `<what one row represents, in plain business terms>. One row per <grain columns>.`
+
+Bad: "Incremental marts model that combines charge attempts and transactions
+data using outer join."
+
+Good: "Charge attempt to initiate charging at a port, spanning from
+plug-in/authorization to the connector's return to idle. One row per
+charger_id + connector_id + charge_attempt_start_ts."
+
 Descriptions live in the layer's shared `<layer>.yml` (e.g. `marts.yml`, `intermediate.yml`) only.
 Never set `description` in a model's `config()` block in the `.sql` file — it duplicates the yml,
 the two drift out of sync, and it fragments docs across two places instead of one.
