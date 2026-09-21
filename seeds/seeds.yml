@@ -111,8 +111,8 @@ seeds:
         description: "Identifies the fault-code scheme this row belongs to - always 'ocpp1.6'. Same value on every row of this seed - carried as a column, not a SQL literal, matching chargex_mrec_codes.taxonomy, so dim_error_codes doesn't hardcode it either."
         data_tests:
           - not_null
-      - name: value
-        description: "OCPP 1.6 ChargePointErrorCode value, e.g. 'GroundFailure'. Unlike ChargeX's fault_code/error_code_name pair, OCPP doesn't distinguish a short code from a human-readable name - this value serves as both once it reaches dim_error_codes. Natural key."
+      - name: error_code
+        description: "OCPP 1.6 ChargePointErrorCode value, e.g. 'GroundFailure' - named to match the errorCode field as it appears in StatusNotification. Unlike ChargeX's fault_code/error_code_name pair, OCPP doesn't distinguish a short code from a human-readable name - this value serves as both once it reaches dim_error_codes. Natural key."
         data_tests:
           - not_null
           - unique

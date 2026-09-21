@@ -1,4 +1,4 @@
-taxonomy,value,description
+taxonomy,error_code,description
 ocpp1.6,ConnectorLockFailure,Failure to lock or unlock connector.
 ocpp1.6,EVCommunicationError,"Communication failure with the vehicle, might be Mode 3 or other communication protocol problem. This is not a real error in the sense that the Charge Point doesn't need to go to the faulted state. Instead, it should go to the SuspendedEVSE state."
 ocpp1.6,GroundFailure,Ground fault circuit interrupter has been activated.

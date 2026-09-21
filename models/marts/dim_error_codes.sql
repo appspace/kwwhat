@@ -17,8 +17,8 @@ with chargex_error_codes as (
 ocpp_error_codes as (
     select
         taxonomy,
-        value as fault_code,
-        value as error_code_name,
+        error_code as fault_code,
+        error_code as error_code_name,
         description
     from {{ ref('ocpp_1_6_error_codes') }}
 ),
