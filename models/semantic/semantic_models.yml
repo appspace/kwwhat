@@ -62,6 +62,8 @@ semantic_models:
         type: categorical
       - name: error_code_name
         type: categorical
+      - name: description
+        type: categorical
 
   - name: chargex_mrec_attributes
     description: "ChargeX MREC-specific classification outrigger. Use to slice ChargeX fault codes by likely responsible party (EV user, CSO, EVSE, EV) or functional category (safety, security, maintenance, financial, authorization)."
@@ -353,6 +355,44 @@ semantic_models:
         agg: average
         expr: uptime
 
+  - name: downtime_daily
+    description: "Port-level daily downtime, split by reason (FAULTED or OFFLINE) and, for FAULTED rows, the OCPP error code from whichever outage in that day/reason bucket ended most recently."
+    model: ref('fact_downtime_daily')
+    defaults:
+      agg_time_dimension: date_id
+    entities:
+      - name: downtime_record
+        type: primary
+        expr: downtime_id
+      - name: charger
+        type: foreign
+        expr: charger_id
+      - name: port
+        type: foreign
+        expr: port_key
+      - name: location
+        type: foreign
+        expr: location_key
+      - name: error_code
+        type: foreign
+        expr: latest_error_code_key
+    dimensions:
+      - name: date_id
+        type: time
+        type_params:
+          time_granularity: day
+      - name: charger_id
+        type: categorical
+      - name: port_id
+        type: categorical
+      - name: reason
+        type: categorical
+    measures:
+      - name: downtime_minutes_total
+        description: "Total downtime minutes."
+        agg: sum
+        expr: duration_minutes
+
   - name: locations
     description: "Location dimension. One row per distinct location observed in port data."
     model: ref('dim_locations')
@@ -438,3 +478,10 @@ metrics:
     type: simple
     type_params:
       measure: uptime_average
+
+  - name: total_downtime_minutes
+    description: "Primary reliability metric. Total minutes of downtime, sliceable by reason (FAULTED/OFFLINE) and, for FAULTED downtime, by error code."
+    label: "Total downtime minutes"
+    type: simple
+    type_params:
+      measure: downtime_minutes_total

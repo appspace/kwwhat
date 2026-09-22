@@ -201,7 +201,10 @@ faulted_outages_with_root_cause as (
         fo.to_ts,
         {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.error_code")) }} as error_codes,
         {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.vendor_error_code")) }} as vendor_error_codes,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.vendor_id")) }} as vendor_ids
+        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.vendor_id")) }} as vendor_ids,
+        {{ max_by('fp.error_code', 'fp.from_ts') }} as latest_error_code,
+        {{ max_by('fp.vendor_error_code', 'fp.from_ts') }} as latest_vendor_error_code,
+        {{ max_by('fp.vendor_id', 'fp.from_ts') }} as latest_vendor_id
     from faulted_outages as fo
     left join fault_periods as fp
         on fo.charger_id = fp.charger_id
@@ -231,6 +234,9 @@ select
     error_codes,
     vendor_error_codes,
     vendor_ids,
+    latest_error_code,
+    latest_vendor_error_code,
+    latest_vendor_id,
     (select incremental_ts from incremental) as incremental_ts
 from faulted_outages_with_root_cause
 where to_ts > from_ts

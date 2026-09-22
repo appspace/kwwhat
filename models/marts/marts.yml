@@ -228,6 +228,20 @@ models:
               arguments:
                 to: ref('dim_locations')
                 field: location_key
+      - name: latest_error_code_key
+        description: "Surrogate key for the OCPP error code, generated in place from the fixed 'ocpp1.6' taxonomy and latest_error_code. Matches dim_error_codes.error_code_key by construction; null wherever latest_error_code is null."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_error_codes')
+                field: error_code_key
+      - name: latest_vendor_error_code_key
+        description: "Surrogate key for the vendor-specific fault code, generated in place from (latest_taxonomy, latest_vendor_error_code) rather than a hardcoded taxonomy, since a vendor's fault-code scheme varies by charger. Matches dim_error_codes.error_code_key by construction; null wherever latest_vendor_error_code is null."
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_error_codes')
+                field: error_code_key
       - name: port_id
         description: "Port identifier associated with the charger. Always populated: both the OFFLINE and FAULTED outage sources are inner-joined to int_ports before reaching this model."
         data_tests:
@@ -246,12 +260,12 @@ models:
           - accepted_values:
               arguments:
                 values: ['OFFLINE', 'FAULTED']
-      - name: error_codes
-        description: "Distinct OCPP error codes (e.g. 'OtherError', 'GroundFailure') reported during FAULTED outages for this date/charger/port. Null for OFFLINE rows - there's no fault-code source when a charger isn't communicating at all. If a single outage spans multiple days, its full set of codes is repeated on every day it touches rather than split proportionally; multiple separate outages landing on the same day are merged into one deduped array. Decodable via dim_error_codes scoped to taxonomy='ocpp1.6' (always that one taxonomy, unlike vendor_error_codes which needs taxonomies alongside it) - checked by tests/assert_downtime_daily_error_codes_are_ocpp_1_6.sql."
-      - name: vendor_error_codes
-        description: "Distinct vendor-specific fault codes (e.g. ChargeX MREC 'CX003' for HighTemperature) reported during FAULTED outages for this date/charger/port. Null for OFFLINE rows. Meaning depends on the fault-code scheme - decode via dim_error_codes/dim_chargex_mrec_attributes scoped to taxonomies, not by fault_code alone. Same multi-day repetition and same-day merge behavior as error_codes."
-      - name: taxonomies
-        description: "Distinct vendor-specific fault-code schemes (e.g. ChargeX's 'https://chargex.inl.gov') scoping how vendor_error_codes should be decoded. Null for OFFLINE rows. Expected to hold at most one value - see int_faulted_outages.vendor_ids and tests/assert_faulted_outage_single_vendor_id.sql for the underlying data quality check. Same multi-day repetition and same-day merge behavior as error_codes."
+      - name: latest_error_code
+        description: "OCPP error code from whichever FAULTED outage on this date/charger/port ended most recently. Null for OFFLINE rows - there's no fault-code source when a charger isn't communicating at all. If a single outage spans multiple days, the same value is repeated on every day it touches; multiple separate outages landing on the same day resolve to the one with the latest end time, not an arbitrary one. Decodable via latest_error_code_key/dim_error_codes."
+      - name: latest_vendor_error_code
+        description: "Vendor-specific fault code (e.g. ChargeX MREC 'CX003' for HighTemperature) from whichever FAULTED outage on this date/charger/port ended most recently. Null for OFFLINE rows, or if the vendor doesn't report one. Meaning depends on the fault-code scheme - decode via latest_vendor_error_code_key/dim_error_codes, not by fault_code alone. Same multi-day repetition and same-day tie-break behavior as latest_error_code."
+      - name: latest_taxonomy
+        description: "Vendor-specific fault-code scheme (e.g. ChargeX's 'https://chargex.inl.gov') paired with latest_vendor_error_code, scoping how it should be decoded. Null for OFFLINE rows. Same multi-day repetition and same-day tie-break behavior as latest_error_code."
       - name: downtime_id
         description: "Surrogate key for the downtime record, generated from date_id, charger_id, port_id, and reason"
         data_tests:
