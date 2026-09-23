@@ -17,10 +17,9 @@ cd /kwwhat
 echo "Installing dbt packages..."
 dbt deps --log-path /tmp/dbt-logs
 
-echo "Running dbt run (staging → intermediate → marts)..."
-dbt run --target duckdb --full-refresh --log-path /tmp/dbt-logs
-
-echo "Running dbt tests (failures reported but do not block startup)..."
-dbt test --target duckdb --log-path /tmp/dbt-logs --exclude "test_type:unit" || echo "Some tests failed — see logs."
+# dbt build loads seeds, runs models and runs data tests in DAG order.
+# Any failure exits non-zero so run-demo.sh stops before starting chat BI.
+echo "Running dbt build (seeds, staging, intermediate, marts, tests)..."
+dbt build --target duckdb --full-refresh --log-path /tmp/dbt-logs --exclude "test_type:unit"
 
 echo "=== dbt build complete ==="

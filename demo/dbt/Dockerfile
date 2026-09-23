@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y curl socat && rm -rf /var/lib/apt/lists
 
 # dbt with DuckDB adapter, pinned to match the project's venv
 RUN pip install --no-cache-dir \
-    "dbt-core==1.10.9" \
+    "dbt-core==1.11.11" \
     "dbt-duckdb>=1.9.0" \
     "dbt-metricflow" \
     "dbt-mcp"

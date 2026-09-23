@@ -43,7 +43,13 @@ echo ""
 echo "Step 2/3: Running dbt build (staging → intermediate → marts)..."
 echo "          This transforms raw OCPP logs into analytics tables."
 echo "          (This can take 1-2 minutes)"
-docker compose up dbt --wait 2>/dev/null || true
+# run returns the container's exit code; --no-deps because duckdb-init already ran in step 1
+if ! docker compose run --rm --no-deps dbt; then
+  echo ""
+  echo "ERROR: dbt build failed. See the output above."
+  echo "  Chat BI was not started because analytics tables may be missing or stale."
+  exit 1
+fi
 
 # ── Launch chat BI ───────────────────────────────────────────────────────────
 
