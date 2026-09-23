@@ -1037,27 +1037,22 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_faulted_outages')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, cast('2025-10-01 08:00:00' as timestamp) as from_ts, cast('2025-10-01 09:00:00' as timestamp) as to_ts, 60 as duration_minutes, 'OtherError' as latest_error_code, 'CX003' as latest_vendor_error_code, 'https://chargex.inl.gov' as latest_vendor_id, cast('2025-10-01 09:00:00' as timestamp) as incremental_ts
-          union all
-          select 'CH-001', 'PORT-001', cast('2025-10-01 14:00:00' as timestamp), cast('2025-10-01 15:00:00' as timestamp), 60, 'GroundFailure', 'CX010', 'https://chargex.inl.gov', cast('2025-10-01 15:00:00' as timestamp)
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code: 'OtherError', latest_vendor_error_code: 'CX003', latest_vendor_id: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 09:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code: 'GroundFailure', latest_vendor_error_code: 'CX010', latest_vendor_id: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 15:00:00}
       - input: ref('int_offline_outages')
         format: sql
         rows: |
           select cast(null as string) as charger_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as timestamp) as incremental_ts where false
       - input: ref('int_chargers')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'LOC-001' as location_id, cast('2025-01-01' as timestamp) as commissioned_ts, cast(null as timestamp) as decommissioned_ts, 1 as port_count
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
       - input: ref('int_ports')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, 1 as connector_count
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
       - input: ref('dim_dates')
-        format: sql
-        rows: |
-          select cast('2025-10-01' as date) as date_id, cast('2025-10-01' as date) as date_day
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120, latest_error_code: 'GroundFailure', latest_vendor_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}

@@ -106,13 +106,10 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_ocpp_logs')
-        format: sql
-        rows: |
-          select cast('2025-10-01 09:59:00' as timestamp) as ingested_timestamp, 'CH-001' as charger_id, cast(null as string) as connector_id, cast(null as string) as port_id, cast(null as string) as location_id, 'Heartbeat' as action, '2' as message_type_id, 'UID-000' as unique_id, '{}' as payload
-          union all
-          select cast('2025-10-01 10:00:00' as timestamp), 'CH-001', '1', 'PORT-001', 'LOC-001', 'StatusNotification', '2', 'UID-001', '{"connectorId": 1, "errorCode": "HighTemperature", "info": "50", "status": "Faulted", "vendorId": "https://chargex.inl.gov", "vendorErrorCode": "CX003"}'
-          union all
-          select cast('2025-10-01 10:05:00' as timestamp), 'CH-001', '2', 'PORT-002', 'LOC-001', 'StatusNotification', '2', 'UID-002', '{"connectorId": 2, "errorCode": "NoError", "status": "Available"}'
+        rows:
+          - {ingested_timestamp: 2025-10-01 09:59:00, charger_id: 'CH-001', connector_id: null, port_id: null, location_id: null, action: 'Heartbeat', message_type_id: '2', unique_id: 'UID-000', payload: '{}'}
+          - {ingested_timestamp: 2025-10-01 10:00:00, charger_id: 'CH-001', connector_id: '1', port_id: 'PORT-001', location_id: 'LOC-001', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-001', payload: '{"connectorId": 1, "errorCode": "HighTemperature", "info": "50", "status": "Faulted", "vendorId": "https://chargex.inl.gov", "vendorErrorCode": "CX003"}'}
+          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '2', port_id: 'PORT-002', location_id: 'LOC-001', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-002', payload: '{"connectorId": 2, "errorCode": "NoError", "status": "Available"}'}
     expect:
       rows:
         - {connector_id: '1', status: 'Faulted', error_code: 'HighTemperature', vendor_error_code: 'CX003', vendor_id: 'https://chargex.inl.gov', info: '50'}
@@ -280,15 +277,12 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_status_changes')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, '1' as connector_id, cast('2025-10-01 10:00:00' as timestamp) as ingested_ts, 'Faulted' as status, 'OtherError' as error_code, 'CX003' as vendor_error_code, 'https://chargex.inl.gov' as vendor_id, cast(null as string) as next_status, cast('2025-10-01 11:00:00' as timestamp) as next_ingested_ts, cast('2025-10-01 12:00:00' as timestamp) as incremental_ts
-          union all
-          select 'CH-001', 'PORT-001', '2', cast('2025-10-01 10:00:00' as timestamp), 'Faulted', 'OtherError', cast(null as string), cast(null as string), cast(null as string), cast('2025-10-01 11:00:00' as timestamp), cast('2025-10-01 12:00:00' as timestamp)
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', error_code: 'OtherError', vendor_error_code: 'CX003', vendor_id: 'https://chargex.inl.gov', next_status: null, next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '2', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', error_code: 'OtherError', vendor_error_code: null, vendor_id: null, next_status: null, next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
       - input: ref('int_ports')
-        format: sql
-        rows: |
-          select 'CH-001' as charger_id, 'PORT-001' as port_id, 2 as connector_count
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 2}
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:00:00', error_codes: ['OtherError'], vendor_error_codes: ['CX003'], vendor_ids: ['https://chargex.inl.gov']}
