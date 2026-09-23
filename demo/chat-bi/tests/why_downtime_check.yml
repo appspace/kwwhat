@@ -2,11 +2,8 @@ name: why_downtime_check
 prompt: "Why is my charging network experiencing downtime?"
 sql: |
   SELECT
-    error_codes.description AS reason,
-    SUM(downtime.duration_minutes) AS total_downtime_minutes
-  FROM analytics.ANALYTICS.fact_downtime_daily AS downtime
-  LEFT JOIN analytics.ANALYTICS.dim_error_codes AS error_codes
-    ON downtime.latest_error_code_key = error_codes.error_code_key
-  WHERE downtime.reason = 'FAULTED'
-  GROUP BY error_codes.description
+    reason,
+    SUM(duration_minutes) AS total_downtime_minutes
+  FROM analytics.ANALYTICS.fact_downtime_daily
+  GROUP BY reason
   ORDER BY total_downtime_minutes DESC
