@@ -17,6 +17,9 @@ cd /kwwhat
 echo "Installing dbt packages..."
 dbt deps --log-path /tmp/dbt-logs
 
+echo "Running dbt seed..."
+dbt seed --target duckdb --log-path /tmp/dbt-logs
+
 echo "Running dbt run (staging → intermediate → marts)..."
 dbt run --target duckdb --full-refresh --log-path /tmp/dbt-logs
 
