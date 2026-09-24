@@ -1,5 +1,5 @@
 name: total_ports
 prompt: "How many ports do we have in total?"
 sql: |
-  SELECT COUNT(DISTINCT port_id) AS total_ports
+  SELECT COUNT(DISTINCT port_key) AS total_ports
   FROM analytics.ANALYTICS.dim_ports
