@@ -26,3 +26,7 @@
 {% macro spark__array_distinct(array_column) %}
     array_distinct({{ array_column }})
 {% endmacro %}
+
+{% macro duckdb__array_distinct(array_column) %}
+    list_distinct({{ array_column }})
+{% endmacro %}
