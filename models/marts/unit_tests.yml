@@ -976,7 +976,7 @@ unit_tests:
     given:
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, latest_error_code: null, latest_vendor_error_code: null, latest_vendor_id: null, incremental_ts: 2025-10-01 12:00:00}
       - input: ref('int_offline_outages')
         rows:
           - {charger_id: 'CH-001', from_ts: 2025-10-01 10:30:00, to_ts: 2025-10-01 12:30:00, duration_minutes: 120, incremental_ts: 2025-10-01 12:30:00}
@@ -1003,7 +1003,9 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_faulted_outages')
-        rows: []
+        format: sql
+        rows: |
+          select cast(null as string) as charger_id, cast(null as string) as port_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as string) as latest_error_code, cast(null as string) as latest_vendor_error_code, cast(null as string) as latest_vendor_id, cast(null as timestamp) as incremental_ts where false
       - input: ref('int_offline_outages')
         rows:
           - {charger_id: 'CH-001', from_ts: 2025-10-01 22:00:00, to_ts: 2025-10-02 04:00:00, duration_minutes: 360, incremental_ts: 2025-10-02 12:00:00}
@@ -1021,3 +1023,36 @@ unit_tests:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 120}
         - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 240}
+
+  - name: test_downtime_daily_same_day_outages_pick_latest_root_cause
+    description: >
+      Two separate faulted-outage episodes on the same charger/port/day, with
+      different root-cause codes, should merge into one row for that day with
+      duration_minutes summed and latest_error_code/latest_vendor_error_code/
+      latest_taxonomy taken from whichever episode ended most recently, not an
+      arbitrary one.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code: 'OtherError', latest_vendor_error_code: 'CX003', latest_vendor_id: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 09:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code: 'GroundFailure', latest_vendor_error_code: 'CX010', latest_vendor_id: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 15:00:00}
+      - input: ref('int_offline_outages')
+        format: sql
+        rows: |
+          select cast(null as string) as charger_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as timestamp) as incremental_ts where false
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120, latest_error_code: 'GroundFailure', latest_vendor_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}

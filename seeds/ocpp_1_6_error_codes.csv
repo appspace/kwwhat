@@ -1,0 +1,17 @@
+taxonomy,error_code,description
+ocpp1.6,ConnectorLockFailure,Failure to lock or unlock connector.
+ocpp1.6,EVCommunicationError,"Communication failure with the vehicle, might be Mode 3 or other communication protocol problem. This is not a real error in the sense that the Charge Point doesn't need to go to the faulted state. Instead, it should go to the SuspendedEVSE state."
+ocpp1.6,GroundFailure,Ground fault circuit interrupter has been activated.
+ocpp1.6,HighTemperature,Temperature inside Charge Point is too high.
+ocpp1.6,InternalError,Error in internal hard- or software component.
+ocpp1.6,LocalListConflict,The authorization information received from the Central System is in conflict with the LocalAuthorizationList.
+ocpp1.6,NoError,No error to report.
+ocpp1.6,OtherError,Other type of error. More information in vendorErrorCode.
+ocpp1.6,OverCurrentFailure,Over current protection device has tripped.
+ocpp1.6,OverVoltage,Voltage has risen above an acceptable level.
+ocpp1.6,PowerMeterFailure,Failure to read electrical/energy/power meter.
+ocpp1.6,PowerSwitchFailure,Failure to control power switch.
+ocpp1.6,ReaderFailure,Failure with idTag reader.
+ocpp1.6,ResetFailure,Unable to perform a reset.
+ocpp1.6,UnderVoltage,Voltage has dropped below an acceptable level.
+ocpp1.6,WeakSignal,Wireless communication device reports a weak signal.

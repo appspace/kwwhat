@@ -50,6 +50,18 @@ models:
         description: "Duration of the faulted outage in minutes (calculated from from_ts to to_ts). Only periods where all connectors for the port are faulted are included."
         data_tests:
           - not_null
+      - name: error_codes
+        description: "Distinct OCPP error codes (e.g. 'OtherError', 'GroundFailure') reported by any connector on this port while faulted during the outage. error_code is a required OCPP field, always populated on the source, unlike the vendor-specific fields below. Decodable via dim_error_codes scoped to taxonomy='ocpp1.6'. For root-cause detail scoped to a specific vendor's fault-code scheme, see vendor_error_codes/vendor_ids."
+      - name: vendor_error_codes
+        description: "Distinct vendor-specific fault codes (e.g. ChargeX MREC 'CX003' for HighTemperature) reported by any connector on this port while faulted during the outage. Empty array if no connector reported a vendor error code (vendor doesn't populate it, or the notification that triggered the fault carried no vendorErrorCode). Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to vendor_ids, not by fault_code alone."
+      - name: vendor_ids
+        description: "Distinct vendor-specific fault-code schemes (e.g. ChargeX's 'https://chargex.inl.gov') reported alongside vendor_error_codes by any connector on this port while faulted during the outage. Scopes how vendor_error_codes should be decoded via dim_error_codes - see dim_connectors.latest_taxonomy. Expected to hold at most one value: a port's connectors are all the same OEM/scheme, so more than one distinct vendor_id here signals a data quality issue, not a legitimate multi-vendor port - checked by tests/assert_faulted_outage_single_vendor_id.sql."
+      - name: latest_error_code
+        description: "OCPP error code from whichever connector fault period started most recently during this outage. Scalar counterpart to error_codes, kept because fact_downtime_daily only carries the latest_ columns forward (arrays don't slice into the semantic layer) - see fact_downtime_daily.latest_error_code."
+      - name: latest_vendor_error_code
+        description: "Vendor-specific fault code from whichever connector fault period started most recently during this outage. Scalar counterpart to vendor_error_codes - see latest_vendor_id for its scheme and fact_downtime_daily.latest_vendor_error_code for why only the latest one is promoted to the fact."
+      - name: latest_vendor_id
+        description: "Vendor-specific fault-code scheme (e.g. ChargeX's 'https://chargex.inl.gov') paired with latest_vendor_error_code. Scalar counterpart to vendor_ids, renamed to latest_taxonomy at the mart boundary - see dim_connectors.latest_taxonomy."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
