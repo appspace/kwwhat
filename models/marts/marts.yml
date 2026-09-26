@@ -206,7 +206,7 @@ models:
               - meter_15min_interval_start
 
   - name: fact_downtime_daily
-    description: "One row per date_id + charger_id + port_id + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types; port_id is always populated for both."
+    description: "One row per date_id + charger_id + port_id + downtime_type + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days, and FAULTED downtime by resolved error code name, so faults with different codes on the same day stay separate rows. An outage whose error code changes partway through is still attributed wholly to its latest code - int_faulted_outages keeps one code per outage. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types; port_id is always populated for both."
     columns:
       - name: date_id
         description: "Calendar date for the downtime aggregation"
@@ -233,7 +233,7 @@ models:
                 to: ref('dim_locations')
                 field: location_key
       - name: latest_error_code_key
-        description: "FK to dim_error_codes, looked up by joining the dimension rather than generated in place (the dimension's key also hashes the taxonomy's own error_code_name, which isn't on this row). Resolves to the vendor-specific code when one was reported - (latest_taxonomy, latest_error_code) - and otherwise falls back to the OCPP 1.6 row for latest_error_code_name. So it points at a vendor row or an OCPP row depending on what the charger reported; check dim_error_codes.taxonomy to tell which. Null for OFFLINE rows, and when a reported vendor code isn't in dim_error_codes (no fallback to OCPP in that case)."
+        description: "FK to dim_error_codes for the latest FAULTED outage on this date/charger/port/reason (by end time) - decode the code, taxonomy and description through it. Looked up per outage by joining the dimension rather than generated in place (the dimension's key also hashes the taxonomy's own error_code_name, which isn't on the outage). Resolves to the vendor-specific code when one was reported - int_faulted_outages (latest_taxonomy, latest_error_code) - and otherwise falls back to the OCPP 1.6 row for the reported errorCode. So it points at a vendor row or an OCPP row depending on what the charger reported; check dim_error_codes.taxonomy to tell which. Rows on the same date/charger/port/reason share the key's error_code_name but may come from different taxonomies. Null for OFFLINE rows, for UnknownError rows (a reported vendor code isn't in dim_error_codes; no fallback to OCPP in that case), and for NoError rows with no code reported at all."
         data_tests:
           - relationships:
               arguments:
@@ -250,21 +250,25 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0
-      - name: reason
-        description: "Downtime reason: FAULTED or OFFLINE."
+      - name: downtime_type
+        description: "Kind of downtime: FAULTED (every connector on the port reported Faulted) or OFFLINE (the charger stopped sending heartbeats)."
         data_tests:
           - not_null
           - accepted_values:
               arguments:
                 values: ['OFFLINE', 'FAULTED']
-      - name: latest_error_code_name
-        description: "Standard OCPP 1.6 error code (errorCode) from whichever FAULTED outage on this date/charger/port ended most recently. Null for OFFLINE rows - there's no fault-code source when a charger isn't communicating at all. If a single outage spans multiple days, the same value is repeated on every day it touches; multiple separate outages landing on the same day resolve to the one with the latest end time, not an arbitrary one. Matches dim_error_codes.error_code_name for taxonomy 'ocpp1.6'."
-      - name: latest_error_code
-        description: "Vendor-specific fault code (vendorErrorCode, e.g. ChargeX MREC 'CX003' for HighTemperature) from whichever FAULTED outage on this date/charger/port ended most recently. Null for OFFLINE rows, or if the vendor doesn't report one. Meaning depends on the fault-code scheme - decode via latest_error_code_key/dim_error_codes, not by error_code alone. Same multi-day repetition and same-day tie-break behavior as latest_error_code_name."
-      - name: latest_taxonomy
-        description: "Vendor-specific fault-code scheme (e.g. ChargeX's 'https://chargex.inl.gov') paired with latest_error_code, scoping how it should be decoded. Null for OFFLINE rows. Same multi-day repetition and same-day tie-break behavior as latest_error_code_name."
+      - name: reason
+        description: "Why the port was down. 'NoHeartbeat' for every OFFLINE row. For FAULTED rows, the error_code_name that dim_error_codes gives the outage's latest code (latest_error_code_key) - never the raw OCPP errorCode, which can be generic: a charger may report 'OtherError' with ChargeX CX003, which is 'HighTemperature' in the dimension. This includes 'NoError' for OCPP's NoError sentinel, which is in the OCPP 1.6 seed; the same label is used when the charger reported Faulted with no code at all. 'UnknownError' when a code was reported but isn't in dim_error_codes. Codes resolve per outage before the daily aggregation, so outages with different names on the same day stay separate rows."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_error_codes')
+                field: error_code_name
+              config:
+                where: "reason not in ('NoHeartbeat', 'NoError', 'UnknownError')"
       - name: downtime_id
-        description: "Surrogate key for the downtime record, generated from date_id, charger_id, port_id, and reason"
+        description: "Surrogate key for the downtime record, generated from date_id, charger_id, port_id, downtime_type, and reason"
         data_tests:
           - unique
           - not_null
@@ -275,7 +279,11 @@ models:
               - date_id
               - charger_id
               - port_id
+              - downtime_type
               - reason
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "(downtime_type = 'OFFLINE') = (reason = 'NoHeartbeat')"
 
   - name: fact_visits
     description: "One row per driver visit — a single trip to a charging location that may span multiple charge attempts (e.g., a failed plug-in followed by a retry). Authenticated visits (idTag present) group attempts by driver + location within a 30-minute window; unauthenticated visits group by port within a 2-minute window."

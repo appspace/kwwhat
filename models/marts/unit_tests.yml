@@ -993,7 +993,7 @@ unit_tests:
           - {date_id: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 120}
 
   - name: test_downtime_daily_multi_day_outage_split_across_days
     description: >
@@ -1023,16 +1023,17 @@ unit_tests:
           - {date_id: 2025-10-02}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 120}
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'OFFLINE', duration_minutes: 240}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 120}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 240}
 
-  - name: test_downtime_daily_same_day_outages_pick_latest_root_cause
+  - name: test_downtime_daily_same_day_outages_split_by_error_code
     description: >
       Two separate faulted-outage episodes on the same charger/port/day, with
-      different root-cause codes, should merge into one row for that day with
-      duration_minutes summed and latest_error_code_name/latest_error_code/
-      latest_taxonomy taken from whichever episode ended most recently, not an
-      arbitrary one.
+      different codes, stay as two rows - one per reason - each with its own duration
+      and codes, instead of merging under the later episode's code. The reason is the
+      code's error_code_name in dim_error_codes, not the raw OCPP errorCode: CX003 is
+      reported under the generic 'OtherError' but is 'HighTemperature' in the dimension.
+      The second episode has no vendor code, so it resolves to the OCPP 1.6 row by name.
     model: fact_downtime_daily
     overrides:
       macros:
@@ -1041,11 +1042,13 @@ unit_tests:
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: 'OtherError', latest_error_code: 'CX003', latest_taxonomy: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 09:00:00}
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 15:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', incremental_ts: 2025-10-01 15:00:00}
       - input: ref('int_offline_outages')
         rows: []
       - input: ref('dim_error_codes')
-        rows: []
+        rows:
+          - {error_code_key: 'chargex-cx003', taxonomy: 'https://chargex.inl.gov', error_code: 'CX003', error_code_name: 'HighTemperature'}
+          - {error_code_key: 'ocpp1.6-IVM', taxonomy: 'ocpp1.6', error_code_name: 'GroundFailure'}
       - input: ref('int_chargers')
         rows:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
@@ -1057,7 +1060,79 @@ unit_tests:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'HighTemperature', duration_minutes: 60}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'GroundFailure', duration_minutes: 60}
+
+  - name: test_downtime_daily_same_reason_outages_pick_latest_vendor_code
+    description: >
+      Two faulted-outage episodes on the same charger/port/day resolve to different
+      dim_error_codes rows with the same error_code_name 'GroundFailure': one reported
+      with no vendor code (the OCPP 1.6 row), one with ChargeX CX002. They merge into one
+      'GroundFailure' row with duration_minutes summed, and latest_error_code/
+      latest_error_code_key taken from whichever episode ended most recently.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX002', latest_taxonomy: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 15:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-01 09:00:00}
+      - input: ref('int_offline_outages')
+        rows: []
+      - input: ref('dim_error_codes')
+        rows:
+          - {error_code_key: 'chargex-cx002', taxonomy: 'https://chargex.inl.gov', error_code: 'CX002', error_code_name: 'GroundFailure'}
+          - {error_code_key: 'ocpp-groundfailure', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'GroundFailure'}
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001'}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001'}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'GroundFailure', duration_minutes: 120, latest_error_code_key: 'chargex-cx002'}
+
+  - name: test_downtime_daily_no_error_code_and_noerror_sentinel_share_reason
+    description: >
+      A faulted outage with no errorCode and one reporting OCPP's NoError sentinel both
+      mean the charger gave no error. The sentinel resolves to the OCPP 1.6 'NoError' row
+      in dim_error_codes; the missing code gets the same label. They land on the same
+      'NoError' row, with
+      duration_minutes summed, separate from an OFFLINE ('NoHeartbeat') outage the same day.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-01 09:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'NoError', latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-01 15:00:00}
+      - input: ref('int_offline_outages')
+        rows:
+          - {charger_id: 'CH-001', from_ts: 2025-10-01 18:00:00, to_ts: 2025-10-01 18:30:00, duration_minutes: 30, incremental_ts: 2025-10-01 18:30:00}
+      - input: ref('dim_error_codes')
+        rows:
+          - {error_code_key: 'ocpp-noerror', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'NoError'}
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001'}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001'}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 120}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 30}
 
   - name: test_downtime_daily_error_code_key_resolves_from_dim_error_codes
     description: >
@@ -1092,7 +1167,7 @@ unit_tests:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code: 'CX010', latest_error_code_key: '041082b7ab98aab67639e28925c6de4b'}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'InvalidVehicleMode', latest_error_code_key: '041082b7ab98aab67639e28925c6de4b'}
 
   - name: test_downtime_daily_error_code_key_does_not_fan_out_on_name_match
     description: >
@@ -1126,7 +1201,7 @@ unit_tests:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code: 'CX010', latest_error_code_key: 'chargex-cx010'}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', latest_error_code_key: 'chargex-cx010'}
 
   - name: test_downtime_daily_error_code_key_falls_back_to_ocpp_code
     description: >
@@ -1158,7 +1233,7 @@ unit_tests:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code_name: 'GroundFailure', latest_error_code_key: 'ocpp-groundfailure'}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', latest_error_code_key: 'ocpp-groundfailure'}
 
   - name: test_downtime_daily_error_code_key_connector_lock_vendor_code_resolves_to_chargex
     description: >
@@ -1188,7 +1263,7 @@ unit_tests:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code: 'CX001', latest_error_code_key: '1646d9538fbd541d118d671bc26b5aa7'}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', latest_error_code_key: '1646d9538fbd541d118d671bc26b5aa7'}
 
   - name: test_downtime_daily_error_code_key_connector_lock_no_vendor_code_resolves_to_ocpp
     description: >
@@ -1218,11 +1293,11 @@ unit_tests:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code_name: 'ConnectorLockFailure', latest_error_code_key: 'fe4efa7c07c2051ab3fb67456a7cbc08'}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', latest_error_code_key: 'fe4efa7c07c2051ab3fb67456a7cbc08'}
 
   - name: test_downtime_daily_error_code_key_connector_lock_unknown_vendor_code_is_null
     description: >
-      ConnectorLockFailure reported with a vendor code that isn't in dim_error_codes (CX999). The key is null: the vendor branch finds no match, and the OCPP fallback only applies when no vendor code was reported.
+      ConnectorLockFailure reported with a vendor code that isn't in dim_error_codes (CX999). The key is null: the vendor branch finds no match, and the OCPP fallback only applies when no vendor code was reported. With no dimension row there is no error_code_name either, so the reason is 'UnknownError' rather than the raw OCPP errorCode.
     model: fact_downtime_daily
     overrides:
       macros:
@@ -1248,7 +1323,7 @@ unit_tests:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code: 'CX999', latest_error_code_key: null}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'UnknownError', latest_error_code_key: null}
 
   # ── dim_connectors ──────────────────────────────────────────────────────────
 
