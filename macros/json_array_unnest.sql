@@ -1,6 +1,7 @@
 {% macro json_array_unnest(json_column) %}
     {#
-      Cross-warehouse compatible unnest for JSON arrays.
+      Cross-warehouse compatible unnest for JSON arrays. For native (non-JSON) array
+      columns, use array_unnest instead.
       Example: cross join {{ json_array_unnest('meter_values') }}
     #}
     {{ return(adapter.dispatch('json_array_unnest', 'kwwhat')(json_column)) }}

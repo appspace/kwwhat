@@ -92,6 +92,29 @@ unit_tests:
       rows:
         - {charger_id: 'CH-001', connector_id: '1', status: 'Available', previous_status: null, next_status: null}
 
+  - name: test_status_changes_extracts_chargex_vendor_error_code
+    description: >
+      A StatusNotification carrying a ChargeX MREC fault code in vendorErrorCode
+      (e.g. 'CX003' for HighTemperature) should have it extracted into
+      vendor_error_code, alongside the standard OCPP error_code, the vendorId
+      ('https://chargex.inl.gov') that scopes how to decode it, and the info field
+      (the actual observed value, e.g. '50'). A StatusNotification without
+      vendorErrorCode/vendorId/info fields should leave all three null.
+    model: int_status_changes
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 09:59:00, charger_id: 'CH-001', connector_id: null, port_id: null, location_id: null, action: 'Heartbeat', message_type_id: '2', unique_id: 'UID-000', payload: '{}'}
+          - {ingested_timestamp: 2025-10-01 10:00:00, charger_id: 'CH-001', connector_id: '1', port_id: 'PORT-001', location_id: 'LOC-001', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-001', payload: '{"connectorId": 1, "errorCode": "HighTemperature", "info": "50", "status": "Faulted", "vendorId": "https://chargex.inl.gov", "vendorErrorCode": "CX003"}'}
+          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '2', port_id: 'PORT-002', location_id: 'LOC-001', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-002', payload: '{"connectorId": 2, "errorCode": "NoError", "status": "Available"}'}
+    expect:
+      rows:
+        - {connector_id: '1', status: 'Faulted', error_code: 'HighTemperature', vendor_error_code: 'CX003', vendor_id: 'https://chargex.inl.gov', info: '50'}
+        - {connector_id: '2', status: 'Available', error_code: 'NoError', vendor_error_code: null, vendor_id: null, info: null}
+
   - name: test_status_changes_lag_lead_populated_correctly
     description: >
       Three status transitions (Available → Preparing → Charging) should produce
@@ -241,6 +264,49 @@ unit_tests:
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00', duration_minutes: 120}
+
+  - name: test_faulted_outages_collects_root_cause_vendor_error_codes
+    description: >
+      A faulted outage should collect the distinct OCPP error codes reported by any
+      connector while faulted, plus the distinct ChargeX MREC fault codes and their
+      vendor_id, excluding nulls (connectors whose vendor doesn't implement the
+      ChargeX convention contribute no vendor code, not a null entry).
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', error_code: 'OtherError', vendor_error_code: 'CX003', vendor_id: 'https://chargex.inl.gov', next_status: null, next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '2', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', error_code: 'OtherError', vendor_error_code: null, vendor_id: null, next_status: null, next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 2}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:00:00', error_codes: ['OtherError'], vendor_error_codes: ['CX003'], vendor_ids: ['https://chargex.inl.gov']}
+
+  - name: test_faulted_outages_latest_root_cause_picks_most_recent_fault_period
+    description: >
+      When a merged outage spans two consecutive fault periods reporting different
+      codes, latest_error_code/latest_vendor_error_code/latest_vendor_id should come
+      from the fault period that started most recently, not an arbitrary one.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', error_code: 'OtherError',    vendor_error_code: 'CX003', vendor_id: 'https://chargex.inl.gov', next_status: null, next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 11:00:00, status: 'Faulted', error_code: 'GroundFailure', vendor_error_code: 'CX010', vendor_id: 'https://chargex.inl.gov', next_status: null, next_ingested_ts: 2025-10-01 12:00:00, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00', latest_error_code: 'GroundFailure', latest_vendor_error_code: 'CX010', latest_vendor_id: 'https://chargex.inl.gov'}
 
   # ── int_offline_outages ─────────────────────────────────────────────────────
 

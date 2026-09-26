@@ -34,6 +34,9 @@ faulted_outages as (
         f.from_ts,
         f.to_ts,
         f.duration_minutes,
+        f.latest_error_code,
+        f.latest_vendor_error_code,
+        f.latest_vendor_id as latest_taxonomy,
         f.incremental_ts,
         'FAULTED' as reason
     from {{ ref('int_faulted_outages') }} as f
@@ -53,6 +56,9 @@ offline_outages as (
         o.from_ts,
         o.to_ts,
         o.duration_minutes,
+        cast(null as {{ dbt.type_string() }}) as latest_error_code,
+        cast(null as {{ dbt.type_string() }}) as latest_vendor_error_code,
+        cast(null as {{ dbt.type_string() }}) as latest_taxonomy,
         o.incremental_ts,
         'OFFLINE' as reason
     from {{ ref('int_offline_outages') }} as o
@@ -70,9 +76,9 @@ offline_outages as (
 ),
 
 outages as (
-    select charger_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, reason from offline_outages
+    select charger_id, port_id, from_ts, to_ts, duration_minutes, latest_error_code, latest_vendor_error_code, latest_taxonomy, incremental_ts, reason from offline_outages
     union all
-    select charger_id, port_id, from_ts, to_ts, duration_minutes, incremental_ts, reason from faulted_outages
+    select charger_id, port_id, from_ts, to_ts, duration_minutes, latest_error_code, latest_vendor_error_code, latest_taxonomy, incremental_ts, reason from faulted_outages
 ),
 
 filtered_outages as (
@@ -96,6 +102,9 @@ outage_days as (
         o.port_id,
         o.date_id,
         o.reason,
+        o.latest_error_code,
+        o.latest_vendor_error_code,
+        o.latest_taxonomy,
         greatest(o.from_ts, o.date_id) as interval_start,
         least(o.to_ts, {{ dbt.dateadd('day', 1, 'o.date_id') }}) as interval_end
     from filtered_outages as o
@@ -107,6 +116,10 @@ per_day as (
         port_id,
         date_id,
         reason,
+        latest_error_code,
+        latest_vendor_error_code,
+        latest_taxonomy,
+        interval_end,
         {{ dbt.datediff('interval_start', 'interval_end', 'minutes') }} as duration_minutes
     from outage_days
 ),
@@ -117,7 +130,10 @@ final as (
         charger_id,
         port_id,
         reason,
-        sum(duration_minutes) as duration_minutes
+        sum(duration_minutes) as duration_minutes,
+        {{ max_by('latest_error_code', 'interval_end') }} as latest_error_code,
+        {{ max_by('latest_vendor_error_code', 'interval_end') }} as latest_vendor_error_code,
+        {{ max_by('latest_taxonomy', 'interval_end') }} as latest_taxonomy
     from per_day
     group by 1, 2, 3, 4
 ),
@@ -139,10 +155,19 @@ select
     case when location_id is not null
         then {{ dbt_utils.generate_surrogate_key(['location_id']) }}
     end as location_key,
+    case when latest_error_code is not null
+        then {{ dbt_utils.generate_surrogate_key(["'ocpp1.6'", 'latest_error_code']) }}
+    end as latest_error_code_key,
+    case when latest_vendor_error_code is not null
+        then {{ dbt_utils.generate_surrogate_key(['latest_taxonomy', 'latest_vendor_error_code']) }}
+    end as latest_vendor_error_code_key,
     date_id,
     charger_id,
     port_id,
     reason,
     duration_minutes,
+    latest_error_code,
+    latest_vendor_error_code,
+    latest_taxonomy,
     (select incremental_ts from incremental) as incremental_ts
 from final_with_keys

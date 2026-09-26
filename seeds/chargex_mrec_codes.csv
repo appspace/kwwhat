@@ -1,0 +1,27 @@
+taxonomy,fault_code,error_code_name,description,ocpp_1_6_error_code,responsible_ev_user,responsible_cso,responsible_evse,responsible_ev,is_safety,is_security,is_maintenance,is_financial,is_authorization
+https://chargex.inl.gov,CX001,ConnectorLockFailure,Failure to lock or unlock connector on the vehicle side.,ConnectorLockFailure,true,false,false,true,true,true,false,false,false
+https://chargex.inl.gov,CX002,GroundFailure,Ground fault circuit interrupter has been activated.,GroundFailure,false,false,true,true,true,false,true,false,false
+https://chargex.inl.gov,CX003,HighTemperature,High temperature inside the EVSE is derating power delivery.,HighTemperature,false,false,true,false,true,false,false,false,false
+https://chargex.inl.gov,CX004,OverCurrentFailure,Over current protection device has tripped.,OverCurrentFailure,false,false,true,true,true,false,false,false,false
+https://chargex.inl.gov,CX005,OverVoltage,Input voltage to the vehicle has risen above an acceptable level.,OverVoltage,false,false,true,true,true,false,false,false,false
+https://chargex.inl.gov,CX006,UnderVoltage,Input voltage to the vehicle has dropped below an acceptable level.,UnderVoltage,false,false,true,true,true,false,false,false,false
+https://chargex.inl.gov,CX007,WeakSignal,Wireless communication device reported a weak signal.,WeakSignal,false,true,true,false,false,false,false,false,true
+https://chargex.inl.gov,CX008,EmergencyStop,Emergency stop is pressed by the user (required if equipped).,,true,false,true,false,true,false,false,false,false
+https://chargex.inl.gov,CX009,AuthorizationTimeout,The user plugs in but fails to authorize a charging session prior to the connection timeout between the vehicle and EVSE.,,true,true,true,true,false,true,false,false,true
+https://chargex.inl.gov,CX010,InvalidVehicleMode,The vehicle is in an invalid mode for charging.,,true,false,false,true,true,false,false,false,false
+https://chargex.inl.gov,CX011,CableCheckFailure,Failure during the cable check phase. Includes isolation failure.,,false,false,true,true,true,false,true,false,false
+https://chargex.inl.gov,CX012,PreChargeFailure,The EVSE did not reach the correct pre-charge voltage.,,false,false,true,true,true,false,false,false,false
+https://chargex.inl.gov,CX013,NoInternet,The EVSE has no internet connectivity.,,false,true,true,false,false,false,false,false,true
+https://chargex.inl.gov,CX014,PilotFault,The control pilot voltage is out of range.,,false,false,true,true,false,false,true,false,false
+https://chargex.inl.gov,CX015,PowerLoss,The EVSE is unable to supply any power due to mains failure.,,false,false,true,false,true,false,true,false,false
+https://chargex.inl.gov,CX016,EVContactorFault,Contactors fail to open or close on the vehicle side. May also include welding related errors.,,false,false,false,true,true,false,false,false,false
+https://chargex.inl.gov,CX017,EVSEContactorFault,Contactors fail to open or close on EVSE's side. May also include welding related errors.,,false,false,true,false,true,false,false,false,false
+https://chargex.inl.gov,CX018,CableOverTempDerate,"Temperature of charging cable or connector assembly is too high, resulting in reduced power operation.",,false,false,true,false,true,false,false,false,false
+https://chargex.inl.gov,CX019,CableOverTempStop,"Temperature of charging cable or connector assembly is too high, resulting in a stopped charging session.",,false,false,true,true,true,false,false,false,false
+https://chargex.inl.gov,CX020,PartialInsertion,Cable latch is raised due to incomplete insertion into the vehicle charging port.,,true,false,true,true,true,false,false,false,false
+https://chargex.inl.gov,CX021,CapacitanceFault,An Isolation Monitoring Device tripped due to high capacitance during active charging.,,false,false,true,true,true,false,false,false,false
+https://chargex.inl.gov,CX022,ResistanceFault,An Isolation Monitoring Device tripped due to low resistance to the chassis during active charging.,,false,false,true,true,true,false,false,false,false
+https://chargex.inl.gov,CX023,ProximityFault,The proximity voltage is out of range.,,false,false,true,true,true,false,true,false,false
+https://chargex.inl.gov,CX024,ConnectorVoltageHigh,The output voltage of EVSE is high before charging starts or after charging ends.,,false,false,true,false,true,false,false,false,false
+https://chargex.inl.gov,CX025,BrokenLatch,The latch on the connector is broken.,,false,true,true,false,true,true,false,false,false
+https://chargex.inl.gov,CX026,CutCable,The output cable has been severed from the EVSE.,,false,true,true,false,true,false,true,false,false
