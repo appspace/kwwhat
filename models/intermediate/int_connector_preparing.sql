@@ -49,7 +49,7 @@ status_changes_to_preparing as (
         next_status,
         next_ingested_ts,
         next_payload_ts,
-        error_code,
+        error_code_name,
         updated_ts,
 
         -- Confirmation details

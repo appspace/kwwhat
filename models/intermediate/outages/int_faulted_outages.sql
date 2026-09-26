@@ -47,9 +47,9 @@ status_changes as (
         connector_id,
         ingested_ts,
         status,
+        error_code_name,
         error_code,
-        vendor_error_code,
-        vendor_id,
+        taxonomy,
         next_status,
         next_ingested_ts,
         incremental_ts
@@ -78,9 +78,9 @@ fault_periods as (
         charger_id,
         port_id,
         connector_id,
+        error_code_name,
         error_code,
-        vendor_error_code,
-        vendor_id,
+        taxonomy,
         ingested_ts as from_ts,
         coalesce(next_ingested_ts, (select to_timestamp from incremental_date_range)) as to_ts
     from status_changes
@@ -192,19 +192,16 @@ faulted_outages as (
     group by 1, 2, group_id
 ),
 
--- Root cause: ChargeX MREC fault codes reported by any connector while faulted during the outage
+-- Root cause: fault codes from the connector fault period that started most recently during the outage
 faulted_outages_with_root_cause as (
     select
         fo.charger_id,
         fo.port_id,
         fo.from_ts,
         fo.to_ts,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.error_code")) }} as error_codes,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.vendor_error_code")) }} as vendor_error_codes,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.vendor_id")) }} as vendor_ids,
+        {{ max_by('fp.error_code_name', 'fp.from_ts') }} as latest_error_code_name,
         {{ max_by('fp.error_code', 'fp.from_ts') }} as latest_error_code,
-        {{ max_by('fp.vendor_error_code', 'fp.from_ts') }} as latest_vendor_error_code,
-        {{ max_by('fp.vendor_id', 'fp.from_ts') }} as latest_vendor_id
+        {{ max_by('fp.taxonomy', 'fp.from_ts') }} as latest_taxonomy
     from faulted_outages as fo
     left join fault_periods as fp
         on fo.charger_id = fp.charger_id
@@ -231,12 +228,9 @@ select
     from_ts,
     to_ts,
     {{ dbt.datediff('from_ts', 'to_ts', 'minutes') }} as duration_minutes,
-    error_codes,
-    vendor_error_codes,
-    vendor_ids,
+    latest_error_code_name,
     latest_error_code,
-    latest_vendor_error_code,
-    latest_vendor_id,
+    latest_taxonomy,
     (select incremental_ts from incremental) as incremental_ts
 from faulted_outages_with_root_cause
 where to_ts > from_ts

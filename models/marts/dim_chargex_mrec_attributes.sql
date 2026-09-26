@@ -1,5 +1,5 @@
 -- SCD Type 1 (static reference data, overwritten on each refresh)
--- Outrigger dimension owned by dim_error_codes: joins 1:1 on fault_code and reuses
+-- Outrigger dimension owned by dim_error_codes: joins 1:1 on (taxonomy, fault_code = error_code) and reuses
 -- dim_error_codes.error_code_key rather than recomputing its own surrogate key.
 {{
   config(
@@ -28,14 +28,14 @@ chargex_error_codes as (
     select
         error_code_key,
         taxonomy,
-        fault_code
+        error_code
     from {{ ref('dim_error_codes') }}
 ),
 
 ocpp_error_codes as (
     select
         error_code_key,
-        fault_code
+        error_code_name
     from {{ ref('dim_error_codes') }}
     where taxonomy = 'ocpp1.6'
 )
@@ -57,6 +57,6 @@ select
 from chargex_mrec_codes
 inner join chargex_error_codes
     on chargex_mrec_codes.taxonomy = chargex_error_codes.taxonomy
-    and chargex_mrec_codes.fault_code = chargex_error_codes.fault_code
+    and chargex_mrec_codes.fault_code = chargex_error_codes.error_code
 left join ocpp_error_codes
-    on chargex_mrec_codes.ocpp_1_6_error_code = ocpp_error_codes.fault_code
+    on chargex_mrec_codes.ocpp_1_6_error_code = ocpp_error_codes.error_code_name

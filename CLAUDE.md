@@ -171,6 +171,7 @@ Every new model must include:
 - incremental merge logic
 - use custom (singular) tests for specific business rules, but prefer package tests where available
 - use dict format in `expect` statements: define mock data only for the columns relevant to the test. This keeps unit tests succinct and specific.
+- use dict format for every `given` fixture too - never `format: sql` or `format: csv`, inline or via a fixture file. For an input that should be empty, use `rows: []`; dbt infers its columns from the parent model.
 
 ---
 

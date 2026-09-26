@@ -976,10 +976,12 @@ unit_tests:
     given:
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, latest_error_code: null, latest_vendor_error_code: null, latest_vendor_id: null, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-01 12:00:00}
       - input: ref('int_offline_outages')
         rows:
           - {charger_id: 'CH-001', from_ts: 2025-10-01 10:30:00, to_ts: 2025-10-01 12:30:00, duration_minutes: 120, incremental_ts: 2025-10-01 12:30:00}
+      - input: ref('dim_error_codes')
+        rows: []
       - input: ref('int_chargers')
         rows:
           - {charger_id: 'CH-001', location_id: 'LOC-001'}
@@ -1003,12 +1005,12 @@ unit_tests:
         is_incremental: false
     given:
       - input: ref('int_faulted_outages')
-        format: sql
-        rows: |
-          select cast(null as string) as charger_id, cast(null as string) as port_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as string) as latest_error_code, cast(null as string) as latest_vendor_error_code, cast(null as string) as latest_vendor_id, cast(null as timestamp) as incremental_ts where false
+        rows: []
       - input: ref('int_offline_outages')
         rows:
           - {charger_id: 'CH-001', from_ts: 2025-10-01 22:00:00, to_ts: 2025-10-02 04:00:00, duration_minutes: 360, incremental_ts: 2025-10-02 12:00:00}
+      - input: ref('dim_error_codes')
+        rows: []
       - input: ref('int_chargers')
         rows:
           - {charger_id: 'CH-001', location_id: 'LOC-001'}
@@ -1028,7 +1030,7 @@ unit_tests:
     description: >
       Two separate faulted-outage episodes on the same charger/port/day, with
       different root-cause codes, should merge into one row for that day with
-      duration_minutes summed and latest_error_code/latest_vendor_error_code/
+      duration_minutes summed and latest_error_code_name/latest_error_code/
       latest_taxonomy taken from whichever episode ended most recently, not an
       arbitrary one.
     model: fact_downtime_daily
@@ -1038,12 +1040,12 @@ unit_tests:
     given:
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code: 'OtherError', latest_vendor_error_code: 'CX003', latest_vendor_id: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 09:00:00}
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code: 'GroundFailure', latest_vendor_error_code: 'CX010', latest_vendor_id: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 15:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: 'OtherError', latest_error_code: 'CX003', latest_taxonomy: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 09:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 15:00:00}
       - input: ref('int_offline_outages')
-        format: sql
-        rows: |
-          select cast(null as string) as charger_id, cast(null as timestamp) as from_ts, cast(null as timestamp) as to_ts, cast(null as bigint) as duration_minutes, cast(null as timestamp) as incremental_ts where false
+        rows: []
+      - input: ref('dim_error_codes')
+        rows: []
       - input: ref('int_chargers')
         rows:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
@@ -1055,4 +1057,233 @@ unit_tests:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120, latest_error_code: 'GroundFailure', latest_vendor_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', duration_minutes: 120, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
+
+  - name: test_downtime_daily_error_code_key_resolves_from_dim_error_codes
+    description: >
+      A vendor fault code must resolve to the dim_error_codes row for that code, even
+      when the StatusNotification's OCPP errorCode (latest_error_code_name) differs from
+      the vendor's own name for the code. Here CX010 is reported with errorCode
+      'GroundFailure', while ChargeX names CX010 'InvalidVehicleMode' - the key must be
+      the one dim_error_codes holds for (https://chargex.inl.gov, CX010), not a hash of
+      the fact's own columns.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 15:00:00}
+      - input: ref('dim_error_codes')
+        rows:
+          - {error_code_key: '041082b7ab98aab67639e28925c6de4b', taxonomy: 'https://chargex.inl.gov', error_code: 'CX010', error_code_name: 'InvalidVehicleMode'}
+          - {error_code_key: 'ocpp-groundfailure', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'GroundFailure'}
+      - input: ref('int_offline_outages')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code: 'CX010', latest_error_code_key: '041082b7ab98aab67639e28925c6de4b'}
+
+  - name: test_downtime_daily_error_code_key_does_not_fan_out_on_name_match
+    description: >
+      A vendor fault code must resolve to exactly one dim_error_codes row. CX010 is
+      reported with OCPP errorCode 'GroundFailure', which is also ChargeX's own name for
+      a different code (CX002). The fact must keep one row for the day, keyed to CX010 -
+      not duplicate the row by also matching CX002 on name.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 15:00:00}
+      - input: ref('dim_error_codes')
+        rows:
+          - {error_code_key: 'chargex-cx010', taxonomy: 'https://chargex.inl.gov', error_code: 'CX010', error_code_name: 'InvalidVehicleMode'}
+          - {error_code_key: 'chargex-cx002', taxonomy: 'https://chargex.inl.gov', error_code: 'CX002', error_code_name: 'GroundFailure'}
+          - {error_code_key: 'ocpp-groundfailure', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'GroundFailure'}
+      - input: ref('int_offline_outages')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code: 'CX010', latest_error_code_key: 'chargex-cx010'}
+
+  - name: test_downtime_daily_error_code_key_falls_back_to_ocpp_code
+    description: >
+      When a fault carries no vendor code (vendor doesn't report vendorErrorCode/vendorId),
+      latest_error_code_key should fall back to the OCPP 1.6 row for the reported errorCode
+      (latest_error_code_name), rather than being left null.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-01 15:00:00}
+      - input: ref('dim_error_codes')
+        rows:
+          - {error_code_key: 'chargex-cx002', taxonomy: 'https://chargex.inl.gov', error_code: 'CX002', error_code_name: 'GroundFailure'}
+          - {error_code_key: 'ocpp-groundfailure', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'GroundFailure'}
+      - input: ref('int_offline_outages')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code_name: 'GroundFailure', latest_error_code_key: 'ocpp-groundfailure'}
+
+  - name: test_downtime_daily_error_code_key_connector_lock_vendor_code_resolves_to_chargex
+    description: >
+      ConnectorLockFailure reported with ChargeX vendor code CX001. Both the ChargeX CX001 row and the OCPP 1.6 row share the name 'ConnectorLockFailure'; the key must resolve to the ChargeX row only (vendor branch), with no duplicate from the OCPP row.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX001', latest_taxonomy: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 15:00:00}
+      - input: ref('dim_error_codes')
+        rows:
+          - {error_code_key: '1646d9538fbd541d118d671bc26b5aa7', taxonomy: 'https://chargex.inl.gov', error_code: 'CX001', error_code_name: 'ConnectorLockFailure'}
+          - {error_code_key: 'fe4efa7c07c2051ab3fb67456a7cbc08', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'ConnectorLockFailure'}
+      - input: ref('int_offline_outages')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code: 'CX001', latest_error_code_key: '1646d9538fbd541d118d671bc26b5aa7'}
+
+  - name: test_downtime_daily_error_code_key_connector_lock_no_vendor_code_resolves_to_ocpp
+    description: >
+      ConnectorLockFailure reported with no vendor code. The key must fall back to the OCPP 1.6 row, not the ChargeX CX001 row that shares the same name - name matching only applies to ocpp1.6.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-01 15:00:00}
+      - input: ref('dim_error_codes')
+        rows:
+          - {error_code_key: '1646d9538fbd541d118d671bc26b5aa7', taxonomy: 'https://chargex.inl.gov', error_code: 'CX001', error_code_name: 'ConnectorLockFailure'}
+          - {error_code_key: 'fe4efa7c07c2051ab3fb67456a7cbc08', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'ConnectorLockFailure'}
+      - input: ref('int_offline_outages')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code_name: 'ConnectorLockFailure', latest_error_code_key: 'fe4efa7c07c2051ab3fb67456a7cbc08'}
+
+  - name: test_downtime_daily_error_code_key_connector_lock_unknown_vendor_code_is_null
+    description: >
+      ConnectorLockFailure reported with a vendor code that isn't in dim_error_codes (CX999). The key is null: the vendor branch finds no match, and the OCPP fallback only applies when no vendor code was reported.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX999', latest_taxonomy: 'https://chargex.inl.gov', incremental_ts: 2025-10-01 15:00:00}
+      - input: ref('dim_error_codes')
+        rows:
+          - {error_code_key: '1646d9538fbd541d118d671bc26b5aa7', taxonomy: 'https://chargex.inl.gov', error_code: 'CX001', error_code_name: 'ConnectorLockFailure'}
+          - {error_code_key: 'fe4efa7c07c2051ab3fb67456a7cbc08', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'ConnectorLockFailure'}
+      - input: ref('int_offline_outages')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', reason: 'FAULTED', latest_error_code: 'CX999', latest_error_code_key: null}
+
+  # ── dim_connectors ──────────────────────────────────────────────────────────
+
+  - name: test_connectors_error_code_key_resolution
+    description: >
+      latest_error_code_key resolves to exactly one dim_error_codes row per connector, using
+      the same rules as fact_downtime_daily: a reported vendor code wins (connector 1, CX001);
+      with no vendor code, fall back to the OCPP 1.6 row by errorCode (connector 2); a vendor
+      code missing from the dimension gives null, with no OCPP fallback (connector 3); and a
+      vendor code whose OCPP errorCode collides with another vendor code's name (CX010 reported
+      with 'GroundFailure', which is also ChargeX's name for CX002) doesn't fan out (connector 4).
+    model: dim_connectors
+    given:
+      - input: ref('int_connectors')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'P-001', connector_id: '1', connector_type: 'CCS'}
+          - {charger_id: 'CH-001', port_id: 'P-002', connector_id: '2', connector_type: 'CCS'}
+          - {charger_id: 'CH-001', port_id: 'P-003', connector_id: '3', connector_type: 'CCS'}
+          - {charger_id: 'CH-001', port_id: 'P-004', connector_id: '4', connector_type: 'CCS'}
+      - input: ref('int_connector_latest_status')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', latest_status: 'Faulted', latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX001', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', connector_id: '2', latest_status: 'Faulted', latest_error_code_name: 'ConnectorLockFailure', latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', connector_id: '3', latest_status: 'Faulted', latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX999', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', connector_id: '4', latest_status: 'Faulted', latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
+      - input: ref('dim_error_codes')
+        rows:
+          - {error_code_key: 'chargex-cx001', taxonomy: 'https://chargex.inl.gov', error_code: 'CX001', error_code_name: 'ConnectorLockFailure'}
+          - {error_code_key: 'chargex-cx002', taxonomy: 'https://chargex.inl.gov', error_code: 'CX002', error_code_name: 'GroundFailure'}
+          - {error_code_key: 'chargex-cx010', taxonomy: 'https://chargex.inl.gov', error_code: 'CX010', error_code_name: 'InvalidVehicleMode'}
+          - {error_code_key: 'ocpp-connectorlockfailure', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'ConnectorLockFailure'}
+          - {error_code_key: 'ocpp-groundfailure', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'GroundFailure'}
+    expect:
+      rows:
+        - {connector_id: '1', latest_error_code_key: 'chargex-cx001'}
+        - {connector_id: '2', latest_error_code_key: 'ocpp-connectorlockfailure'}
+        - {connector_id: '3', latest_error_code_key: null}
+        - {connector_id: '4', latest_error_code_key: 'chargex-cx010'}

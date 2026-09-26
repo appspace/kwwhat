@@ -34,9 +34,9 @@ faulted_outages as (
         f.from_ts,
         f.to_ts,
         f.duration_minutes,
+        f.latest_error_code_name,
         f.latest_error_code,
-        f.latest_vendor_error_code,
-        f.latest_vendor_id as latest_taxonomy,
+        f.latest_taxonomy,
         f.incremental_ts,
         'FAULTED' as reason
     from {{ ref('int_faulted_outages') }} as f
@@ -56,8 +56,8 @@ offline_outages as (
         o.from_ts,
         o.to_ts,
         o.duration_minutes,
+        cast(null as {{ dbt.type_string() }}) as latest_error_code_name,
         cast(null as {{ dbt.type_string() }}) as latest_error_code,
-        cast(null as {{ dbt.type_string() }}) as latest_vendor_error_code,
         cast(null as {{ dbt.type_string() }}) as latest_taxonomy,
         o.incremental_ts,
         'OFFLINE' as reason
@@ -76,9 +76,9 @@ offline_outages as (
 ),
 
 outages as (
-    select charger_id, port_id, from_ts, to_ts, duration_minutes, latest_error_code, latest_vendor_error_code, latest_taxonomy, incremental_ts, reason from offline_outages
+    select charger_id, port_id, from_ts, to_ts, duration_minutes, latest_error_code_name, latest_error_code, latest_taxonomy, incremental_ts, reason from offline_outages
     union all
-    select charger_id, port_id, from_ts, to_ts, duration_minutes, latest_error_code, latest_vendor_error_code, latest_taxonomy, incremental_ts, reason from faulted_outages
+    select charger_id, port_id, from_ts, to_ts, duration_minutes, latest_error_code_name, latest_error_code, latest_taxonomy, incremental_ts, reason from faulted_outages
 ),
 
 filtered_outages as (
@@ -102,8 +102,8 @@ outage_days as (
         o.port_id,
         o.date_id,
         o.reason,
+        o.latest_error_code_name,
         o.latest_error_code,
-        o.latest_vendor_error_code,
         o.latest_taxonomy,
         greatest(o.from_ts, o.date_id) as interval_start,
         least(o.to_ts, {{ dbt.dateadd('day', 1, 'o.date_id') }}) as interval_end
@@ -116,8 +116,8 @@ per_day as (
         port_id,
         date_id,
         reason,
+        latest_error_code_name,
         latest_error_code,
-        latest_vendor_error_code,
         latest_taxonomy,
         interval_end,
         {{ dbt.datediff('interval_start', 'interval_end', 'minutes') }} as duration_minutes
@@ -131,21 +131,49 @@ final as (
         port_id,
         reason,
         sum(duration_minutes) as duration_minutes,
+        {{ max_by('latest_error_code_name', 'interval_end') }} as latest_error_code_name,
         {{ max_by('latest_error_code', 'interval_end') }} as latest_error_code,
-        {{ max_by('latest_vendor_error_code', 'interval_end') }} as latest_vendor_error_code,
         {{ max_by('latest_taxonomy', 'interval_end') }} as latest_taxonomy
     from per_day
     group by 1, 2, 3, 4
+),
+
+-- error_code_key read from dim_error_codes rather than generated in place: the dimension's key also
+-- hashes the taxonomy's own error_code_name, which isn't on this row (latest_error_code_name is the
+-- OCPP errorCode, not the vendor's name for the code)
+error_codes as (
+    select
+        error_code_key,
+        taxonomy,
+        error_code,
+        error_code_name
+    from {{ ref('dim_error_codes') }}
 ),
 
 -- charger_id -> location_id (int_chargers) -> location_key generated in place
 final_with_keys as (
     select
         final.*,
-        chargers.location_id
+        chargers.location_id,
+        error_codes.error_code_key as latest_error_code_key
     from final
     left join {{ ref('int_chargers') }} as chargers
         on final.charger_id = chargers.charger_id
+    -- Two mutually exclusive branches, so at most one dim_error_codes row matches:
+    -- vendor code reported -> (latest_taxonomy, latest_error_code), unique for vendor taxonomies;
+    -- no vendor code -> fall back to the OCPP 1.6 row for errorCode, unique on error_code_name there.
+    -- Name matching is limited to ocpp1.6: a vendor's own names can collide with OCPP's
+    -- (ChargeX CX002 is also 'GroundFailure') and would match the wrong code.
+    left join error_codes
+        on (
+            final.latest_taxonomy = error_codes.taxonomy
+            and final.latest_error_code = error_codes.error_code
+        )
+        or (
+            final.latest_error_code is null
+            and error_codes.taxonomy = 'ocpp1.6'
+            and final.latest_error_code_name = error_codes.error_code_name
+        )
 )
 
 select
@@ -155,19 +183,14 @@ select
     case when location_id is not null
         then {{ dbt_utils.generate_surrogate_key(['location_id']) }}
     end as location_key,
-    case when latest_error_code is not null
-        then {{ dbt_utils.generate_surrogate_key(["'ocpp1.6'", 'latest_error_code']) }}
-    end as latest_error_code_key,
-    case when latest_vendor_error_code is not null
-        then {{ dbt_utils.generate_surrogate_key(['latest_taxonomy', 'latest_vendor_error_code']) }}
-    end as latest_vendor_error_code_key,
+    latest_error_code_key,
     date_id,
     charger_id,
     port_id,
     reason,
     duration_minutes,
+    latest_error_code_name,
     latest_error_code,
-    latest_vendor_error_code,
     latest_taxonomy,
     (select incremental_ts from incremental) as incremental_ts
 from final_with_keys

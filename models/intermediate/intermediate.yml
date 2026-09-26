@@ -58,16 +58,16 @@ models:
           - accepted_values:
               arguments:
                 values: ['Available', 'Preparing', 'Charging', 'SuspendedEVSE', 'SuspendedEV', 'Finishing', 'Reserved', 'Unavailable', 'Faulted']
-      - name: latest_error_code
-        description: "Error code from the most recent StatusNotification"
+      - name: latest_error_code_name
+        description: "Standard OCPP 1.6 ChargePointErrorCode from the most recent StatusNotification's errorCode field (NoError if no error to report). Matches dim_error_codes.error_code_name for taxonomy 'ocpp1.6'. Carried forward as dim_connectors.latest_error_code_name."
         data_tests:
           - not_null
-      - name: latest_vendor_error_code
-        description: "Vendor-specific fault code from the most recent StatusNotification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to latest_vendor_id. Null for chargers whose vendor doesn't populate this field."
-      - name: latest_vendor_id
-        description: "Identifies the vendor-specific fault-code scheme from the most recent StatusNotification's vendorId field (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how latest_vendor_error_code should be decoded. Not the charger's OEM/manufacturer. Null if the vendor doesn't populate this field."
+      - name: latest_error_code
+        description: "Vendor-specific fault code from the most recent StatusNotification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the fault-code scheme - decode via dim_error_codes on (latest_taxonomy, latest_error_code). Null for chargers whose vendor doesn't populate this field. Carried forward as dim_connectors.latest_error_code."
+      - name: latest_taxonomy
+        description: "Identifies the vendor-specific fault-code scheme from the most recent StatusNotification's vendorId field (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how latest_error_code should be decoded. Matches dim_error_codes.taxonomy. Not the charger's OEM/manufacturer. Null if the vendor doesn't populate this field."
       - name: latest_info
-        description: "Additional detail from the most recent StatusNotification's info field, accompanying latest_error_code/latest_vendor_error_code (e.g. '50' for a HighTemperature reading in degrees Celsius). Optional - may be null or blank."
+        description: "Additional detail from the most recent StatusNotification's info field, accompanying latest_error_code_name/latest_error_code (e.g. '50' for a HighTemperature reading in degrees Celsius). Optional - may be null or blank."
       - name: latest_status_ts
         description: "Timestamp when the most recent status was ingested"
         data_tests:
@@ -112,16 +112,16 @@ models:
           - accepted_values:
               arguments:
                 values: ['Available', 'Preparing', 'Charging', 'SuspendedEVSE', 'SuspendedEV', 'Finishing', 'Reserved', 'Unavailable', 'Faulted']
-      - name: error_code
-        description: "Error code from the status notification payload (NoError if no error to report)"
+      - name: error_code_name
+        description: "Standard OCPP 1.6 ChargePointErrorCode from the status notification's errorCode field (NoError if no error to report). Matches dim_error_codes.error_code_name for taxonomy 'ocpp1.6'."
         data_tests:
           - not_null
-      - name: vendor_error_code
-        description: "Vendor-specific fault code from the status notification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to vendor_id. Null for chargers whose vendor doesn't populate this field."
-      - name: vendor_id
-        description: "Identifies the vendor-specific fault-code scheme from the status notification's vendorId field (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how vendor_error_code should be decoded. Not the charger's OEM/manufacturer. Null if the vendor doesn't populate this field."
+      - name: error_code
+        description: "Vendor-specific fault code from the status notification's vendorErrorCode field (e.g. ChargeX MREC 'CX003' for HighTemperature), if the vendor reports it. Meaning depends on the fault-code scheme - decode via dim_error_codes scoped to taxonomy. Null for chargers whose vendor doesn't populate this field."
+      - name: taxonomy
+        description: "Identifies the vendor-specific fault-code scheme from the status notification's vendorId field (e.g. ChargeX's 'https://chargex.inl.gov'), scoping how error_code should be decoded. Matches dim_error_codes.taxonomy. Not the charger's OEM/manufacturer. Null if the vendor doesn't populate this field."
       - name: info
-        description: "Additional detail from the status notification's info field, accompanying error_code/vendor_error_code (e.g. '50' for a HighTemperature reading in degrees Celsius). Optional - may be null or blank."
+        description: "Additional detail from the status notification's info field, accompanying error_code_name/error_code (e.g. '50' for a HighTemperature reading in degrees Celsius). Optional - may be null or blank."
       - name: payload
         description: "Original payload from the status notification"
       - name: previous_status

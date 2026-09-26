@@ -58,8 +58,9 @@ semantic_models:
     dimensions:
       - name: taxonomy
         type: categorical
-      - name: fault_code
+      - name: code
         type: categorical
+        expr: error_code
       - name: error_code_name
         type: categorical
       - name: description
@@ -356,7 +357,7 @@ semantic_models:
         expr: uptime
 
   - name: downtime_daily
-    description: "Port-level daily downtime, split by reason (FAULTED or OFFLINE) and, for FAULTED rows, the OCPP error code from whichever outage in that day/reason bucket ended most recently."
+    description: "Port-level daily downtime, split by reason (FAULTED or OFFLINE) and, for FAULTED rows, the vendor-specific fault code (joined to error_codes via latest_error_code_key) from whichever outage in that day/reason bucket ended most recently."
     model: ref('fact_downtime_daily')
     defaults:
       agg_time_dimension: date_id
