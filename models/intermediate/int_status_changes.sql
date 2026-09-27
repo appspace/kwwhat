@@ -59,7 +59,7 @@ with incremental_date_range as (
             {{ payload_extract_error_code('action', 'payload') }} as error_code_name,
             {{ payload_extract_vendor_error_code('action', 'payload') }} as error_code,
             {{ payload_extract_vendor_id('action', 'payload') }} as taxonomy,
-            {{ payload_extract_info('action', 'payload') }} as info,
+            {{ payload_extract_info('action', 'payload') }} as info,  -- noqa: RF04
             {{ payload_extract_timestamp('action', 'payload') }} as payload_ts
         from ocpp_logs
         where action = 'StatusNotification'
