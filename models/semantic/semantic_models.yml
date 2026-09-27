@@ -354,7 +354,7 @@ semantic_models:
         expr: uptime
 
   - name: downtime_daily
-    description: "Port-level daily downtime, split by reason (FAULTED or OFFLINE) and, for FAULTED rows, the vendor-specific fault code (joined to error_codes via latest_error_code_key) from whichever outage in that day/reason bucket ended most recently."
+    description: "Port-level daily downtime, split by downtime_type (FAULTED or OFFLINE) and reason ('NoHeartbeat' for OFFLINE; for FAULTED, the error code's name in error_codes, 'NoError', or 'UnknownError' for codes missing from error_codes). FAULTED rows link to error_codes via latest_error_code_key."
     model: ref('fact_downtime_daily')
     defaults:
       agg_time_dimension: date_id
