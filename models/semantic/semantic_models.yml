@@ -49,7 +49,7 @@ semantic_models:
         type: categorical
 
   - name: error_codes
-    description: "Generic, multi-taxonomy error-code reference dimension. Use to decode fault codes (both vendor-proprietary and OCPP 1.6 standard) reported elsewhere, and to slice metrics by taxonomy or error name."
+    description: "Generic, multi-taxonomy error-code reference dimension. Use to decode fault codes (both vendor-proprietary and OCPP 1.6 standard) reported elsewhere, and to slice metrics by error name or lookup errors by error_code_key."
     model: ref('dim_error_codes')
     entities:
       - name: error_code
@@ -58,9 +58,6 @@ semantic_models:
     dimensions:
       - name: taxonomy
         type: categorical
-      - name: code
-        type: categorical
-        expr: error_code
       - name: error_code_name
         type: categorical
       - name: description
