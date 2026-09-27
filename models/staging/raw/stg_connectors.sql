@@ -14,7 +14,7 @@ renamed as (
         cast(port_id as {{ dbt.type_string() }}) as port_id,
         cast(connector_id as {{ dbt.type_string() }}) as connector_id,
         cast(connector_type as {{ dbt.type_string() }}) as connector_type,
-        cast(max_power_kw as numeric) as max_power_kw
+        cast(max_power_kw as {{ dbt.type_numeric() }}) as max_power_kw
     from source
 )
 

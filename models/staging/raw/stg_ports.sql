@@ -12,7 +12,7 @@ renamed as (
     select
         cast(charge_point_id as {{ dbt.type_string() }}) as charger_id,
         cast(port_id as {{ dbt.type_string() }}) as port_id,
-        cast(max_power_kw as numeric) as max_power_kw
+        cast(max_power_kw as {{ dbt.type_numeric() }}) as max_power_kw
     from source
 )
 

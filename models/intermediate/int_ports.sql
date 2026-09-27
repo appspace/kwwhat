@@ -26,8 +26,8 @@ connector_counts as (
 select
     ports.charger_id,
     ports.port_id,
-    connector_counts.connector_count,
-    max_power_kw
+    ports.max_power_kw,
+    connector_counts.connector_count
 from ports
 left join connector_counts
     on ports.charger_id = connector_counts.charger_id
