@@ -8,12 +8,12 @@
 -- an existing column, so if an earlier run already added max_power_kw as number(38, 0),
 -- drop that column first and re-run this script.
 
-alter table RAW.SEED.ports      add column if not exists max_power_kw number(10, 2);
-alter table RAW.SEED.connectors add column if not exists max_power_kw number(10, 2);
+alter table raw.seed.ports add column if not exists max_power_kw number(10, 2);
+alter table raw.seed.connectors add column if not exists max_power_kw number(10, 2);
 
 -- Populate from hardware configuration data.
 -- Replace with actual values from your CMMS or hardware registry.
-merge into RAW.SEED.ports as target
+merge into raw.seed.ports as target
 using (
     select column1 as charge_point_id, column2 as port_id, column3 as max_power_kw
     from values
@@ -27,7 +27,7 @@ using (
 when matched and target.max_power_kw is distinct from source.max_power_kw then
     update set max_power_kw = source.max_power_kw;
 
-merge into RAW.SEED.connectors as target
+merge into raw.seed.connectors as target
 using (
     select column1 as charge_point_id, column2 as port_id, column3 as connector_id, column4 as max_power_kw
     from values
