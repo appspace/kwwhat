@@ -76,9 +76,31 @@ offline_outages as (
 ),
 
 outages as (
-    select charger_id, port_id, from_ts, to_ts, duration_minutes, latest_error_code_name, latest_error_code, latest_taxonomy, incremental_ts, reason from offline_outages
+    select
+        charger_id,
+        port_id,
+        from_ts,
+        to_ts,
+        duration_minutes,
+        latest_error_code_name,
+        latest_error_code,
+        latest_taxonomy,
+        incremental_ts,
+        reason
+    from offline_outages
     union all
-    select charger_id, port_id, from_ts, to_ts, duration_minutes, latest_error_code_name, latest_error_code, latest_taxonomy, incremental_ts, reason from faulted_outages
+    select
+        charger_id,
+        port_id,
+        from_ts,
+        to_ts,
+        duration_minutes,
+        latest_error_code_name,
+        latest_error_code,
+        latest_taxonomy,
+        incremental_ts,
+        reason
+    from faulted_outages
 ),
 
 filtered_outages as (
