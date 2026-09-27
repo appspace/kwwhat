@@ -354,7 +354,7 @@ semantic_models:
         expr: uptime
 
   - name: downtime_daily
-    description: "Port-level daily downtime, split by downtime_type (FAULTED or OFFLINE) and reason ('NoHeartbeat' for OFFLINE; for FAULTED, the error code's name in error_codes, 'NoError', or 'UnknownError' for codes missing from error_codes). FAULTED rows link to error_codes via latest_error_code_key."
+    description: "Minutes each port was down per day, split by downtime_type (FAULTED: the port reported a fault; OFFLINE: no heartbeats from the charger) and reason ('NoHeartbeat' for OFFLINE; for FAULTED, the error name, 'NoError' if none was reported, or 'UnknownError' if the code isn't in error_codes). Use it when uptime drops, to find out why: which ports, locations and days lost the most time, whether chargers were broken or just unreachable, and which errors cost the most minutes. Join error_codes for description. For the headline reliability number use uptime instead."
     model: ref('fact_downtime_daily')
     defaults:
       agg_time_dimension: date_id
