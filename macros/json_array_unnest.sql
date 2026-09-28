@@ -39,7 +39,11 @@
 {% endmacro %}
 
 {% macro postgres__json_array_unnest(json_column) %}
-    cross join unnest({{ json_column }})
+    {#
+      unnest() only takes native arrays, not jsonb. jsonb_array_elements names its output
+      column value, so callers can use `<alias>.value` as on the other adapters.
+    #}
+    cross join lateral jsonb_array_elements({{ json_column }})
 {% endmacro %}
 
 {% macro redshift__json_array_unnest(json_column) %}

@@ -109,6 +109,79 @@ Then a summary verdict: **Pass**, **Warn**, or **Fail**, with the list of gaps.
 | Marts | PK tests, not_null on all measures and keys, unit tests for business rules, accepted_values on all categoricals and booleans |
 | Semantic models | Validated via `dbt sl validate` or `mf validate-configs` |
 
+## Postgres compatibility
+
+Postgres is a partially supported adapter: several macros have `postgres__` implementations, but the project does not build fully there yet. Run this check on request, and proactively before approving a PR that touches a file in `macros/`, adds an `adapter.dispatch` implementation, or changes array, JSON or date logic in a model. It needs the Docker daemon running.
+
+There is no Postgres target in `~/.dbt/profiles.yml`, and the host Python is too old for dbt 1.11, so everything runs in containers on a private Docker network. Postgres cannot query across databases, so the raw source is loaded into a `seed` schema of the same database and pointed at with `--vars`.
+
+1. **Start Postgres and load the raw CSVs**
+   ```bash
+   docker network create kwwhat-pg-net
+   docker run -d --rm --name kwwhat-pg --network kwwhat-pg-net \
+     -e POSTGRES_USER=kwwhat -e POSTGRES_PASSWORD=kwwhat -e POSTGRES_DB=kwwhat \
+     -v "$PWD/demo/seeds:/seeds:ro" postgres:16-alpine
+   until docker exec kwwhat-pg pg_isready -U kwwhat -q; do sleep 1; done
+   docker exec -i kwwhat-pg psql -U kwwhat -v ON_ERROR_STOP=1 -q <<'SQL'
+   create schema seed;
+   create table seed.ocpp_1_6_synthetic_logs_14d (timestamp text, id text, action text, msg text);
+   create table seed.chargers (charge_point_id text, location_id text, commissioned_ts text, decommissioned_ts text);
+   create table seed.ports (charge_point_id text, port_id text);
+   create table seed.connectors (charge_point_id text, port_id text, connector_id text, connector_type text);
+   \copy seed.ocpp_1_6_synthetic_logs_14d from '/seeds/ocpp_1_6_synthetic_logs_14d.csv' csv header
+   \copy seed.chargers from '/seeds/chargers.csv' csv header
+   \copy seed.ports from '/seeds/ports.csv' csv header
+   \copy seed.connectors from '/seeds/connectors.csv' csv header
+   SQL
+   ```
+   Raw columns are loaded as `text` on purpose: staging does the type casting, which is part of what is under test. If a seed CSV gains a column, update its `create table` here.
+
+2. **Write a throwaway profile** outside the repo (the scratchpad or `/tmp`):
+   ```bash
+   mkdir -p /tmp/kwwhat-pg-profiles
+   cat > /tmp/kwwhat-pg-profiles/profiles.yml <<'YML'
+   kwwhat:
+     target: postgres
+     outputs:
+       postgres:
+         type: postgres
+         host: kwwhat-pg
+         port: 5432
+         user: kwwhat
+         password: kwwhat
+         dbname: kwwhat
+         schema: analytics
+         threads: 4
+   YML
+   ```
+
+3. **Run dbt in a container**, from the repo root:
+   ```bash
+   docker run --rm --network kwwhat-pg-net \
+     -v "$PWD:/kwwhat" -v /tmp/kwwhat-pg-profiles:/profiles:ro \
+     -e DBT_PROFILES_DIR=/profiles -w /kwwhat python:3.12-slim bash -c '
+       pip install -q --root-user-action=ignore "dbt-core==1.11.11" "dbt-postgres~=1.10"
+       O="--target-path /tmp/target --log-path /tmp/logs"
+       V="{raw_database: kwwhat, raw_schema: seed}"
+       dbt deps $O
+       dbt seed $O --vars "$V"
+       dbt run  $O --vars "$V" --full-refresh
+       dbt test $O --vars "$V" --exclude "test_type:unit"
+       dbt test $O --vars "$V" --select "test_type:unit"'
+   ```
+   Pin `dbt-core` to the version in the project's `.venv` (`.venv/bin/dbt --version`). Each `docker run` reinstalls dbt (about 20 seconds); to iterate on one model, swap the four dbt commands for `dbt build ... --select +<model>`.
+
+4. **Clean up** when done, pass or fail: `docker stop kwwhat-pg && docker network rm kwwhat-pg-net`. The container was started with `--rm`, so stopping it deletes the data.
+
+Triage Postgres failures before reporting them. Most errors are knock-on effects of a few root causes:
+- `relation "analytics.<model>" does not exist` and `Not able to get columns for unit test ... because the relation doesn't exist` mean an upstream model failed to build. Report the model that failed, not each test that depends on it.
+- `syntax error at or near "ARRAY"` in unit tests comes from a Snowflake/BigQuery-style `data_type` such as `array<string>` in the yml, which Postgres cannot cast fixture values to.
+- Everything else is a genuine incompatibility. Report the model or macro, the error, and the line from the compiled SQL (`/tmp/target/run/...` inside the container; rerun with `dbt compile --select <model>` and `cat` it to see it).
+
+Baseline as of the BigQuery compatibility PR (#155) plus the Postgres macro fixes, so you can tell new breakage from known gaps: `dbt run` builds 26 of 31 models. `dim_dates` fails on `extract(dayofweek ...)`, `fact_visits` fails on `max()` over a boolean, and 3 downstream models are skipped. Treat anything beyond this as a regression, and update this baseline when a gap is fixed.
+
+Add a row to the coverage table: `Cross-adapter: Postgres | dbt run / data tests / unit tests | ✓/✗ | PASS/ERROR counts`, and list new failures separately from the known baseline.
+
 ## Issue and PR lifecycle
 
 When a task is resolved by a pull request:
