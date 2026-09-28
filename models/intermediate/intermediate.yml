@@ -204,6 +204,7 @@ models:
           - accepted_values:
               arguments:
                 values: [0, 1]
+                quote: false
       - name: updated_ts
         description: "The latest real event timestamp incorporated into this row so far - next_ingested_ts once known, else the Preparing event's own ingested_ts - carried forward and advanced (via greatest()) across every incremental run that touches the row. Downstream consumers (fact_charge_attempts) filter on this, not ingested_ts, to avoid missing later updates to an already-emitted row."
         data_tests:
@@ -264,6 +265,7 @@ models:
           - accepted_values:
               arguments:
                 values: [1]
+                quote: false
       - name: updated_ts
         description: "The latest real event timestamp incorporated into this transaction so far (max(ingested_ts) across its events), carried forward and advanced (via greatest()) across every incremental run that touches the row - e.g. jumps to the StopTransaction timestamp once the transaction completes. Downstream consumers (fact_charge_attempts) filter on this, not ingested_ts, to avoid missing later updates to an already-emitted row."
         data_tests:

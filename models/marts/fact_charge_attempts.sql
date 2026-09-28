@@ -261,7 +261,7 @@ attempt_status_notifications as (
         on af.charger_id = logs.charger_id
         and af.connector_id = logs.connector_id
         and logs.action = 'StatusNotification'
-        and logs.message_type_id = {{ var("message_type_ids").CALL }}
+        and logs.message_type_id = '{{ var("message_type_ids").CALL }}'
         and logs.ingested_timestamp >= af.charge_attempt_start_ts
         and logs.ingested_timestamp <= coalesce(
             af.charge_attempt_stop_ts, (select to_timestamp from incremental_date_range)

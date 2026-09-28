@@ -142,7 +142,7 @@ per_day as (
         latest_error_code,
         latest_taxonomy,
         interval_end,
-        {{ dbt.datediff('interval_start', 'interval_end', 'minutes') }} as duration_minutes
+        {{ dbt.datediff('interval_start', 'interval_end', 'minute') }} as duration_minutes
     from outage_days
 ),
 

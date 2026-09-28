@@ -258,8 +258,8 @@ new_visits as (
         max(location_id) as location_id,
         max(charge_attempt_stop_ts) as visit_end_ts,
         count(*) as charge_attempt_count,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="charge_attempt_id")) }} as charge_attempt_ids,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="charger_id")) }} as charger_ids,
+        {{ array_agg_distinct('charge_attempt_id') }} as charge_attempt_ids,
+        {{ array_agg_distinct('charger_id') }} as charger_ids,
         sum(coalesce(energy_transferred_kwh, 0)) as total_energy_transferred_kwh,
         {{ dbt.datediff(
             'min(charge_attempt_start_ts)',

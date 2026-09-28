@@ -227,7 +227,7 @@ select
     port_id,
     from_ts,
     to_ts,
-    {{ dbt.datediff('from_ts', 'to_ts', 'minutes') }} as duration_minutes,
+    {{ dbt.datediff('from_ts', 'to_ts', 'minute') }} as duration_minutes,
     latest_error_code_name,
     latest_error_code,
     latest_taxonomy,

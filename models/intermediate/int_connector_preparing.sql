@@ -199,10 +199,10 @@ preparing_agg as (
         -- event's own ingested_ts.
         coalesce(next_ingested_ts, ingested_ts) as updated_ts,
         -- Aggregate extracted details into arrays
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="id_tag")) }} as id_tags,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="id_tag_status")) }} as id_tag_statuses,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="parent_id_tag")) }} as parent_id_tags,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="transaction_id")) }} as transaction_ids
+        {{ array_agg_distinct('id_tag') }} as id_tags,
+        {{ array_agg_distinct('id_tag_status') }} as id_tag_statuses,
+        {{ array_agg_distinct('parent_id_tag') }} as parent_id_tags,
+        {{ array_agg_distinct('transaction_id') }} as transaction_ids
 
     from preparing_details
     group by

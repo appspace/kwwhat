@@ -85,6 +85,39 @@ Marts (tables, incremental)
 - Check `dbt.` built-ins first (`dbt.type_string()`, `dbt.date_trunc()`, `dbt.dateadd()`, etc.) before writing a custom cross-platform macro.
 - Use dispatch when SQL syntax genuinely differs across adapters (JSON, arrays, date math, regex, string aggregation). Skip it for logic that is identical everywhere.
 
+### Cross-warehouse compatibility (Snowflake + BigQuery)
+
+Every model, macro and test must run unchanged on both Snowflake and BigQuery. Snowflake silently coerces types and tolerates non-standard syntax that BigQuery rejects, so code that passes on Snowflake is not proof it works on BigQuery.
+
+Arrays:
+- Building a distinct array from rows (inside a `group by`): use `{{ array_agg_distinct('col') }}`.
+- De-duplicating an array that already exists (e.g. merging new and existing rows): use `{{ array_distinct(array_concat('n.col', 'b.col')) }}`.
+- Never wrap an aggregate in `array_distinct(...)` (e.g. `array_distinct(fivetran_utils.array_agg(...))`). BigQuery rejects an aggregate inside `unnest`.
+- BigQuery arrays cannot contain null elements and are never null (a null array is stored as `[]`). Check emptiness with `array_size(...) > 0`, not `is null`.
+
+JSON:
+- `json_extract` for scalar values and objects; `json_extract_array` for JSON arrays (e.g. `meterValue`, `sampledValue`).
+- Unnest with `json_array_unnest` and read elements as `<alias>.value`.
+
+Dates and times:
+- Use singular date parts in `dbt.datediff` / `dbt.dateadd`: `'minute'`, `'second'`, not `'minutes'`, `'seconds'`.
+- Use ANSI functions: `extract(minute from ts)` not `minute(ts)`, `mod(x, 15)` not `x % 15`.
+- `macros/bigquery_dateadd.sql` overrides dbt's `bigquery__dateadd` to return TIMESTAMP. Do not remove it; mixing DATETIME and TIMESTAMP fails on BigQuery.
+
+Types and comparisons:
+- `message_type_id` is a string: compare against a quoted var, `message_type_id = '{{ var("message_type_ids").CALL }}'`.
+- `accepted_values` tests on boolean or numeric columns need `quote: false`.
+
+Query structure:
+- Do not put a subquery that reads a CTE inside a `join ... on` clause. Filter in `where` or in a pre-filtered CTE instead.
+- Do not name a CTE the same as a column it contains; BigQuery resolves the bare name to the whole row.
+
+Unit tests and fixtures:
+- Prefer dict-format mocks. When SQL format is needed, avoid `select * from values (...)` (use `select ... union all select ...`) and never write `where false` without a `from` (use `from (select 1 as _dummy) as _empty where false`).
+
+Sources:
+- The raw source's database/schema default per adapter in `models/staging/raw/staging.yml`. Do not set `raw_database` / `raw_schema` in `dbt_project.yml` vars; that overrides the per-adapter default everywhere.
+
 ### Naming
 | Type | Convention |
 |------|------------|
