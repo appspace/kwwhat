@@ -127,10 +127,10 @@ attempts_and_transactions as (
         on p.charger_id = t.charger_id
         and p.connector_id = t.connector_id
         and p.transaction_id = t.transaction_id
-        and t.transaction_ingested_ts > {{ dbt.dateadd(
+        and t.transaction_ingested_ts > {{ timestamp_add(
             "second", -_authorize_threshold, 'coalesce(p.previous_ingested_ts, p.preparing_ingested_ts)'
         ) }}
-        and t.transaction_ingested_ts <= {{ dbt.dateadd(
+        and t.transaction_ingested_ts <= {{ timestamp_add(
             "second", _authorize_threshold, 'coalesce(p.next_ingested_ts, p.preparing_ingested_ts)'
         ) }}
 
@@ -172,7 +172,7 @@ attempts_and_transactions as (
             -- Also pull recent, still-incomplete attempts 
             (buf.transaction_id is null or buf.preparing_unique_id is null)
             and buf.charge_attempt_start_ts > (
-                select {{ dbt.dateadd("second", -_authorize_threshold, "min(charge_attempt_start_ts)") }}
+                select {{ timestamp_add("second", -_authorize_threshold, "min(charge_attempt_start_ts)") }}
                 from attempts_and_transactions
             )
         )
@@ -222,10 +222,10 @@ attempts_and_transactions as (
                         (b.transaction_id is null and n.transaction_id is not null)
                         or (b.preparing_unique_id is null and n.preparing_unique_id is not null)
                     )
-                    and n.charge_attempt_start_ts > {{ dbt.dateadd(
+                    and n.charge_attempt_start_ts > {{ timestamp_add(
                         "second", -_authorize_threshold, "b.charge_attempt_start_ts"
                     ) }}
-                    and n.charge_attempt_start_ts <= {{ dbt.dateadd(
+                    and n.charge_attempt_start_ts <= {{ timestamp_add(
                         "second", _authorize_threshold, "b.charge_attempt_start_ts"
                     ) }}
                 )

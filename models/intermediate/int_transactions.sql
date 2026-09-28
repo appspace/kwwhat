@@ -18,7 +18,7 @@
     with incremental_date_range as (
         select
             from_timestamp,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 var("incremental_window").unit,
                 var("incremental_window").length,
                 "from_timestamp"
@@ -33,7 +33,7 @@
     with incremental_date_range as (
         select
             from_timestamp,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 var("incremental_window").unit,
                 var("incremental_window").length,
                 "from_timestamp"
@@ -86,7 +86,7 @@ transaction_events_conf as (
     left join ocpp_logs as conf on req.unique_id = conf.unique_id
         and conf.message_type_id = '{{ var("message_type_ids").CALLRESULT }}'
         and conf.ingested_ts >= req.ingested_ts
-        and conf.ingested_ts <= {{ dbt.dateadd("second", 15, "req.ingested_ts") }}
+        and conf.ingested_ts <= {{ timestamp_add("second", 15, "req.ingested_ts") }}
 
 ),
 

@@ -109,7 +109,7 @@ charge_attempt_events_conf as (
     left join ocpp_logs as conf on req.unique_id = conf.unique_id
         and conf.message_type_id = '{{ var("message_type_ids").CALLRESULT }}'
         and conf.ingested_ts >= req.ingested_ts
-        and conf.ingested_ts <= {{ dbt.dateadd(
+        and conf.ingested_ts <= {{ timestamp_add(
             "second", var("transaction_message_retry_interval"), "req.ingested_ts"
         ) }}
 

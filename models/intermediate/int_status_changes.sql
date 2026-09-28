@@ -92,7 +92,7 @@ with incremental_date_range as (
             on req.unique_id = conf.unique_id
             and conf.message_type_id = '{{ var("message_type_ids").CALLRESULT }}'
             and conf.ingested_timestamp >= req.ingested_timestamp
-            and conf.ingested_timestamp <= {{ dbt.dateadd("second", 15, "req.ingested_timestamp") }}
+            and conf.ingested_timestamp <= {{ timestamp_add("second", 15, "req.ingested_timestamp") }}
     ),
 
 {% if is_incremental() %}

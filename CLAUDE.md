@@ -102,7 +102,8 @@ JSON:
 Dates and times:
 - Use singular date parts in `dbt.datediff` / `dbt.dateadd`: `'minute'`, `'second'`, not `'minutes'`, `'seconds'`.
 - Use ANSI functions: `extract(minute from ts)` not `minute(ts)`, `mod(x, 15)` not `x % 15`.
-- `macros/bigquery_dateadd.sql` overrides dbt's `bigquery__dateadd` to return TIMESTAMP. Do not remove it; mixing DATETIME and TIMESTAMP fails on BigQuery.
+- Use `{{ timestamp_add(...) }}` in models, never `dbt.dateadd(...)` directly. On BigQuery `dbt.dateadd` returns DATETIME, and mixing DATETIME with the project's TIMESTAMP columns fails. Do not override dbt's own `bigquery__dateadd`; keep fixes in the `kwwhat` namespace so dbt and package macros behave as documented.
+- `dim_dates.date_id` / `date_day` are DATE on every warehouse. Cast them to `{{ dbt.type_timestamp() }}` before comparing with timestamps (or in `least`/`greatest`), and cast timestamps to `date` when matching against `date_id`.
 
 Types and comparisons:
 - `message_type_id` is a string: compare against a quoted var, `message_type_id = '{{ var("message_type_ids").CALL }}'`.

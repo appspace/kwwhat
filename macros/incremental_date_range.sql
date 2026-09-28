@@ -34,7 +34,7 @@
         {%- endset -%}
     {%- endif -%}
 
-    {%- set base_to_ts = dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") -%}
+    {%- set base_to_ts = timestamp_add(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") -%}
 
     {%- if to_timestamp_caps | length > 0 -%}
         {%- set to_ts_expr -%}
@@ -48,7 +48,7 @@
 
     select
         from_timestamp,
-        {{ dbt.dateadd("minute", -buffer_minutes, "from_timestamp") }} as buffer_from_timestamp,
+        {{ timestamp_add("minute", -buffer_minutes, "from_timestamp") }} as buffer_from_timestamp,
         {{ to_ts_expr }} as to_timestamp
     from (
         select {{ from_ts_expr }} as from_timestamp

@@ -53,12 +53,12 @@ with incremental_date_range as (
             measurand,
             unit,
             phase,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 "minute",
                 '-mod(extract(minute from first_measurement_ts), 15)',
                 dbt.date_trunc("minute", 'first_measurement_ts')
             ) }} as first_interval,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 "minute",
                 '-mod(extract(minute from last_measurement_ts), 15)',
                 dbt.date_trunc("minute", 'last_measurement_ts')
@@ -122,7 +122,7 @@ with incremental_date_range as (
             transaction_id,
             connector_id,
             meter_timestamp,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 "minute",
                 '-mod(extract(minute from meter_timestamp), 15)',
                 dbt.date_trunc("minute", 'meter_timestamp')
@@ -179,7 +179,7 @@ with incremental_date_range as (
             end as meter_15min_interval_start,
             case
                 when meter_15min_interval_start = last_interval then last_measurement_ts
-                else {{ dbt.dateadd("minute", 15, "meter_15min_interval_start") }}
+                else {{ timestamp_add("minute", 15, "meter_15min_interval_start") }}
             end as meter_15min_interval_stop,
             measurand,
             unit,

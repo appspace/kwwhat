@@ -7,9 +7,16 @@
 with date_spine as (
     {{ dbt_utils.date_spine(
         datepart="day",
-        start_date=date_spine_literal('2020-01-01'),
-        end_date=date_spine_literal('2050-12-31')
+        start_date="cast('2020-01-01' as date)",
+        end_date="cast('2050-12-31' as date)"
     ) }}
+),
+
+-- date_spine returns DATETIME on BigQuery (via dbt.dateadd) and DATE elsewhere; cast so
+-- date_id/date_day are DATE on every warehouse.
+days as (
+    select cast(date_day as date) as date_day
+    from date_spine
 )
 
 select
@@ -24,4 +31,4 @@ select
     {{ dbt.date_trunc('month', 'date_day') }} as month_start_date,
     {{ dbt.date_trunc('quarter', 'date_day') }} as quarter_start_date,
     {{ dbt.date_trunc('year', 'date_day') }} as year_start_date
-from date_spine
+from days
