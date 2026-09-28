@@ -20,13 +20,19 @@
     listagg(distinct {{ field_to_agg }}, ',')
 {% endmacro %}
 
+{#
+  Contract on every adapter: duplicates removed AND null elements dropped. field_to_agg
+  (e.g. connector_id, id_tag) is legitimately null on some rows, and downstream logic
+  (array_first(), array_size() counts) assumes the array holds only real values.
+  Snowflake's array_agg already skips nulls; the adapters below need it done explicitly.
+  Covered by unit test test_transactions_id_tags_drop_nulls_and_duplicates.
+#}
 {% macro bigquery__array_agg_distinct(field_to_agg) %}
-    {#
-      BigQuery arrays can't contain a null element when written to a table ("Array cannot
-      have a null element"), and field_to_agg (e.g. connector_id, id_tag) can legitimately
-      be null on some rows - ignore nulls so a null-containing group still writes. Other
-      adapters tolerate null array elements, so this is BigQuery-specific; a group whose
-      only value is null returns an empty array here vs. array[null] elsewhere.
-    #}
+    {# BigQuery also refuses to write an array containing a null ("Array cannot have a null element"). #}
     array_agg(distinct {{ field_to_agg }} ignore nulls)
+{% endmacro %}
+
+{% macro duckdb__array_agg_distinct(field_to_agg) %}
+    {# DuckDB's array_agg keeps nulls; list_distinct removes both duplicates and nulls. #}
+    list_distinct(array_agg({{ field_to_agg }}))
 {% endmacro %}

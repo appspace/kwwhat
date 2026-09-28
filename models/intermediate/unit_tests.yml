@@ -542,6 +542,39 @@ unit_tests:
             updated_ts: '2025-10-01 10:29:00',
           }
 
+  - name: test_transactions_id_tags_drop_nulls_and_duplicates
+    description: >
+      array_agg_distinct must return the same array on every adapter: duplicates
+      removed and null elements dropped. A retried StartTransaction contributes
+      TAG-1 twice, and MeterValues/StopTransaction events carry no idTag (null),
+      so id_tag goes into the aggregation as [TAG-1, TAG-1, null, null] and must
+      come out as [TAG-1]. StopTransaction also has no connectorId, so
+      connector_ids must drop that null too - otherwise _unique_connectors_count
+      would be 2 instead of 1.
+    model: int_transactions
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_ocpp_logs')
+        rows:
+          # StartTransaction sent twice (retry), both confirmed with the same transactionId.
+          - {charger_id: 'CH-001', connector_id: '1', action: 'StartTransaction', ingested_timestamp: 2025-10-02 10:00:00, message_type_id: '2', unique_id: 'start-001', payload: '{"idTag": "TAG-1", "meterStart": 1000}'}
+          - {charger_id: 'CH-001', connector_id: null, action: null, ingested_timestamp: 2025-10-02 10:00:01, message_type_id: '3', unique_id: 'start-001', payload: '{"transactionId": "TXN-001", "idTagInfo": {"status": "Accepted"}}'}
+          - {charger_id: 'CH-001', connector_id: '1', action: 'StartTransaction', ingested_timestamp: 2025-10-02 10:00:30, message_type_id: '2', unique_id: 'start-002', payload: '{"idTag": "TAG-1", "meterStart": 1000}'}
+          - {charger_id: 'CH-001', connector_id: null, action: null, ingested_timestamp: 2025-10-02 10:00:31, message_type_id: '3', unique_id: 'start-002', payload: '{"transactionId": "TXN-001", "idTagInfo": {"status": "Accepted"}}'}
+          # MeterValues: no idTag, so id_tag is null for this row.
+          - {charger_id: 'CH-001', connector_id: '1', action: 'MeterValues', ingested_timestamp: 2025-10-02 10:10:00, message_type_id: '2', unique_id: 'mv-001', payload: '{"transactionId": "TXN-001"}'}
+          # StopTransaction: no idTag and no connectorId, so both are null.
+          - {charger_id: 'CH-001', connector_id: null, action: 'StopTransaction', ingested_timestamp: 2025-10-02 10:30:00, message_type_id: '2', unique_id: 'stop-001', payload: '{"transactionId": "TXN-001", "meterStop": 6000, "reason": "Local"}'}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_chargers')
+        rows: []
+    expect:
+      rows:
+        - {transaction_id: 'TXN-001', id_tags: ['TAG-1'], id_tag_statuses: ['Accepted'], connector_id: '1', _unique_connectors_count: 1}
+
   # ── int_connector_latest_status ─────────────────────────────────────────────
 
   - name: test_connector_latest_status_retains_record_when_no_new_events

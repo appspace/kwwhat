@@ -26,4 +26,7 @@ dbt run --target duckdb --full-refresh --log-path /tmp/dbt-logs
 echo "Running dbt tests (failures reported but do not block startup)..."
 dbt test --target duckdb --log-path /tmp/dbt-logs --exclude "test_type:unit" || echo "Some tests failed — see logs."
 
+echo "Running dbt unit tests (failures reported but do not block startup)..."
+dbt test --target duckdb --log-path /tmp/dbt-logs --select "test_type:unit" || echo "Some unit tests failed — see logs."
+
 echo "=== dbt build complete ==="
