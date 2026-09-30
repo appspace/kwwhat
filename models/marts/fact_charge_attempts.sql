@@ -257,6 +257,7 @@ attempt_status_notifications as (
         logs.ingested_timestamp as error_ingested_ts,
         {{ payload_extract_error_code('logs.action', 'logs.payload') }} as error_code
     from attempts_final as af
+    cross join incremental_date_range
     inner join {{ ref('int_ocpp_logs') }} as logs
         on af.charger_id = logs.charger_id
         and af.connector_id = logs.connector_id
@@ -264,7 +265,7 @@ attempt_status_notifications as (
         and logs.message_type_id = '{{ var("message_type_ids").CALL }}'
         and logs.ingested_timestamp >= af.charge_attempt_start_ts
         and logs.ingested_timestamp <= coalesce(
-            af.charge_attempt_stop_ts, (select to_timestamp from incremental_date_range)
+            af.charge_attempt_stop_ts, incremental_date_range.to_timestamp
         )
 ),
 
