@@ -99,7 +99,7 @@ models:
               arguments:
                 values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
       - name: is_successful
-        description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, next status is not 'Faulted', transaction stop reason is 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.01 kWh."
+        description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, next status is not 'Faulted', transaction stop reason is 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.1 kWh."
         data_tests:
           - not_null
           - accepted_values:
