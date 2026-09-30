@@ -8,7 +8,7 @@
 with chargex_error_codes as (
     select
         taxonomy,
-        fault_code,
+        fault_code as error_code,
         error_code_name,
         description
     from {{ ref('chargex_mrec_codes') }}
@@ -17,7 +17,7 @@ with chargex_error_codes as (
 ocpp_error_codes as (
     select
         taxonomy,
-        error_code as fault_code,
+        cast(null as {{ dbt.type_string() }}) as error_code,
         error_code as error_code_name,
         description
     from {{ ref('ocpp_1_6_error_codes') }}
@@ -28,7 +28,7 @@ ocpp_error_codes as (
 all_error_codes as (
     select
         taxonomy,
-        fault_code,
+        error_code,
         error_code_name,
         description
     from chargex_error_codes
@@ -37,16 +37,16 @@ all_error_codes as (
 
     select
         taxonomy,
-        fault_code,
+        error_code,
         error_code_name,
         description
     from ocpp_error_codes
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['taxonomy', 'fault_code']) }} as error_code_key,
+    {{ dbt_utils.generate_surrogate_key(['taxonomy', 'error_code', 'error_code_name']) }} as error_code_key,
     taxonomy,
-    fault_code,
+    error_code,
     error_code_name,
     description
 from all_error_codes

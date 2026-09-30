@@ -27,9 +27,9 @@ source_window as (
         connector_id,
         port_id,
         status,
+        error_code_name,
         error_code,
-        vendor_error_code,
-        vendor_id,
+        taxonomy,
         info,
         ingested_ts,
         max(ingested_ts) over () as incremental_ts
@@ -44,9 +44,9 @@ select
     connector_id,
     port_id,
     status as latest_status,
+    error_code_name as latest_error_code_name,
     error_code as latest_error_code,
-    vendor_error_code as latest_vendor_error_code,
-    vendor_id as latest_vendor_id,
+    taxonomy as latest_taxonomy,
     info as latest_info,
     ingested_ts as latest_status_ts,
     incremental_ts

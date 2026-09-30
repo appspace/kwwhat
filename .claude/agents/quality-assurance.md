@@ -31,6 +31,7 @@ For every model with:
 
 Presence is not enough. Also check:
 - Unit tests use dict format in `expect` — only columns relevant to the assertion, not the full row
+- Unit test `given` fixtures use dict format too - no `format: sql` / `format: csv` (inline or fixture file); empty inputs use `rows: []`
 - `accepted_values` lists are complete and up to date
 - `not_null` tests exist on upstream-sourced columns (providers can drop constraints unexpectedly)
 - Tests on large tables use a `where` clause to control cost where appropriate

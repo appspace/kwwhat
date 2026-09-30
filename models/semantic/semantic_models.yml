@@ -49,7 +49,7 @@ semantic_models:
         type: categorical
 
   - name: error_codes
-    description: "Generic, multi-taxonomy error-code reference dimension. Use to decode fault codes (both vendor-proprietary and OCPP 1.6 standard) reported elsewhere, and to slice metrics by taxonomy or error name."
+    description: "Error codes chargers report when a port faults. Use to answer why downtime happened or why a connector is currently faulted, to slice downtime by error name, and to look up what a specific error means."
     model: ref('dim_error_codes')
     entities:
       - name: error_code
@@ -57,8 +57,6 @@ semantic_models:
         expr: error_code_key
     dimensions:
       - name: taxonomy
-        type: categorical
-      - name: fault_code
         type: categorical
       - name: error_code_name
         type: categorical
@@ -356,7 +354,7 @@ semantic_models:
         expr: uptime
 
   - name: downtime_daily
-    description: "Port-level daily downtime, split by reason (FAULTED or OFFLINE) and, for FAULTED rows, the OCPP error code from whichever outage in that day/reason bucket ended most recently."
+    description: "Port-level daily downtime, split by reason (FAULTED or OFFLINE) and, for FAULTED rows, the vendor-specific fault code (joined to error_codes via latest_error_code_key) from whichever outage in that day/reason bucket ended most recently."
     model: ref('fact_downtime_daily')
     defaults:
       agg_time_dimension: date_id
