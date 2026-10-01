@@ -28,7 +28,7 @@ models:
               - from_ts
 
   - name: int_faulted_outages
-    description: "Intermediate incremental model that detects port-level faulted outages by aggregating connector fault periods. Only periods where ALL connectors for a port are simultaneously faulted are considered outages. Grain: one row per charger_id + port_id + from_ts outage start."
+    description: "Intermediate incremental model that detects port-level faulted outages by aggregating connector fault periods. Only periods where ALL connectors for a port are simultaneously faulted are considered outages, or where connector 0 (the charger as a whole) is faulted, which faults every port on the charger. Grain: one row per charger_id + port_id + from_ts outage start."
     columns:
       - name: charger_id
         description: "Identifier for the charge point that experienced the faulted outage"
@@ -43,7 +43,7 @@ models:
         data_tests:
           - not_null
       - name: to_ts
-        description: "Timestamp when the faulted outage period ended (when at least one connector recovered from faulted status)"
+        description: "Timestamp when the faulted outage period ended (when at least one connector, or connector 0 for a charger-wide fault, reported its next status). For an ongoing outage, the batch's incremental_ts (the last log received upstream); the next run extends it."
         data_tests:
           - not_null
       - name: duration_minutes

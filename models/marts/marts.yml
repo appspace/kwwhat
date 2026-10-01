@@ -206,10 +206,10 @@ models:
               - meter_15min_interval_start
 
   - name: fact_downtime_daily
-    description: "One row per date_id + charger_id + port_id + downtime_type + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days, and FAULTED downtime by resolved error code name, so faults with different codes on the same day stay separate rows. An outage whose error code changes partway through is still attributed wholly to its latest code - int_faulted_outages keeps one code per outage. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types; port_id is always populated for both."
+    description: "One row per date_id + outage_id: each outage (FAULTED or OFFLINE) at Port grain, split across the calendar days it covers. Sum duration_minutes by date, port, downtime_type or reason for daily downtime. An outage whose error code changes partway through is attributed wholly to its latest code - int_faulted_outages keeps one code per outage. Reliability metrics are tracked per Port - the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types; port_id is always populated for both."
     columns:
       - name: date_id
-        description: "Calendar date for the downtime aggregation"
+        description: "Calendar date this row's minutes fall on"
         data_tests:
           - not_null
       - name: charger_id
@@ -233,7 +233,7 @@ models:
                 to: ref('dim_locations')
                 field: location_key
       - name: latest_error_code_key
-        description: "FK to dim_error_codes for the latest FAULTED outage on this date/charger/port/reason (by end time) - decode the code, taxonomy and description through it. Looked up per outage by joining the dimension rather than generated in place (the dimension's key also hashes the taxonomy's own error_code_name, which isn't on the outage). Resolves to the vendor-specific code when one was reported - int_faulted_outages (latest_taxonomy, latest_error_code) - and otherwise falls back to the OCPP 1.6 row for the reported errorCode. So it points at a vendor row or an OCPP row depending on what the charger reported; check dim_error_codes.taxonomy to tell which. Rows on the same date/charger/port/reason share the key's error_code_name but may come from different taxonomies. Null for OFFLINE rows, for UnknownError rows (a reported vendor code isn't in dim_error_codes; no fallback to OCPP in that case), and for NoError rows with no code reported at all."
+        description: "FK to dim_error_codes for this FAULTED outage's latest code - decode the code, taxonomy and description through it. Looked up per outage by joining the dimension rather than generated in place (the dimension's key also hashes the taxonomy's own error_code_name, which isn't on the outage). Resolves to the vendor-specific code when one was reported - int_faulted_outages (latest_taxonomy, latest_error_code) - and otherwise falls back to the OCPP 1.6 row for the reported errorCode. So it points at a vendor row or an OCPP row depending on what the charger reported; check dim_error_codes.taxonomy to tell which. Outages with the same reason share the key's error_code_name but may come from different taxonomies. Null for OFFLINE rows, for UnknownError rows (a reported vendor code isn't in dim_error_codes; no fallback to OCPP in that case), and for NoError rows with no code reported at all."
         data_tests:
           - relationships:
               arguments:
@@ -244,12 +244,13 @@ models:
         data_tests:
           - not_null
       - name: duration_minutes
-        description: "Total downtime minutes for the date/charger/port combination"
+        description: "Minutes of this outage that fall on date_id"
         data_tests:
           - not_null
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0
+                max_value: 1440
       - name: downtime_type
         description: "Kind of downtime: FAULTED (every connector on the port reported Faulted) or OFFLINE (the charger stopped sending heartbeats)."
         data_tests:
@@ -258,7 +259,7 @@ models:
               arguments:
                 values: ['OFFLINE', 'FAULTED']
       - name: reason
-        description: "Why the port was down. 'NoHeartbeat' for every OFFLINE row. For FAULTED rows, the error_code_name that dim_error_codes gives the outage's latest code (latest_error_code_key) - never the raw OCPP errorCode, which can be generic: a charger may report 'OtherError' with ChargeX CX003, which is 'HighTemperature' in the dimension. This includes 'NoError' for OCPP's NoError sentinel, which is in the OCPP 1.6 seed; the same label is used when the charger reported Faulted with no code at all. 'UnknownError' when a code was reported but isn't in dim_error_codes. Codes resolve per outage before the daily aggregation, so outages with different names on the same day stay separate rows."
+        description: "Why the port was down. 'NoHeartbeat' for every OFFLINE row. For FAULTED rows, the error_code_name that dim_error_codes gives the outage's latest code (latest_error_code_key) - never the raw OCPP errorCode, which can be generic: a charger may report 'OtherError' with ChargeX CX003, which is 'HighTemperature' in the dimension. This includes 'NoError' for OCPP's NoError sentinel, which is in the OCPP 1.6 seed; the same label is used when the charger reported Faulted with no code at all. 'UnknownError' when a code was reported but isn't in dim_error_codes."
         data_tests:
           - not_null
           - relationships:
@@ -267,8 +268,20 @@ models:
                 field: error_code_name
               config:
                 where: "reason not in ('NoHeartbeat', 'NoError', 'UnknownError')"
+      - name: outage_id
+        description: "Identifies the outage, shared by all of its rows (one per day it covers). Generated from charger_id, port_id, downtime_type and outage_from_ts, which stay the same while an ongoing outage is extended. The incremental key: a re-read outage replaces all of its rows."
+        data_tests:
+          - not_null
+      - name: outage_from_ts
+        description: "When the whole outage started (not just this day's part)"
+        data_tests:
+          - not_null
+      - name: outage_to_ts
+        description: "When the whole outage ended, or, for an ongoing outage, the last data received; a later run extends it"
+        data_tests:
+          - not_null
       - name: downtime_id
-        description: "Surrogate key for the downtime record, generated from date_id, charger_id, port_id, downtime_type, and reason"
+        description: "Surrogate key for the row, generated from date_id and outage_id"
         data_tests:
           - unique
           - not_null
@@ -277,10 +290,10 @@ models:
           arguments:
             combination_of_columns:
               - date_id
-              - charger_id
-              - port_id
-              - downtime_type
-              - reason
+              - outage_id
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "outage_from_ts < outage_to_ts"
       - dbt_utils.expression_is_true:
           arguments:
             expression: "(downtime_type = 'OFFLINE') = (reason = 'NoHeartbeat')"

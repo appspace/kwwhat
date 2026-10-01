@@ -1,16 +1,38 @@
 {{
   config(
     materialized='incremental',
-    unique_key=['date_id', 'charger_id', 'port_id', 'downtime_type'],
+    unique_key='outage_id',
     incremental_strategy='delete+insert',
-    cluster_by=['date_id', 'charger_id']
+    cluster_by=['date_id', 'charger_id'],
+    post_hook="
+      {%- set first_day_checked -%}
+          (select cast({{ timestamp_add(var('incremental_window').unit, -var('incremental_window').length, 'max(date_id)') }} as date) from {{ this }})
+      {%- endset -%}
+      delete from {{ this }}
+      where date_id >= {{ first_day_checked }}
+          and outage_id in (
+              select o.outage_id
+              from {{ this }} as o
+              inner join {{ this }} as f
+                  on o.charger_id = f.charger_id
+                  and o.port_id = f.port_id
+                  and o.date_id = f.date_id
+              where o.downtime_type = 'OFFLINE'
+                  and f.downtime_type = 'FAULTED'
+                  and o.outage_from_ts >= f.outage_from_ts
+                  and o.outage_from_ts < f.outage_to_ts
+                  and o.date_id >= {{ first_day_checked }}
+          )
+    "
   )
 }}
 
--- Grain is date_id + charger_id + port_id + downtime_type + reason, but the incremental key leaves reason out.
--- An in-progress outage's latest error code can change between runs, moving its minutes to a different
--- reason. delete+insert replaces the whole day/port/downtime_type slice, so the row under the old reason
--- is removed instead of left behind to double-count.
+-- Grain is date_id + outage_id: one row per outage per calendar day it covers.
+-- A run reads only the outages that changed since the last run (their incremental_ts is past the watermark).
+-- delete+insert on outage_id replaces all of a re-read outage's rows - every day it covers, and under its
+-- latest reason if its error code changed - and leaves every other outage's rows alone.
+-- An offline outage that starts during a fault is removed with a post-hook to avoid double-counting
+-- The post-hook checks only the last incremental_window of days: older days were cleaned by earlier runs.
 
 {% if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
@@ -19,7 +41,7 @@
 {%- endif -%}
 
 with incremental_date_range as (
-    {{ incremental_date_range(from_timestamp_caps=from_ts_caps, buffer_minutes=1440) }}
+    {{ incremental_date_range(from_timestamp_caps=from_ts_caps) }}
 ),
 
 ports as (
@@ -79,7 +101,7 @@ faulted_outages_resolved as (
             and error_codes.taxonomy = 'ocpp1.6'
             and f.latest_error_code_name = error_codes.error_code_name
         )
-    where f.incremental_ts > (select buffer_from_timestamp from incremental_date_range)
+    where f.incremental_ts > (select from_timestamp from incremental_date_range)
         and f.incremental_ts <= (select to_timestamp from incremental_date_range)
 ),
 
@@ -105,7 +127,6 @@ faulted_outages as (
 ),
 
 -- for Offline outages (charge point level, need to join with ports)
--- Exclude the ones that started during a faulted outage - port reported faulted then went offline
 offline_outages as (
     select
         o.charger_id,
@@ -119,16 +140,8 @@ offline_outages as (
         'NoHeartbeat' as reason
     from {{ ref('int_offline_outages') }} as o
     inner join ports as p on o.charger_id = p.charger_id
-    where o.incremental_ts > (select buffer_from_timestamp from incremental_date_range)
+    where o.incremental_ts > (select from_timestamp from incremental_date_range)
         and o.incremental_ts <= (select to_timestamp from incremental_date_range)
-        and not exists (
-            select 1
-            from faulted_outages as f
-            where f.charger_id = o.charger_id
-                and f.port_id = p.port_id
-                and o.from_ts >= f.from_ts
-                and o.from_ts < f.to_ts
-        )
 ),
 
 outages as (
@@ -157,13 +170,23 @@ outages as (
     from faulted_outages
 ),
 
+-- One row per outage per calendar day it covers: the day starts before the outage ends, so an outage ending exactly
+-- at midnight gets no row for the next day
 filtered_outages as (
     select
-        o.*,
+        o.charger_id,
+        o.port_id,
+        o.from_ts,
+        o.to_ts,
+        o.latest_error_code_key,
+        o.incremental_ts,
+        o.downtime_type,
+        o.reason,
         d.date_id
     from outages as o
     inner join {{ ref('dim_dates') }} as d
-        on d.date_id between cast(o.from_ts as date) and cast(o.to_ts as date)
+        on d.date_id >= cast(o.from_ts as date)
+        and cast(d.date_id as {{ dbt.type_timestamp() }}) < o.to_ts
 ),
 
 incremental as (
@@ -171,22 +194,8 @@ incremental as (
     from filtered_outages
 ),
 
--- Compute per-day overlap
+-- Part of each outage that falls on each day
 outage_days as (
-    select
-        o.charger_id,
-        o.port_id,
-        o.date_id,
-        o.downtime_type,
-        o.reason,
-        o.latest_error_code_key,
-        -- date_id is DATE; cast so it compares with the timestamps on every warehouse
-        greatest(o.from_ts, cast(o.date_id as {{ dbt.type_timestamp() }})) as interval_start,
-        least(o.to_ts, {{ timestamp_add('day', 1, 'o.date_id') }}) as interval_end
-    from filtered_outages as o
-),
-
-per_day as (
     select
         charger_id,
         port_id,
@@ -194,47 +203,48 @@ per_day as (
         downtime_type,
         reason,
         latest_error_code_key,
-        interval_end,
-        {{ dbt.datediff('interval_start', 'interval_end', 'minute') }} as duration_minutes
-    from outage_days
-),
-
-final as (
-    select
-        date_id,
-        charger_id,
-        port_id,
-        downtime_type,
-        reason,
-        sum(duration_minutes) as duration_minutes,
-        {{ max_by('latest_error_code_key', 'interval_end') }} as latest_error_code_key
-    from per_day
-    group by 1, 2, 3, 4, 5
+        from_ts,
+        to_ts,
+        -- date_id is DATE; cast so it compares with the timestamps on every warehouse
+        greatest(from_ts, cast(date_id as {{ dbt.type_timestamp() }})) as interval_start,
+        least(to_ts, {{ timestamp_add('day', 1, 'date_id') }}) as interval_end
+    from filtered_outages
 ),
 
 -- charger_id -> location_id (int_chargers) -> location_key generated in place
-final_with_keys as (
+outage_days_with_ids as (
     select
-        final.*,
+        {{ dbt_utils.generate_surrogate_key(['od.charger_id', 'od.port_id', 'od.downtime_type', 'od.from_ts']) }} as outage_id,
+        od.charger_id,
+        od.port_id,
+        od.date_id,
+        od.downtime_type,
+        od.reason,
+        od.latest_error_code_key,
+        od.from_ts,
+        od.to_ts,
+        {{ dbt.datediff('od.interval_start', 'od.interval_end', 'minute') }} as duration_minutes,
         chargers.location_id
-    from final
+    from outage_days as od
     left join {{ ref('int_chargers') }} as chargers
-        on final.charger_id = chargers.charger_id
+        on od.charger_id = chargers.charger_id
 )
 
 select
-    -- Generate a deterministic unique ID from the composite key
-    {{ dbt_utils.generate_surrogate_key(['date_id', 'charger_id', 'port_id', 'downtime_type', 'reason']) }} as downtime_id,
+    {{ dbt_utils.generate_surrogate_key(['date_id', 'outage_id']) }} as downtime_id,
     {{ dbt_utils.generate_surrogate_key(['charger_id', 'port_id']) }} as port_key,
     case when location_id is not null
         then {{ dbt_utils.generate_surrogate_key(['location_id']) }}
     end as location_key,
     latest_error_code_key,
     date_id,
+    outage_id,
     charger_id,
     port_id,
     downtime_type,
     reason,
+    from_ts as outage_from_ts,
+    to_ts as outage_to_ts,
     duration_minutes,
     (select incremental_ts from incremental) as incremental_ts
-from final_with_keys
+from outage_days_with_ids

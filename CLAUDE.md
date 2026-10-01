@@ -249,6 +249,24 @@ Define:
 - unique key
 - invalidation logic
 
+### Jinja whitespace trim after a SQL comment
+
+Never put a leading-trim tag (`{%-`) right after a `--` comment. The trim strips the newline that ends the comment, so the next rendered line (usually `with incremental_date_range as (`) joins the comment and the whole query is commented out:
+
+```sql
+-- Incremental merge: ...
+
+{% if is_incremental() -%}   {# not {%- if: keep the comment's newline #}
+    {%- set from_ts_caps = [...] -%}
+{%- else -%}
+    {%- set from_ts_caps = [...] -%}
+{%- endif -%}
+
+with incremental_date_range as (
+```
+
+It breaks real `dbt run`s, not just unit tests. Snowflake reports it as cascading `unexpected '('` / `unexpected 'from'` / `unexpected ','` errors that look unrelated. When you see those, check `target/compiled/.../<model>.sql` for a comment that swallowed the `with` clause first.
+
 ---
 
 ## Documentation
