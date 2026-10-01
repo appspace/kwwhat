@@ -109,7 +109,7 @@ filtered_outages as (
         d.date_id
     from outages as o
     inner join {{ ref('dim_dates') }} as d
-        on date_id between {{ dbt.date_trunc('day', 'o.from_ts') }} and {{ dbt.date_trunc('day', 'o.to_ts') }}
+        on d.date_id between cast(o.from_ts as date) and cast(o.to_ts as date)
 ),
 
 incremental as (
@@ -127,8 +127,9 @@ outage_days as (
         o.latest_error_code_name,
         o.latest_error_code,
         o.latest_taxonomy,
-        greatest(o.from_ts, o.date_id) as interval_start,
-        least(o.to_ts, {{ dbt.dateadd('day', 1, 'o.date_id') }}) as interval_end
+        -- date_id is DATE; cast so it compares with the timestamps on every warehouse
+        greatest(o.from_ts, cast(o.date_id as {{ dbt.type_timestamp() }})) as interval_start,
+        least(o.to_ts, {{ timestamp_add('day', 1, 'o.date_id') }}) as interval_end
     from filtered_outages as o
 ),
 
@@ -142,7 +143,7 @@ per_day as (
         latest_error_code,
         latest_taxonomy,
         interval_end,
-        {{ dbt.datediff('interval_start', 'interval_end', 'minutes') }} as duration_minutes
+        {{ dbt.datediff('interval_start', 'interval_end', 'minute') }} as duration_minutes
     from outage_days
 ),
 

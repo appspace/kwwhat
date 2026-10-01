@@ -18,7 +18,7 @@
     with incremental_date_range as (
         select
             from_timestamp,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 var("incremental_window").unit,
                 var("incremental_window").length,
                 "from_timestamp"
@@ -33,7 +33,7 @@
     with incremental_date_range as (
         select
             from_timestamp,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 var("incremental_window").unit,
                 var("incremental_window").length,
                 "from_timestamp"
@@ -84,9 +84,9 @@ transaction_events_conf as (
         conf.payload as conf_payload
     from transaction_events as req
     left join ocpp_logs as conf on req.unique_id = conf.unique_id
-        and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
+        and conf.message_type_id = '{{ var("message_type_ids").CALLRESULT }}'
         and conf.ingested_ts >= req.ingested_ts
-        and conf.ingested_ts <= {{ dbt.dateadd("second", 15, "req.ingested_ts") }}
+        and conf.ingested_ts <= {{ timestamp_add("second", 15, "req.ingested_ts") }}
 
 ),
 
@@ -119,7 +119,7 @@ transactions as (
         transaction_id,
         charger_id,
 
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="connector_id")) }} as connector_ids,
+        {{ array_agg_distinct('connector_id') }} as connector_ids,
 
         -- Transaction timing details
         min(ingested_ts) as ingested_ts,
@@ -133,8 +133,8 @@ transactions as (
         min(transaction_stop_reason) as transaction_stop_reason,
 
         --Authentication details
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="id_tag")) }} as id_tags,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="id_tag_status")) }} as id_tag_statuses,
+        {{ array_agg_distinct('id_tag') }} as id_tags,
+        {{ array_agg_distinct('id_tag_status') }} as id_tag_statuses,
 
         -- Energy transfer details
         min(meter_start) as meter_start_wh,

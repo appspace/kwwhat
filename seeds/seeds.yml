@@ -15,7 +15,7 @@ seeds:
       seed's own columns are unchanged by this split.
     config:
       column_types:
-        fault_code: varchar(5)
+        fault_code: string
     columns:
       - name: taxonomy
         description: "Identifies the fault-code scheme this row belongs to. 'https://chargex.inl.gov' matches the vendorId ChargeX's Implementation Guide recommends reporting in StatusNotification alongside vendorErrorCode - not the OEM name. Same value on every row of this seed - carried as a column, not a SQL literal, so a future OEM's seed can supply its own taxonomy without a model change. Composite natural key together with fault_code."
@@ -43,6 +43,7 @@ seeds:
           - accepted_values:
               arguments:
                 values: [true, false]
+                quote: false
       - name: responsible_cso
         description: "True if the Charging Station Operator is a likely responsible party for resolving this error."
         data_tests:
@@ -50,6 +51,7 @@ seeds:
           - accepted_values:
               arguments:
                 values: [true, false]
+                quote: false
       - name: responsible_evse
         description: "True if the EVSE (charging station hardware) is a likely responsible party for resolving this error."
         data_tests:
@@ -57,6 +59,7 @@ seeds:
           - accepted_values:
               arguments:
                 values: [true, false]
+                quote: false
       - name: responsible_ev
         description: "True if the EV (vehicle) is a likely responsible party for resolving this error."
         data_tests:
@@ -64,6 +67,7 @@ seeds:
           - accepted_values:
               arguments:
                 values: [true, false]
+                quote: false
       - name: is_safety
         description: "True if this error compromises the safety of the user, vehicle, or charging infrastructure."
         data_tests:
@@ -71,6 +75,7 @@ seeds:
           - accepted_values:
               arguments:
                 values: [true, false]
+                quote: false
       - name: is_security
         description: "True if this error relates to authentication, data privacy, or secure operation of the charging system."
         data_tests:
@@ -78,6 +83,7 @@ seeds:
           - accepted_values:
               arguments:
                 values: [true, false]
+                quote: false
       - name: is_maintenance
         description: "True if this error signals a need for technical service, component repair, or replacement."
         data_tests:
@@ -85,6 +91,7 @@ seeds:
           - accepted_values:
               arguments:
                 values: [true, false]
+                quote: false
       - name: is_financial
         description: "True if this error relates to payment processing, pricing, or billing."
         data_tests:
@@ -92,6 +99,7 @@ seeds:
           - accepted_values:
               arguments:
                 values: [true, false]
+                quote: false
       - name: is_authorization
         description: "True if this error relates to user access control or authorization communication between the EV and EVSE."
         data_tests:
@@ -99,6 +107,7 @@ seeds:
           - accepted_values:
               arguments:
                 values: [true, false]
+                quote: false
 
   - name: ocpp_1_6_error_codes
     description: >

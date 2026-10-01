@@ -14,7 +14,7 @@
         select
             from_timestamp,
             least(
-                {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
+                {{ timestamp_add(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
                 (select max(incremental_ts) from {{ ref("int_status_changes") }})
             ) as to_timestamp
         from
@@ -27,7 +27,7 @@
     with incremental_date_range as (
         select
             from_timestamp,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 var("incremental_window").unit,
                 var("incremental_window").length,
                 "from_timestamp"
@@ -227,7 +227,7 @@ select
     port_id,
     from_ts,
     to_ts,
-    {{ dbt.datediff('from_ts', 'to_ts', 'minutes') }} as duration_minutes,
+    {{ dbt.datediff('from_ts', 'to_ts', 'minute') }} as duration_minutes,
     latest_error_code_name,
     latest_error_code,
     latest_taxonomy,

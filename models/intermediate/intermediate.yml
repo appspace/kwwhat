@@ -192,8 +192,10 @@ models:
         description: "Timestamp when the status change confirmation was received"
       - name: id_tags
         description: "Array of driver identifiers (id_tag) from Authorize/StartTransaction messages"
+        data_type: array<string>
       - name: id_tag_statuses
         description: "Array of authorization statuses (e.g., 'Accepted', 'Blocked')"
+        data_type: array<string>
       - name: transaction_id
         description: "Primary transaction ID for this charge attempt (first element from transaction_ids array)"
       - name: _unique_transaction_count
@@ -202,6 +204,7 @@ models:
           - accepted_values:
               arguments:
                 values: [0, 1]
+                quote: false
       - name: updated_ts
         description: "The latest real event timestamp incorporated into this row so far - next_ingested_ts once known, else the Preparing event's own ingested_ts - carried forward and advanced (via greatest()) across every incremental run that touches the row. Downstream consumers (fact_charge_attempts) filter on this, not ingested_ts, to avoid missing later updates to an already-emitted row."
         data_tests:
@@ -247,8 +250,10 @@ models:
         description: "Reason for stopping the transaction (e.g., 'EVDisconnected', 'DeAuthorized', 'Local')"
       - name: id_tags
         description: "Array of driver identifiers (id_tag) from Authorize/StartTransaction messages"
+        data_type: array<string>
       - name: id_tag_statuses
         description: "Array of authorization statuses (e.g., 'Accepted', 'Blocked', 'Expired')"
+        data_type: array<string>
       - name: meter_start_wh
         description: "Meter reading at transaction start (Wh)"
       - name: meter_stop_wh
@@ -260,6 +265,7 @@ models:
           - accepted_values:
               arguments:
                 values: [1]
+                quote: false
       - name: updated_ts
         description: "The latest real event timestamp incorporated into this transaction so far (max(ingested_ts) across its events), carried forward and advanced (via greatest()) across every incremental run that touches the row - e.g. jumps to the StopTransaction timestamp once the transaction completes. Downstream consumers (fact_charge_attempts) filter on this, not ingested_ts, to avoid missing later updates to an already-emitted row."
         data_tests:
