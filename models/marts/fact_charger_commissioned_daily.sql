@@ -34,16 +34,17 @@ commissioned_days as (
         c.decommissioned_ts
     from charger_commissioned_span as c
     cross join calendar as d
-    where d.date_id >= {{ dbt.date_trunc('day', 'c.commissioned_ts') }}
-      and d.date_id <= {{ dbt.date_trunc('day', 'c.decommissioned_ts') }}
+    where d.date_id >= cast(c.commissioned_ts as date)
+      and d.date_id <= cast(c.decommissioned_ts as date)
 ),
 
 span_bounds as (
     select
         charger_id,
         date_id,
-        greatest(commissioned_ts, date_id) as span_start,
-        least(decommissioned_ts, {{ dbt.dateadd('day', 1, 'date_id') }}) as span_end
+        -- date_id is DATE; cast so it compares with the timestamps on every warehouse
+        greatest(commissioned_ts, cast(date_id as {{ dbt.type_timestamp() }})) as span_start,
+        least(decommissioned_ts, {{ timestamp_add('day', 1, 'date_id') }}) as span_end
     from commissioned_days
 ),
 

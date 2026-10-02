@@ -354,7 +354,7 @@ semantic_models:
         expr: uptime
 
   - name: downtime_daily
-    description: "Port-level daily downtime, split by reason (FAULTED or OFFLINE) and, for FAULTED rows, the vendor-specific fault code (joined to error_codes via latest_error_code_key) from whichever outage in that day/reason bucket ended most recently."
+    description: "Minutes each port was down per day, split by downtime_type (FAULTED: the port reported a fault; OFFLINE: no heartbeats from the charger) and reason ('NoHeartbeat' for OFFLINE; for FAULTED, the error name, 'NoError' if none was reported, or 'UnknownError' if the code isn't in error_codes). Use it when uptime drops, to find out why: which ports, locations and days lost the most time, whether chargers were broken or just unreachable, and which errors cost the most minutes. Join error_codes for description. For the headline reliability number use uptime instead."
     model: ref('fact_downtime_daily')
     defaults:
       agg_time_dimension: date_id
@@ -362,9 +362,6 @@ semantic_models:
       - name: downtime_record
         type: primary
         expr: downtime_id
-      - name: charger
-        type: foreign
-        expr: charger_id
       - name: port
         type: foreign
         expr: port_key
@@ -382,6 +379,8 @@ semantic_models:
       - name: charger_id
         type: categorical
       - name: port_id
+        type: categorical
+      - name: downtime_type
         type: categorical
       - name: reason
         type: categorical
@@ -478,7 +477,7 @@ metrics:
       measure: uptime_average
 
   - name: total_downtime_minutes
-    description: "Primary reliability metric. Total minutes of downtime, sliceable by reason (FAULTED/OFFLINE) and, for FAULTED downtime, by error code."
+    description: "Drill down metric for uptime. Total minutes of downtime, sliceable by downtime_type (FAULTED/OFFLINE), by reason, and, for FAULTED downtime, by vendor error code."
     label: "Total downtime minutes"
     type: simple
     type_params:

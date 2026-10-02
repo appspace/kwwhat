@@ -28,7 +28,7 @@ models:
               - from_ts
 
   - name: int_faulted_outages
-    description: "Intermediate incremental model that detects port-level faulted outages by aggregating connector fault periods. Only periods where ALL connectors for a port are simultaneously faulted are considered outages. Grain: one row per charger_id + port_id + from_ts outage start."
+    description: "Intermediate incremental model that detects port-level faulted outages by aggregating connector fault periods. Only periods where ALL connectors for a port are simultaneously faulted are considered outages, or where connector 0 (the charger as a whole) is faulted, which faults every port on the charger. Grain: one row per charger_id + port_id + from_ts outage start."
     columns:
       - name: charger_id
         description: "Identifier for the charge point that experienced the faulted outage"
@@ -43,7 +43,7 @@ models:
         data_tests:
           - not_null
       - name: to_ts
-        description: "Timestamp when the faulted outage period ended (when at least one connector recovered from faulted status)"
+        description: "Timestamp when the faulted outage period ended (when at least one connector, or connector 0 for a charger-wide fault, reported its next status). For an ongoing outage, the batch's incremental_ts (the last log received upstream); the next run extends it."
         data_tests:
           - not_null
       - name: duration_minutes
@@ -51,11 +51,11 @@ models:
         data_tests:
           - not_null
       - name: latest_error_code_name
-        description: "Standard OCPP 1.6 error code (errorCode, e.g. 'OtherError', 'GroundFailure') from whichever connector fault period started most recently during this outage. Matches dim_error_codes.error_code_name for taxonomy 'ocpp1.6'. Carried forward as fact_downtime_daily.latest_error_code_name."
+        description: "Error code name if standard OCPP error, otherwise 'OtherError' for vendor specific errors"
       - name: latest_error_code
-        description: "Vendor-specific fault code (vendorErrorCode, e.g. ChargeX MREC 'CX003' for HighTemperature) from whichever connector fault period started most recently during this outage. Null if the vendor doesn't report one. Meaning depends on the fault-code scheme - decode via dim_error_codes on (latest_taxonomy, latest_error_code). Carried forward as fact_downtime_daily.latest_error_code."
+        description: "Vendor-specific error code"
       - name: latest_taxonomy
-        description: "Vendor-specific fault-code scheme (vendorId, e.g. ChargeX's 'https://chargex.inl.gov') paired with latest_error_code, scoping how it should be decoded - see dim_error_codes.taxonomy. Not the charger's OEM/manufacturer. Null if the vendor doesn't populate it."
+        description: "Vendor, e.g. ChargeX's 'https://chargex.inl.gov') or Null if standard OCPP error"
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

@@ -258,8 +258,8 @@ new_visits as (
         max(location_id) as location_id,
         max(charge_attempt_stop_ts) as visit_end_ts,
         count(*) as charge_attempt_count,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="charge_attempt_id")) }} as charge_attempt_ids,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="charger_id")) }} as charger_ids,
+        {{ array_agg_distinct('charge_attempt_id') }} as charge_attempt_ids,
+        {{ array_agg_distinct('charger_id') }} as charger_ids,
         sum(coalesce(energy_transferred_kwh, 0)) as total_energy_transferred_kwh,
         {{ dbt.datediff(
             'min(charge_attempt_start_ts)',
@@ -340,7 +340,7 @@ new_visits as (
             and b.last_charger_id = auth.first_charger_id
             and b.last_port_id = auth.first_port_id
             and b.visit_end_ts < auth.visit_start_ts  -- New visit starts after old one ends
-            and auth.visit_start_ts <= {{ dbt.dateadd("minute", 2, "b.visit_end_ts") }}  -- Within 2 minutes
+            and auth.visit_start_ts <= {{ timestamp_add("minute", 2, "b.visit_end_ts") }}  -- Within 2 minutes
     ),
 
     visits_buffer_with_grouping_strategies as (
@@ -402,7 +402,7 @@ new_visits as (
         left join visits_buffer_with_grouping_strategies b
             on b.grouping_key = nv.grouping_key
             and b.visit_end_ts < nv.visit_start_ts
-            and nv.visit_start_ts <= {{ dbt.dateadd("minute", "nv.time_window_minutes", "b.visit_end_ts") }}
+            and nv.visit_start_ts <= {{ timestamp_add("minute", "nv.time_window_minutes", "b.visit_end_ts") }}
     ),
 
     visits as (

@@ -53,14 +53,14 @@ with incremental_date_range as (
             measurand,
             unit,
             phase,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 "minute",
-                '-(minute(first_measurement_ts) % 15)',
+                '-mod(extract(minute from first_measurement_ts), 15)',
                 dbt.date_trunc("minute", 'first_measurement_ts')
             ) }} as first_interval,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 "minute",
-                '-(minute(last_measurement_ts) % 15)',
+                '-mod(extract(minute from last_measurement_ts), 15)',
                 dbt.date_trunc("minute", 'last_measurement_ts')
             ) }} as last_interval,
             first_measurement_ts,
@@ -84,7 +84,7 @@ with incremental_date_range as (
             {{ payload_extract_meter_values('action', 'payload') }} as meter_values
         from ocpp_logs
         where action = 'MeterValues'
-            and message_type_id = {{ var("message_type_ids").CALL }}
+            and message_type_id = '{{ var("message_type_ids").CALL }}'
     ),
 
     meter_value_records as (
@@ -98,14 +98,14 @@ with incremental_date_range as (
                 as {{ dbt.type_timestamp() }}
             ) as meter_timestamp,
             -- Keep the full meter value object for now
-            {{ json_extract(string="mv.value", string_path="sampledValue") }} as sample_values
+            {{ json_extract_array(string="mv.value", string_path="sampledValue") }} as sample_values
         from meter_value_logs
         {{ json_array_unnest('meter_values') }} as mv
         where meter_values is not null
             and mv.value is not null
     ),
 
-    sample_values as (
+    sample_value_rows as (
         select
             charger_id,
             transaction_id,
@@ -122,16 +122,16 @@ with incremental_date_range as (
             transaction_id,
             connector_id,
             meter_timestamp,
-            {{ dbt.dateadd(
+            {{ timestamp_add(
                 "minute",
-                '-(minute(meter_timestamp) % 15)',
+                '-mod(extract(minute from meter_timestamp), 15)',
                 dbt.date_trunc("minute", 'meter_timestamp')
             ) }} as meter_15min_interval_start,
             {{ fivetran_utils.pivot_json_extract(
                 string="sample_values",
                 list_of_properties=["measurand", "value", "unit", "phase"]
             ) }}
-        from sample_values
+        from sample_value_rows
     ),
 
     measurements_with_context as (
@@ -179,7 +179,7 @@ with incremental_date_range as (
             end as meter_15min_interval_start,
             case
                 when meter_15min_interval_start = last_interval then last_measurement_ts
-                else {{ dbt.dateadd("minute", 15, "meter_15min_interval_start") }}
+                else {{ timestamp_add("minute", 15, "meter_15min_interval_start") }}
             end as meter_15min_interval_stop,
             measurand,
             unit,
