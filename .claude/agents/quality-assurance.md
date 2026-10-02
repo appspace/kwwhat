@@ -86,6 +86,124 @@ Skip unit tests on the repeated build/run calls within this procedure (`--exclud
 
 Add a row for this to the coverage table: `Full-refresh vs. incremental parity | row-level diff | ✓/✗ | ✓/✗`.
 
+### Cross-adapter compatibility
+
+The project must run unchanged on every warehouse it has macro implementations for. Snowflake (`dev` target) is the primary warehouse, but passing there proves little: Snowflake silently coerces types and accepts syntax other warehouses reject. Run this check on request, and proactively before approving a PR that touches a file in `macros/`, adds an `adapter.dispatch` implementation, or changes array, JSON or date logic in a model.
+
+Adapters you can test locally (DuckDB and Postgres run in Docker, so the Docker daemon must be running):
+
+| Adapter | How | Expected state |
+|---|---|---|
+| Snowflake | `dbt build` with the local `.venv` (target `dev`) | Must pass fully |
+| DuckDB | The `demo/` docker compose stack | Must pass fully |
+| Postgres | Throwaway Postgres container plus a dbt container | Partially supported; report every failure, separating new ones from the known baseline |
+| BigQuery | Not available locally | Report as "not verified", ask the PR author to run `dbt build --target bigquery_dev --full-refresh` |
+
+#### DuckDB
+
+The demo stack loads the raw CSVs from `demo/seeds/` into `/data/raw.duckdb`, then the `dbt` service builds into `/data/analytics.duckdb` on the `duckdb-data` volume. The repo is mounted at `/kwwhat`, so the container always runs your working tree.
+
+Full pipeline (seed, full-refresh run, data tests, then unit tests):
+
+```bash
+cd demo
+docker compose build dbt      # required whenever demo/dbt/entrypoint.sh or the Dockerfile changed; both are baked into the image
+docker compose run --rm dbt
+```
+
+Read the four `Done. PASS=... ERROR=...` lines. The entrypoint prints "Some tests failed" instead of exiting non-zero, so a zero exit code does not mean success.
+
+Targeted run, once the full pipeline has run at least once (it needs `raw.duckdb` on the volume):
+
+```bash
+cd demo
+docker compose run --rm --entrypoint dbt dbt build --target duckdb \
+  --target-path /tmp/target --log-path /tmp/dbt-logs --select +<model>
+```
+
+Always pass `--target-path /tmp/target`, otherwise the container overwrites the host's `target/` directory, which the Snowflake runs use.
+
+Gotchas:
+- Unit tests read column types from the built upstream tables. If `analytics.duckdb` was last built from another branch, unit tests fail with missing or invalid columns. Rerun the full pipeline before trusting unit test failures.
+- The `chat-bi` demo service reads `analytics.duckdb`. A rerun replaces what the demo shows, so mention it in your report.
+
+#### Postgres
+
+There is no Postgres target in `~/.dbt/profiles.yml`, and the host Python is too old for dbt 1.11, so everything runs in containers on a private Docker network. Postgres cannot query across databases, so the raw source is loaded into a `seed` schema of the same database and pointed at with `--vars`.
+
+1. **Start Postgres and load the raw CSVs**
+   ```bash
+   docker network create kwwhat-pg-net
+   docker run -d --rm --name kwwhat-pg --network kwwhat-pg-net \
+     -e POSTGRES_USER=kwwhat -e POSTGRES_PASSWORD=kwwhat -e POSTGRES_DB=kwwhat \
+     -v "$PWD/demo/seeds:/seeds:ro" postgres:16-alpine
+   until docker exec kwwhat-pg pg_isready -U kwwhat -q; do sleep 1; done
+   docker exec -i kwwhat-pg psql -U kwwhat -v ON_ERROR_STOP=1 -q <<'SQL'
+   create schema seed;
+   create table seed.ocpp_1_6_synthetic_logs_14d (timestamp text, id text, action text, msg text);
+   create table seed.chargers (charge_point_id text, location_id text, commissioned_ts text, decommissioned_ts text);
+   create table seed.ports (charge_point_id text, port_id text);
+   create table seed.connectors (charge_point_id text, port_id text, connector_id text, connector_type text);
+   \copy seed.ocpp_1_6_synthetic_logs_14d from '/seeds/ocpp_1_6_synthetic_logs_14d.csv' csv header
+   \copy seed.chargers from '/seeds/chargers.csv' csv header
+   \copy seed.ports from '/seeds/ports.csv' csv header
+   \copy seed.connectors from '/seeds/connectors.csv' csv header
+   SQL
+   ```
+   Raw columns are loaded as `text` on purpose: staging does the type casting, which is part of what is under test. If a seed CSV gains a column, update its `create table` here.
+
+2. **Write a throwaway profile** outside the repo (the scratchpad or `/tmp`):
+   ```bash
+   mkdir -p /tmp/kwwhat-pg-profiles
+   cat > /tmp/kwwhat-pg-profiles/profiles.yml <<'YML'
+   kwwhat:
+     target: postgres
+     outputs:
+       postgres:
+         type: postgres
+         host: kwwhat-pg
+         port: 5432
+         user: kwwhat
+         password: kwwhat
+         dbname: kwwhat
+         schema: analytics
+         threads: 4
+   YML
+   ```
+
+3. **Run dbt in a container**, from the repo root:
+   ```bash
+   docker run --rm --network kwwhat-pg-net \
+     -v "$PWD:/kwwhat" -v /tmp/kwwhat-pg-profiles:/profiles:ro \
+     -e DBT_PROFILES_DIR=/profiles -w /kwwhat python:3.12-slim bash -c '
+       pip install -q --root-user-action=ignore "dbt-core==1.11.11" "dbt-postgres~=1.10"
+       O="--target-path /tmp/target --log-path /tmp/logs"
+       V="{raw_database: kwwhat, raw_schema: seed}"
+       dbt deps $O
+       dbt seed $O --vars "$V"
+       dbt run  $O --vars "$V" --full-refresh
+       dbt test $O --vars "$V" --exclude "test_type:unit"
+       dbt test $O --vars "$V" --select "test_type:unit"'
+   ```
+   Pin `dbt-core` to the version in the project's `.venv` (`.venv/bin/dbt --version`). Each `docker run` reinstalls dbt (about 20 seconds); to iterate on one model, swap the four dbt commands for `dbt build ... --select +<model>`.
+
+4. **Clean up** when done, pass or fail: `docker stop kwwhat-pg && docker network rm kwwhat-pg-net`. The container was started with `--rm`, so stopping it deletes the data.
+
+Triage Postgres failures before reporting them. Most errors are knock-on effects of a few root causes:
+- `relation "analytics.<model>" does not exist` and `Not able to get columns for unit test ... because the relation doesn't exist` mean an upstream model failed to build. Report the model that failed, not each test that depends on it.
+- `syntax error at or near "ARRAY"` in unit tests comes from a Snowflake/BigQuery-style `data_type` such as `array<string>` in the yml, which Postgres cannot cast fixture values to.
+- Everything else is a genuine incompatibility. Report the model or macro, the error, and the line from the compiled SQL (`/tmp/target/run/...` inside the container; rerun with `dbt compile --select <model>` and `cat` it to see it).
+
+Baseline as of the BigQuery compatibility PR (#155) plus the Postgres macro fixes, so you can tell new breakage from known gaps: `dbt run` builds 26 of 31 models. `dim_dates` fails on `extract(dayofweek ...)`, `fact_visits` fails on `max()` over a boolean, and 3 downstream models are skipped. Treat anything beyond this as a regression, and update this baseline when a gap is fixed.
+
+#### Reporting
+
+Add one row per adapter to the coverage table:
+
+`Cross-adapter: <adapter> | dbt run / data tests / unit tests | ✓/✗ | PASS/ERROR counts`
+
+A macro change that passes on Snowflake but was not run on DuckDB and Postgres is **Warn** at best, never **Pass**.
+
 ## How you report findings
 
 For each model, produce a coverage table:

@@ -36,3 +36,8 @@
     {# DuckDB's array_agg keeps nulls; list_distinct removes both duplicates and nulls. #}
     list_distinct(array_agg({{ field_to_agg }}))
 {% endmacro %}
+
+{% macro postgres__array_agg_distinct(field_to_agg) %}
+    {# Postgres's array_agg keeps nulls; array_remove drops them (and returns {} when every value is null). #}
+    array_remove(array_agg(distinct {{ field_to_agg }}), null)
+{% endmacro %}
