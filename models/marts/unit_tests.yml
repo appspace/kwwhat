@@ -965,10 +965,11 @@ unit_tests:
 
   # ── fact_downtime_daily ─────────────────────────────────────────────────────
 
-  - name: test_downtime_daily_offline_excluded_during_faulted_outage
+  - name: test_downtime_daily_offline_during_faulted_outage_is_left_to_post_hook
     description: >
-      An offline outage whose from_ts falls inside an active faulted outage window
-      should be excluded. Only the faulted outage row should appear in the output.
+      An offline outage whose from_ts falls inside an active faulted outage window is
+      still in the model's output, next to the faulted outage. The model's post_hook
+      deletes it from the table after the run; unit tests don't run hooks.
     model: fact_downtime_daily
     overrides:
       macros:
@@ -994,11 +995,13 @@ unit_tests:
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 120}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 120}
 
   - name: test_downtime_daily_multi_day_outage_split_across_days
     description: >
       An outage spanning midnight (22:00 day 1 to 04:00 day 2) must produce two
-      rows: 120 minutes on day 1 and 240 minutes on day 2.
+      rows: 120 minutes on day 1 and 240 minutes on day 2. Both rows carry the whole
+      outage's from/to timestamps.
     model: fact_downtime_daily
     overrides:
       macros:
@@ -1023,8 +1026,39 @@ unit_tests:
           - {date_id: 2025-10-02}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 120}
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 240}
+        - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', outage_from_ts: '2025-10-01 22:00:00', outage_to_ts: '2025-10-02 04:00:00', duration_minutes: 120}
+        - {date_id: 2025-10-02, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', outage_from_ts: '2025-10-01 22:00:00', outage_to_ts: '2025-10-02 04:00:00', duration_minutes: 240}
+
+  - name: test_downtime_daily_outage_ending_at_midnight_has_no_row_for_next_day
+    description: >
+      Setup: an offline outage from 22:00 on 2025-10-01 to exactly midnight (2025-10-02 00:00).
+      Expected: one row, 120 minutes on 2025-10-01. The outage doesn't cover any of 2025-10-02, so there
+      is no 0-minute row for it.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows: []
+      - input: ref('int_offline_outages')
+        rows:
+          - {charger_id: 'CH-001', from_ts: 2025-10-01 22:00:00, to_ts: 2025-10-02 00:00:00, duration_minutes: 120, incremental_ts: 2025-10-02 12:00:00}
+      - input: ref('dim_error_codes')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001'}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001'}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01}
+          - {date_id: 2025-10-02}
+    expect:
+      rows:
+        - {date_id: 2025-10-01, downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 120}
 
   - name: test_downtime_daily_same_day_outages_split_by_error_code
     description: >
@@ -1063,13 +1097,12 @@ unit_tests:
         - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'HighTemperature', duration_minutes: 60}
         - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'GroundFailure', duration_minutes: 60}
 
-  - name: test_downtime_daily_same_reason_outages_pick_latest_vendor_code
+  - name: test_downtime_daily_same_reason_outages_keep_their_own_codes
     description: >
       Two faulted-outage episodes on the same charger/port/day resolve to different
       dim_error_codes rows with the same error_code_name 'GroundFailure': one reported
-      with no vendor code (the OCPP 1.6 row), one with ChargeX CX002. They merge into one
-      'GroundFailure' row with duration_minutes summed, and latest_error_code/
-      latest_error_code_key taken from whichever episode ended most recently.
+      with no vendor code (the OCPP 1.6 row), one with ChargeX CX002. Each outage is its
+      own row, with the same reason but its own latest_error_code_key.
     model: fact_downtime_daily
     overrides:
       macros:
@@ -1096,15 +1129,15 @@ unit_tests:
           - {date_id: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'GroundFailure', duration_minutes: 120, latest_error_code_key: 'chargex-cx002'}
+        - {outage_from_ts: '2025-10-01 08:00:00', downtime_type: 'FAULTED', reason: 'GroundFailure', duration_minutes: 60, latest_error_code_key: 'ocpp-groundfailure'}
+        - {outage_from_ts: '2025-10-01 14:00:00', downtime_type: 'FAULTED', reason: 'GroundFailure', duration_minutes: 60, latest_error_code_key: 'chargex-cx002'}
 
   - name: test_downtime_daily_no_error_code_and_noerror_sentinel_share_reason
     description: >
       A faulted outage with no errorCode and one reporting OCPP's NoError sentinel both
       mean the charger gave no error. The sentinel resolves to the OCPP 1.6 'NoError' row
-      in dim_error_codes; the missing code gets the same label. They land on the same
-      'NoError' row, with
-      duration_minutes summed, separate from an OFFLINE ('NoHeartbeat') outage the same day.
+      in dim_error_codes; the missing code gets the same label. Both outages get reason
+      'NoError', one row each, separate from an OFFLINE ('NoHeartbeat') outage the same day.
     model: fact_downtime_daily
     overrides:
       macros:
@@ -1131,8 +1164,9 @@ unit_tests:
           - {date_id: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 120}
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 30}
+        - {outage_from_ts: '2025-10-01 08:00:00', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 60}
+        - {outage_from_ts: '2025-10-01 14:00:00', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 60}
+        - {outage_from_ts: '2025-10-01 18:00:00', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 30}
 
   - name: test_downtime_daily_error_code_key_resolves_from_dim_error_codes
     description: >
@@ -1324,6 +1358,85 @@ unit_tests:
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'UnknownError', latest_error_code_key: null}
+
+  - name: test_downtime_daily_incremental_rewrites_only_reread_outages
+    description: >
+      Setup: F1, F2 and F3 are on 2025-10-01, and F1 and F2 are stamped 2025-10-01 12:00. The fact's
+      watermark is 2025-10-02 18:00, so their stamps are behind it. F3 was extended by a newer batch
+      and is re-read.
+      Expected: only F3's row (360 minutes). F1 and F2 are not read, and their rows are left in place:
+      delete+insert on outage_id only replaces the outages in the batch.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        rows:
+          - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 240, incremental_ts: 2025-10-02 18:00:00}
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 11:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 20:00:00, duration_minutes: 360, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-03 12:00:00}
+      - input: ref('int_offline_outages')
+        rows: []
+      - input: ref('dim_error_codes')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
+          - {date_id: 2025-10-02, date_day: 2025-10-02}
+          - {date_id: 2025-10-03, date_day: 2025-10-03}
+    expect:
+      rows:
+        - {date_id: 2025-10-01, outage_from_ts: '2025-10-01 14:00:00', outage_to_ts: '2025-10-01 20:00:00', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 360}
+
+  - name: test_downtime_daily_incremental_multi_day_outage_rewrites_all_its_days
+    description: >
+      Setup: F0 is 60 minutes on 2025-10-01 with an old stamp. F3 starts at 20:00 that day and now
+      runs to 2025-10-03 06:00.
+      Expected: F3's rows for all three days (240 / 1440 / 360), including 2025-10-01, which is behind
+      the watermark. F0 is not read, so its row on 2025-10-01 is left in place.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        rows:
+          - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 300, incremental_ts: 2025-10-02 18:00:00}
+          - {date_id: 2025-10-02, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 1080, incremental_ts: 2025-10-02 18:00:00}
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 20:00:00, to_ts: 2025-10-03 06:00:00, duration_minutes: 2040, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-03 06:00:00}
+      - input: ref('int_offline_outages')
+        rows: []
+      - input: ref('dim_error_codes')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
+          - {date_id: 2025-10-02, date_day: 2025-10-02}
+          - {date_id: 2025-10-03, date_day: 2025-10-03}
+    expect:
+      rows:
+        - {date_id: 2025-10-01, outage_from_ts: '2025-10-01 20:00:00', outage_to_ts: '2025-10-03 06:00:00', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 240}
+        - {date_id: 2025-10-02, outage_from_ts: '2025-10-01 20:00:00', outage_to_ts: '2025-10-03 06:00:00', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 1440}
+        - {date_id: 2025-10-03, outage_from_ts: '2025-10-01 20:00:00', outage_to_ts: '2025-10-03 06:00:00', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 360}
 
   # ── dim_connectors ──────────────────────────────────────────────────────────
 
