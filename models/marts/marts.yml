@@ -506,6 +506,12 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 1
+      - name: max_power_kw
+        description: >
+          Physical power ceiling of the Port in kilowatts - the most it was built to deliver to one EV.
+          Not a sum of its connectors: when connectors are mutually exclusive (e.g. CHAdeMO 50 kW + CCS 150 kW),
+          this is the max across them (150). Denominator for port-level energy-based utilisation, so a session on a
+          lower-rated connector legitimately shows lower port utilisation.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -545,6 +551,11 @@ models:
           - accepted_values:
               arguments:
                 values: ['CCS', 'NACS', 'CHAdeMO', 'Type1', 'Type2']
+      - name: max_power_kw
+        description: >
+          Rated maximum power of this Connector in kilowatts. Can be lower than its Port's max_power_kw
+          (e.g. a CHAdeMO connector on a 150 kW port). Denominator for connector-level energy-based utilisation,
+          since energy delivered is measured per connector.
       - name: latest_status
         description: "Most recent OCPP status reported by this connector. Null if no StatusNotification has been received yet."
         data_tests:
