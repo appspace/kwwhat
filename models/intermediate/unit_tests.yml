@@ -96,7 +96,7 @@ unit_tests:
     description: >
       A StatusNotification carrying a ChargeX MREC fault code in vendorErrorCode
       (e.g. 'CX003' for HighTemperature) should have it extracted into
-      vendor_error_code, alongside the standard OCPP error_code, the vendorId
+      error_code, alongside the standard OCPP errorCode (error_code_name), the vendorId (taxonomy)
       ('https://chargex.inl.gov') that scopes how to decode it, and the info field
       (the actual observed value, e.g. '50'). A StatusNotification without
       vendorErrorCode/vendorId/info fields should leave all three null.
@@ -112,8 +112,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '2', port_id: 'PORT-002', location_id: 'LOC-001', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-002', payload: '{"connectorId": 2, "errorCode": "NoError", "status": "Available"}'}
     expect:
       rows:
-        - {connector_id: '1', status: 'Faulted', error_code: 'HighTemperature', vendor_error_code: 'CX003', vendor_id: 'https://chargex.inl.gov', info: '50'}
-        - {connector_id: '2', status: 'Available', error_code: 'NoError', vendor_error_code: null, vendor_id: null, info: null}
+        - {connector_id: '1', status: 'Faulted', error_code_name: 'HighTemperature', error_code: 'CX003', taxonomy: 'https://chargex.inl.gov', info: '50'}
+        - {connector_id: '2', status: 'Available', error_code_name: 'NoError', error_code: null, taxonomy: null, info: null}
 
   - name: test_status_changes_lag_lead_populated_correctly
     description: >
@@ -182,7 +182,7 @@ unit_tests:
         - {status: 'Available', previous_status: null,        next_status: 'Preparing'}
         - {status: 'Preparing', previous_status: 'Available', next_status: null}
 
-  - name: test_status_changes_buffer_ignores_event_outside_30_min_window
+  - name: test_status_changes_buffer_closes_open_status_older_than_30_min
     description: >
       Same from_timestamp/buffer_from_timestamp as the within-window test (10:00:00 /
       09:30:00), but the buffered row's own ingested_ts (09:20:00) falls outside that
@@ -202,7 +202,27 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-001', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'}
     expect:
       rows:
-        - {status: 'Preparing', previous_status: null, next_status: null}
+        - {status: 'Available', previous_status: null,        next_status: 'Preparing'}
+        - {status: 'Preparing', previous_status: 'Available', next_status: null}
+
+  - name: test_status_changes_run_with_no_new_logs_writes_nothing
+    description: >
+      Setup: the watermark is 10:00 and connector 1's latest status, Available at 09:45, is open. No new
+      logs arrive in this run.
+      Expected: nothing is written. The run has no incremental_ts, so writing the open status again would
+      give it a null stamp that downstream filters never pick up.
+    model: int_status_changes
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 09:45:00, unique_id: 'UID-000', status: 'Available', next_status: null, incremental_ts: 2025-10-01 10:00:00}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows: []
 
   # ── int_faulted_outages ─────────────────────────────────────────────────────
 
@@ -222,6 +242,10 @@ unit_tests:
       - input: ref('int_ports')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 2}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
     expect:
       rows: []
 
@@ -241,6 +265,10 @@ unit_tests:
       - input: ref('int_ports')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 2}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:00:00', duration_minutes: 60}
@@ -261,36 +289,18 @@ unit_tests:
       - input: ref('int_ports')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
     expect:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00', duration_minutes: 120}
 
-  - name: test_faulted_outages_collects_root_cause_vendor_error_codes
-    description: >
-      A faulted outage should collect the distinct OCPP error codes reported by any
-      connector while faulted, plus the distinct ChargeX MREC fault codes and their
-      vendor_id, excluding nulls (connectors whose vendor doesn't implement the
-      ChargeX convention contribute no vendor code, not a null entry).
-    model: int_faulted_outages
-    overrides:
-      macros:
-        is_incremental: false
-    given:
-      - input: ref('int_status_changes')
-        rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', error_code: 'OtherError', vendor_error_code: 'CX003', vendor_id: 'https://chargex.inl.gov', next_status: null, next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '2', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', error_code: 'OtherError', vendor_error_code: null, vendor_id: null, next_status: null, next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
-      - input: ref('int_ports')
-        rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 2}
-    expect:
-      rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:00:00', error_codes: ['OtherError'], vendor_error_codes: ['CX003'], vendor_ids: ['https://chargex.inl.gov']}
-
   - name: test_faulted_outages_latest_root_cause_picks_most_recent_fault_period
     description: >
       When a merged outage spans two consecutive fault periods reporting different
-      codes, latest_error_code/latest_vendor_error_code/latest_vendor_id should come
+      codes, latest_error_code_name/latest_error_code/latest_taxonomy should come
       from the fault period that started most recently, not an arbitrary one.
     model: int_faulted_outages
     overrides:
@@ -299,14 +309,276 @@ unit_tests:
     given:
       - input: ref('int_status_changes')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', error_code: 'OtherError',    vendor_error_code: 'CX003', vendor_id: 'https://chargex.inl.gov', next_status: null, next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 11:00:00, status: 'Faulted', error_code: 'GroundFailure', vendor_error_code: 'CX010', vendor_id: 'https://chargex.inl.gov', next_status: null, next_ingested_ts: 2025-10-01 12:00:00, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', error_code_name: 'OtherError',    error_code: 'CX003', taxonomy: 'https://chargex.inl.gov', next_status: null, next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 11:00:00, status: 'Faulted', error_code_name: 'GroundFailure', error_code: 'CX010', taxonomy: 'https://chargex.inl.gov', next_status: null, next_ingested_ts: 2025-10-01 12:00:00, incremental_ts: 2025-10-01 12:00:00}
       - input: ref('int_ports')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00', latest_error_code: 'GroundFailure', latest_vendor_error_code: 'CX010', latest_vendor_id: 'https://chargex.inl.gov'}
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00', latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
+
+  - name: test_faulted_outages_ongoing_fault_ends_at_latest_status_change
+    description: >
+      Setup: connector 1 reports Faulted at 10:00 and nothing after it, so the fault is still ongoing.
+      The latest status change loaded is stamped 12:00.
+      Expected: the outage runs 10:00-12:00, ending at the latest data point, not at the end of the
+      3-month processing window.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', next_status: null, next_ingested_ts: null, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00', duration_minutes: 120}
+
+  - name: test_faulted_outages_ongoing_fault_ends_at_max_stamp_read_in_catch_up
+    description: >
+      Setup: catch-up full build. The 3-month window ends 2026-01-01, but int_status_changes goes on to
+      2026-03-01, so the window end is not a stamp. Connector 1 reports Faulted at 10:00, still open,
+      stamped 12:00, the max stamp read in the window.
+      Expected: the outage runs 10:00-12:00 and is stamped 12:00, so the next run starts where it was
+      cut off, instead of running to the window end.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', next_status: null, next_ingested_ts: null, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-002', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2026-03-01 00:00:00, status: 'Available', next_status: null, next_ingested_ts: null, incremental_ts: 2026-03-01 00:00:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00', duration_minutes: 120, incremental_ts: '2025-10-01 12:00:00'}
+
+  - name: test_faulted_outages_full_refresh_starts_where_status_changes_start
+    description: >
+      Setup: full refresh with a 6-day window. The first log arrives at 2025-10-01 08:00, so
+      int_status_changes starts there and stamps its first batch 2025-10-07 08:00, the last log in
+      its window. Connector 1 is Faulted from 08:11:07 to 08:12:37 on 10-01, in that batch.
+      Expected: the fault is an outage. int_faulted_outages starts from the same point (the first
+      log, not midnight), so its first window ends at the same time as the upstream's first batch.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: false
+      vars:
+        incremental_window: {unit: 'day', length: 6}
+    given:
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-002', port_id: '1', connector_id: '1', ingested_ts: 2025-10-01 08:11:07, status: 'Faulted', next_status: 'Available', next_ingested_ts: 2025-10-01 08:12:37, incremental_ts: 2025-10-07 08:00:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-002', port_id: '1', connector_count: 1}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 08:00:00}
+    expect:
+      rows:
+        - {charger_id: 'CH-002', port_id: '1', from_ts: '2025-10-01 08:11:07', to_ts: '2025-10-01 08:12:37'}
+
+  - name: test_faulted_outages_incremental_reads_only_new_status_changes
+    description: >
+      Setup: the watermark in this is 12:00. A fault 08:00-09:00 was loaded by an earlier batch
+      (stamped 09:00), and a new fault 14:00-15:00 arrives in this batch (stamped 15:00).
+      Expected: only the new 14:00-15:00 outage, stamped 15:00 (the batch's max incremental_ts).
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 08:00:00, status: 'Faulted', next_status: 'Available', next_ingested_ts: 2025-10-01 09:00:00, incremental_ts: 2025-10-01 09:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 14:00:00, status: 'Faulted', next_status: 'Available', next_ingested_ts: 2025-10-01 15:00:00, incremental_ts: 2025-10-01 15:00:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 14:00:00', to_ts: '2025-10-01 15:00:00', duration_minutes: 60, incremental_ts: '2025-10-01 15:00:00'}
+
+  - name: test_faulted_outages_connector_0_faulted_faults_every_port
+    description: >
+      Setup: two ports, each with two connectors (PORT-001: 1 and 2, PORT-002: 3 and 4). Connector 0
+      (the charger as a whole in OCPP) reports Faulted 10:00-11:00 while connectors 1-4 report nothing.
+      Connector 0 is not in int_connectors, so its port_id is null.
+      Expected: both ports are in a faulted outage 10:00-11:00.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: null, connector_id: '0', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', next_status: 'Available', next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 2}
+          - {charger_id: 'CH-001', port_id: 'PORT-002', connector_count: 2}
+      - input: ref('int_connectors')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1'}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '2'}
+          - {charger_id: 'CH-001', port_id: 'PORT-002', connector_id: '3'}
+          - {charger_id: 'CH-001', port_id: 'PORT-002', connector_id: '4'}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:00:00', duration_minutes: 60}
+        - {charger_id: 'CH-001', port_id: 'PORT-002', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:00:00', duration_minutes: 60}
+
+  - name: test_faulted_outages_incremental_extends_fault_open_at_batch_end
+    description: >
+      Setup: the previous run (watermark 12:00) loaded a fault that started at 10:00 and was still open,
+      so it was cut off at 12:00. This batch brings Available at 13:00, and int_status_changes writes the
+      Faulted row again, now with next_status 'Available' at 13:00 and stamped 13:00.
+      Expected: the outage starting 10:00 now ends at 13:00 (180 minutes).
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', next_status: 'Available', next_ingested_ts: 2025-10-01 13:00:00, incremental_ts: 2025-10-01 13:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 13:00:00, status: 'Available', next_status: null, next_ingested_ts: null, incremental_ts: 2025-10-01 13:00:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 13:00:00', duration_minutes: 180}
+
+  - name: test_faulted_outages_connector_0_recovery_ends_outage
+    description: >
+      Setup: one port with connectors 1 and 2. Connector 0 reports Faulted at 10:00 and Available at
+      11:00. Connector 1 reports Available at 12:00.
+      Expected: the outage runs 10:00-11:00. Connector 0's own next status ends the fault it reported.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: null, connector_id: '0', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', next_status: 'Available', next_ingested_ts: 2025-10-01 11:00:00, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: null, connector_id: '0', ingested_ts: 2025-10-01 11:00:00, status: 'Available', next_status: null, next_ingested_ts: null, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 12:00:00, status: 'Available', next_status: null, next_ingested_ts: null, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 2}
+      - input: ref('int_connectors')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1'}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '2'}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:00:00', duration_minutes: 60}
+
+  - name: test_faulted_outages_incremental_extends_ongoing_fault
+    description: >
+      Setup: the previous run (watermark 12:00) left a fault on PORT-001 open since 10:00, cut off at
+      12:00. This batch has no new status from PORT-001, but int_status_changes writes its open Faulted
+      row again, stamped 14:00, the batch's max incremental_ts.
+      Expected: the outage starting 10:00 now runs to 14:00.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', next_status: null, next_ingested_ts: null, incremental_ts: 2025-10-01 14:00:00}
+          - {charger_id: 'CH-002', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 14:00:00, status: 'Available', next_status: null, next_ingested_ts: null, incremental_ts: 2025-10-01 14:00:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 14:00:00', duration_minutes: 240}
+
+  - name: test_faulted_outages_incremental_closes_ongoing_two_connector_outage
+    description: >
+      Setup: one port with connectors 1 and 2. The previous run (watermark 12:00) saw connector 1 go
+      Faulted at 10:00 and connector 2 at 10:30, both still open, so it left an outage 10:30-12:00.
+      This batch brings Available for connector 1 at 13:00 and for connector 2 at 13:30.
+      int_status_changes writes both Faulted rows again, now closed, stamped 13:30.
+      Expected: the outage starting 10:30 now ends at 13:00, when the first connector recovered.
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:30:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 90, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, status: 'Faulted', next_status: 'Available', next_ingested_ts: 2025-10-01 13:00:00, incremental_ts: 2025-10-01 13:30:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '2', ingested_ts: 2025-10-01 10:30:00, status: 'Faulted', next_status: 'Available', next_ingested_ts: 2025-10-01 13:30:00, incremental_ts: 2025-10-01 13:30:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '1', ingested_ts: 2025-10-01 13:00:00, status: 'Available', next_status: null, next_ingested_ts: null, incremental_ts: 2025-10-01 13:30:00}
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_id: '2', ingested_ts: 2025-10-01 13:30:00, status: 'Available', next_status: null, next_ingested_ts: null, incremental_ts: 2025-10-01 13:30:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 2}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:30:00', to_ts: '2025-10-01 13:00:00', duration_minutes: 150}
 
   # ── int_offline_outages ─────────────────────────────────────────────────────
 
@@ -390,6 +662,32 @@ unit_tests:
     expect:
       rows:
         - {charger_id: 'CH-001', from_ts: '2025-10-01 09:00:00', to_ts: '2025-10-01 10:30:00'}
+
+  - name: test_offline_outages_ongoing_outage_ends_at_last_message_received
+    description: >
+      Setup: catch-up full build. The 3-month window ends 2026-01-01, but the logs go on to 2026-03-01,
+      so the window end is not a message. CH-001 sends its last message at 10:00 and CH-002 at 11:30,
+      the last message received in the window.
+      Expected: CH-001's ongoing outage runs 10:00-11:30, ending at the last message received (which is
+      also the batch's incremental_ts), not at the window end, so the next run can pick it up and extend
+      it. CH-002 has no outage yet.
+    model: int_offline_outages
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:00:00, charger_id: 'CH-001', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-01 11:30:00, charger_id: 'CH-002', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2026-03-01 00:00:00, charger_id: 'CH-002', action: 'Heartbeat', message_type_id: '2'}
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-10-01 09:59:00, decommissioned_ts: null}
+          - {charger_id: 'CH-002', location_id: 'LOC-001', commissioned_ts: 2025-10-01 11:29:00, decommissioned_ts: null}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:30:00', incremental_ts: '2025-10-01 11:30:00'}
 
   # ── int_connector_preparing ─────────────────────────────────────────────────
 
@@ -564,6 +862,39 @@ unit_tests:
             updated_ts: '2025-10-01 10:29:00',
           }
 
+  - name: test_transactions_id_tags_drop_nulls_and_duplicates
+    description: >
+      array_agg_distinct must return the same array on every adapter: duplicates
+      removed and null elements dropped. A retried StartTransaction contributes
+      TAG-1 twice, and MeterValues/StopTransaction events carry no idTag (null),
+      so id_tag goes into the aggregation as [TAG-1, TAG-1, null, null] and must
+      come out as [TAG-1]. StopTransaction also has no connectorId, so
+      connector_ids must drop that null too - otherwise _unique_connectors_count
+      would be 2 instead of 1.
+    model: int_transactions
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_ocpp_logs')
+        rows:
+          # StartTransaction sent twice (retry), both confirmed with the same transactionId.
+          - {charger_id: 'CH-001', connector_id: '1', action: 'StartTransaction', ingested_timestamp: 2025-10-02 10:00:00, message_type_id: '2', unique_id: 'start-001', payload: '{"idTag": "TAG-1", "meterStart": 1000}'}
+          - {charger_id: 'CH-001', connector_id: null, action: null, ingested_timestamp: 2025-10-02 10:00:01, message_type_id: '3', unique_id: 'start-001', payload: '{"transactionId": "TXN-001", "idTagInfo": {"status": "Accepted"}}'}
+          - {charger_id: 'CH-001', connector_id: '1', action: 'StartTransaction', ingested_timestamp: 2025-10-02 10:00:30, message_type_id: '2', unique_id: 'start-002', payload: '{"idTag": "TAG-1", "meterStart": 1000}'}
+          - {charger_id: 'CH-001', connector_id: null, action: null, ingested_timestamp: 2025-10-02 10:00:31, message_type_id: '3', unique_id: 'start-002', payload: '{"transactionId": "TXN-001", "idTagInfo": {"status": "Accepted"}}'}
+          # MeterValues: no idTag, so id_tag is null for this row.
+          - {charger_id: 'CH-001', connector_id: '1', action: 'MeterValues', ingested_timestamp: 2025-10-02 10:10:00, message_type_id: '2', unique_id: 'mv-001', payload: '{"transactionId": "TXN-001"}'}
+          # StopTransaction: no idTag and no connectorId, so both are null.
+          - {charger_id: 'CH-001', connector_id: null, action: 'StopTransaction', ingested_timestamp: 2025-10-02 10:30:00, message_type_id: '2', unique_id: 'stop-001', payload: '{"transactionId": "TXN-001", "meterStop": 6000, "reason": "Local"}'}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_chargers')
+        rows: []
+    expect:
+      rows:
+        - {transaction_id: 'TXN-001', id_tags: ['TAG-1'], id_tag_statuses: ['Accepted'], connector_id: '1', _unique_connectors_count: 1}
+
   # ── int_connector_latest_status ─────────────────────────────────────────────
 
   - name: test_connector_latest_status_retains_record_when_no_new_events
@@ -578,10 +909,10 @@ unit_tests:
     given:
       - input: this
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001', latest_status: 'Available', latest_error_code: 'NoError', latest_status_ts: 2025-10-02 09:00:00, incremental_ts: 2025-10-02 10:00:00}
+          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001', latest_status: 'Available', latest_error_code_name: 'NoError', latest_status_ts: 2025-10-02 09:00:00, incremental_ts: 2025-10-02 10:00:00}
       - input: ref('int_status_changes')
         rows:
-          - {charger_id: 'CH-002', connector_id: '1', port_id: 'P-002', ingested_ts: 2025-10-02 10:30:00, status: 'Charging', error_code: 'NoError', next_status: null}
+          - {charger_id: 'CH-002', connector_id: '1', port_id: 'P-002', ingested_ts: 2025-10-02 10:30:00, status: 'Charging', error_code_name: 'NoError', next_status: null}
     expect:
       rows:
         - {charger_id: 'CH-002', connector_id: '1', port_id: 'P-002', latest_status: 'Charging'}

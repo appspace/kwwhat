@@ -7,37 +7,29 @@
   )
 }}
 
--- Incremental merge: no buffer - relies on dbt's merge upsert alone.
+-- Incremental merge. int_status_changes writes every open status again on each run, so an ongoing fault is read
+-- again on every run and extended (or closed once its next status arrives); the merge upserts it by from_ts.
+-- One clock: int_status_changes.incremental_ts selects the batch, and its max is both the end of every ongoing fault
+-- and this batch's incremental_ts, so the next run starts where an ongoing fault was cut off.
 
-{% if is_incremental() %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            least(
-                {{ dbt.dateadd(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }},
-                (select max(incremental_ts) from {{ ref("int_status_changes") }})
-            ) as to_timestamp
-        from
-            (
-                select (select max(incremental_ts) from {{ this }}) as from_timestamp
-            )
-    ),
+{% if is_incremental() -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {#- Start where int_status_changes starts (the first log, not start_processing_date), so this model's first
+        window ends where the upstream's first batch ends and that batch's incremental_ts is inside it -#}
+    {%- set start_ts = "cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")" -%}
+    {%- set from_ts_caps = [
+        start_ts,
+        "coalesce((select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ "), " ~ start_ts ~ ")"
+    ] -%}
+{%- endif -%}
 
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ dbt.dateadd(
-                var("incremental_window").unit,
-                var("incremental_window").length,
-                "from_timestamp"
-            ) }} as to_timestamp
-        from
-            (
-                select cast('{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
-            )
-    ),
-{% endif %}
+with incremental_date_range as (
+    {{ incremental_date_range(
+        from_timestamp_caps=from_ts_caps,
+        to_timestamp_caps=["(select max(incremental_ts) from " ~ ref("int_status_changes") ~ ")"]
+    ) }}
+),
 
 -- Get status changes filtered to faulted status transitions
 status_changes as (
@@ -47,9 +39,9 @@ status_changes as (
         connector_id,
         ingested_ts,
         status,
+        error_code_name,
         error_code,
-        vendor_error_code,
-        vendor_id,
+        taxonomy,
         next_status,
         next_ingested_ts,
         incremental_ts
@@ -58,9 +50,10 @@ status_changes as (
         and incremental_ts <= (select to_timestamp from incremental_date_range)
 ),
 
+-- Last log received upstream: int_status_changes stamps each batch with max(ingested_timestamp) of the OCPP logs it read
 incremental as (
     select
-        max(ingested_ts) as incremental_ts
+        max(incremental_ts) as incremental_ts
     from status_changes
 ),
 
@@ -73,18 +66,62 @@ ports_count as (
 ),
 
 -- Identify when status changes TO Faulted (start of fault period)
+connector_fault_periods as (
+    select
+        charger_id,
+        port_id,
+        connector_id,
+        error_code_name,
+        error_code,
+        taxonomy,
+        ingested_ts as from_ts,
+        coalesce(next_ingested_ts, (select incremental_ts from incremental)) as to_ts
+    from status_changes
+    where status = 'Faulted'
+        and connector_id != '0'
+),
+
+-- Connector 0 reports for the charger as a whole and has no port_id: its fault periods apply to every port on the
+-- charger, and end at connector 0's own next status
+charger_fault_periods as (
+    select
+        sc.charger_id,
+        con.port_id,
+        con.connector_id,
+        sc.error_code_name,
+        sc.error_code,
+        sc.taxonomy,
+        sc.ingested_ts as from_ts,
+        coalesce(sc.next_ingested_ts, (select incremental_ts from incremental)) as to_ts
+    from status_changes as sc
+    inner join {{ ref('int_connectors') }} as con
+        on sc.charger_id = con.charger_id
+    where sc.status = 'Faulted'
+        and sc.connector_id = '0'
+),
+
 fault_periods as (
     select
         charger_id,
         port_id,
         connector_id,
+        error_code_name,
         error_code,
-        vendor_error_code,
-        vendor_id,
-        ingested_ts as from_ts,
-        coalesce(next_ingested_ts, (select to_timestamp from incremental_date_range)) as to_ts
-    from status_changes
-    where status = 'Faulted'
+        taxonomy,
+        from_ts,
+        to_ts
+    from connector_fault_periods
+    union all
+    select
+        charger_id,
+        port_id,
+        connector_id,
+        error_code_name,
+        error_code,
+        taxonomy,
+        from_ts,
+        to_ts
+    from charger_fault_periods
 ),
 
 -- Generate all distinct time points (from_ts and to_ts) per port
@@ -119,7 +156,8 @@ time_intervals as (
     group by 1, 2, 3
 ),
 
--- For each time interval, count how many connectors are faulted
+-- For each time interval, count how many connectors are faulted. Overlap is strict: a fault that only starts at the
+-- interval's end, or ends at its start, doesn't count
 intervals_with_faulted_count as (
     select
         ti.charger_id,
@@ -131,8 +169,8 @@ intervals_with_faulted_count as (
     left join fault_periods as fp
         on ti.charger_id = fp.charger_id
         and ti.port_id = fp.port_id
-        and fp.from_ts <= ti.to_ts
-        and fp.to_ts >= ti.from_ts
+        and fp.from_ts < ti.to_ts
+        and fp.to_ts > ti.from_ts
     group by 1, 2, 3, 4
 ),
 
@@ -192,51 +230,34 @@ faulted_outages as (
     group by 1, 2, group_id
 ),
 
--- Root cause: ChargeX MREC fault codes reported by any connector while faulted during the outage
+-- Root cause: fault codes from the connector fault period that started most recently during the outage
 faulted_outages_with_root_cause as (
     select
         fo.charger_id,
         fo.port_id,
         fo.from_ts,
         fo.to_ts,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.error_code")) }} as error_codes,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.vendor_error_code")) }} as vendor_error_codes,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="fp.vendor_id")) }} as vendor_ids,
+        {{ max_by('fp.error_code_name', 'fp.from_ts') }} as latest_error_code_name,
         {{ max_by('fp.error_code', 'fp.from_ts') }} as latest_error_code,
-        {{ max_by('fp.vendor_error_code', 'fp.from_ts') }} as latest_vendor_error_code,
-        {{ max_by('fp.vendor_id', 'fp.from_ts') }} as latest_vendor_id
+        {{ max_by('fp.taxonomy', 'fp.from_ts') }} as latest_taxonomy
     from faulted_outages as fo
     left join fault_periods as fp
         on fo.charger_id = fp.charger_id
         and fo.port_id = fp.port_id
-        and fp.from_ts <= fo.to_ts
-        and fp.to_ts >= fo.from_ts
+        and fp.from_ts < fo.to_ts
+        and fp.to_ts > fo.from_ts
     group by fo.charger_id, fo.port_id, fo.from_ts, fo.to_ts
 )
-
-{% if is_incremental() %}
-
--- We do not have to read a buffer of ongoing faults and update as we probably just re-read status changes for those faults
--- and merge strategy will take care of the rest
-
-{% else %}
-
--- Nothing to do here
-
-{% endif %}
 
 select
     charger_id,
     port_id,
     from_ts,
     to_ts,
-    {{ dbt.datediff('from_ts', 'to_ts', 'minutes') }} as duration_minutes,
-    error_codes,
-    vendor_error_codes,
-    vendor_ids,
+    {{ dbt.datediff('from_ts', 'to_ts', 'minute') }} as duration_minutes,
+    latest_error_code_name,
     latest_error_code,
-    latest_vendor_error_code,
-    latest_vendor_id,
+    latest_taxonomy,
     (select incremental_ts from incremental) as incremental_ts
 from faulted_outages_with_root_cause
 where to_ts > from_ts

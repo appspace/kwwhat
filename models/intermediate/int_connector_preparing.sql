@@ -49,7 +49,7 @@ status_changes_to_preparing as (
         next_status,
         next_ingested_ts,
         next_payload_ts,
-        error_code,
+        error_code_name,
         updated_ts,
 
         -- Confirmation details
@@ -98,7 +98,7 @@ charge_attempt_events as (
         location_id
     from ocpp_logs
     where action in ({{ "'" + "', '".join(charge_attempt_actions) + "'" }})
-        and message_type_id = {{ var("message_type_ids").CALL }}
+        and message_type_id = '{{ var("message_type_ids").CALL }}'
 ),
 
 charge_attempt_events_conf as (
@@ -107,9 +107,9 @@ charge_attempt_events_conf as (
         {{ payload_extract_transaction_id('req.action', 'req.payload', 'conf.payload') }} as transaction_id
     from charge_attempt_events as req
     left join ocpp_logs as conf on req.unique_id = conf.unique_id
-        and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
+        and conf.message_type_id = '{{ var("message_type_ids").CALLRESULT }}'
         and conf.ingested_ts >= req.ingested_ts
-        and conf.ingested_ts <= {{ dbt.dateadd(
+        and conf.ingested_ts <= {{ timestamp_add(
             "second", var("transaction_message_retry_interval"), "req.ingested_ts"
         ) }}
 
@@ -199,10 +199,10 @@ preparing_agg as (
         -- event's own ingested_ts.
         coalesce(next_ingested_ts, ingested_ts) as updated_ts,
         -- Aggregate extracted details into arrays
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="id_tag")) }} as id_tags,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="id_tag_status")) }} as id_tag_statuses,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="parent_id_tag")) }} as parent_id_tags,
-        {{ array_distinct(fivetran_utils.array_agg(field_to_agg="transaction_id")) }} as transaction_ids
+        {{ array_agg_distinct('id_tag') }} as id_tags,
+        {{ array_agg_distinct('id_tag_status') }} as id_tag_statuses,
+        {{ array_agg_distinct('parent_id_tag') }} as parent_id_tags,
+        {{ array_agg_distinct('transaction_id') }} as transaction_ids
 
     from preparing_details
     group by

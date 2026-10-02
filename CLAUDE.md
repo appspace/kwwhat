@@ -85,6 +85,40 @@ Marts (tables, incremental)
 - Check `dbt.` built-ins first (`dbt.type_string()`, `dbt.date_trunc()`, `dbt.dateadd()`, etc.) before writing a custom cross-platform macro.
 - Use dispatch when SQL syntax genuinely differs across adapters (JSON, arrays, date math, regex, string aggregation). Skip it for logic that is identical everywhere.
 
+### Cross-warehouse compatibility (Snowflake + BigQuery)
+
+Every model, macro and test must run unchanged on both Snowflake and BigQuery. Snowflake silently coerces types and tolerates non-standard syntax that BigQuery rejects, so code that passes on Snowflake is not proof it works on BigQuery.
+
+Arrays:
+- Building a distinct array from rows (inside a `group by`): use `{{ array_agg_distinct('col') }}`.
+- De-duplicating an array that already exists (e.g. merging new and existing rows): use `{{ array_distinct(array_concat('n.col', 'b.col')) }}`.
+- Never wrap an aggregate in `array_distinct(...)` (e.g. `array_distinct(fivetran_utils.array_agg(...))`). BigQuery rejects an aggregate inside `unnest`.
+- BigQuery arrays cannot contain null elements and are never null (a null array is stored as `[]`). Check emptiness with `array_size(...) > 0`, not `is null`.
+
+JSON:
+- `json_extract` for scalar values and objects; `json_extract_array` for JSON arrays (e.g. `meterValue`, `sampledValue`).
+- Unnest with `json_array_unnest` and read elements as `<alias>.value`.
+
+Dates and times:
+- Use singular date parts in `dbt.datediff` / `dbt.dateadd`: `'minute'`, `'second'`, not `'minutes'`, `'seconds'`.
+- Use ANSI functions: `extract(minute from ts)` not `minute(ts)`, `mod(x, 15)` not `x % 15`.
+- Use `{{ timestamp_add(...) }}` in models, never `dbt.dateadd(...)` directly. On BigQuery `dbt.dateadd` returns DATETIME, and mixing DATETIME with the project's TIMESTAMP columns fails. Do not override dbt's own `bigquery__dateadd`; keep fixes in the `kwwhat` namespace so dbt and package macros behave as documented.
+- `dim_dates.date_id` / `date_day` are DATE on every warehouse. Cast them to `{{ dbt.type_timestamp() }}` before comparing with timestamps (or in `least`/`greatest`), and cast timestamps to `date` when matching against `date_id`.
+
+Types and comparisons:
+- `message_type_id` is a string: compare against a quoted var, `message_type_id = '{{ var("message_type_ids").CALL }}'`.
+- `accepted_values` tests on boolean or numeric columns need `quote: false`.
+
+Query structure:
+- Do not put a subquery that reads a CTE inside a `join ... on` clause. Filter in `where` or in a pre-filtered CTE instead.
+- Do not name a CTE the same as a column it contains; BigQuery resolves the bare name to the whole row.
+
+Unit tests and fixtures:
+- Prefer dict-format mocks. When SQL format is needed, avoid `select * from values (...)` (use `select ... union all select ...`) and never write `where false` without a `from` (use `from (select 1 as _dummy) as _empty where false`).
+
+Sources:
+- The raw source's database/schema default per adapter in `models/staging/raw/staging.yml`. Do not set `raw_database` / `raw_schema` in `dbt_project.yml` vars; that overrides the per-adapter default everywhere.
+
 ### Naming
 | Type | Convention |
 |------|------------|
@@ -171,6 +205,7 @@ Every new model must include:
 - incremental merge logic
 - use custom (singular) tests for specific business rules, but prefer package tests where available
 - use dict format in `expect` statements: define mock data only for the columns relevant to the test. This keeps unit tests succinct and specific.
+- use dict format for every `given` fixture too - never `format: sql` or `format: csv`, inline or via a fixture file. For an input that should be empty, use `rows: []`; dbt infers its columns from the parent model.
 
 ---
 
@@ -214,6 +249,24 @@ Define:
 - unique key
 - invalidation logic
 
+### Jinja whitespace trim after a SQL comment
+
+Never put a leading-trim tag (`{%-`) right after a `--` comment. The trim strips the newline that ends the comment, so the next rendered line (usually `with incremental_date_range as (`) joins the comment and the whole query is commented out:
+
+```sql
+-- Incremental merge: ...
+
+{% if is_incremental() -%}   {# not {%- if: keep the comment's newline #}
+    {%- set from_ts_caps = [...] -%}
+{%- else -%}
+    {%- set from_ts_caps = [...] -%}
+{%- endif -%}
+
+with incremental_date_range as (
+```
+
+It breaks real `dbt run`s, not just unit tests. Snowflake reports it as cascading `unexpected '('` / `unexpected 'from'` / `unexpected ','` errors that look unrelated. When you see those, check `target/compiled/.../<model>.sql` for a comment that swallowed the `with` clause first.
+
 ---
 
 ## Documentation
@@ -227,6 +280,21 @@ Every model must include:
   - important flags
 
 Write docs for **humans**, not for dbt.
+
+### Model descriptions
+
+State what the model is about in business terms, then the grain. Leave out
+implementation details (join type, incremental strategy, CTE steps) - those
+live in the SQL, not the yml.
+
+Pattern: `<what one row represents, in plain business terms>. One row per <grain columns>.`
+
+Bad: "Incremental marts model that combines charge attempts and transactions
+data using outer join."
+
+Good: "Charge attempt to initiate charging at a port, spanning from
+plug-in/authorization to the connector's return to idle. One row per
+charger_id + connector_id + charge_attempt_start_ts."
 
 Descriptions live in the layer's shared `<layer>.yml` (e.g. `marts.yml`, `intermediate.yml`) only.
 Never set `description` in a model's `config()` block in the `.sql` file — it duplicates the yml,

@@ -127,10 +127,10 @@ attempts_and_transactions as (
         on p.charger_id = t.charger_id
         and p.connector_id = t.connector_id
         and p.transaction_id = t.transaction_id
-        and t.transaction_ingested_ts > {{ dbt.dateadd(
+        and t.transaction_ingested_ts > {{ timestamp_add(
             "second", -_authorize_threshold, 'coalesce(p.previous_ingested_ts, p.preparing_ingested_ts)'
         ) }}
-        and t.transaction_ingested_ts <= {{ dbt.dateadd(
+        and t.transaction_ingested_ts <= {{ timestamp_add(
             "second", _authorize_threshold, 'coalesce(p.next_ingested_ts, p.preparing_ingested_ts)'
         ) }}
 
@@ -172,7 +172,7 @@ attempts_and_transactions as (
             -- Also pull recent, still-incomplete attempts 
             (buf.transaction_id is null or buf.preparing_unique_id is null)
             and buf.charge_attempt_start_ts > (
-                select {{ dbt.dateadd("second", -_authorize_threshold, "min(charge_attempt_start_ts)") }}
+                select {{ timestamp_add("second", -_authorize_threshold, "min(charge_attempt_start_ts)") }}
                 from attempts_and_transactions
             )
         )
@@ -222,10 +222,10 @@ attempts_and_transactions as (
                         (b.transaction_id is null and n.transaction_id is not null)
                         or (b.preparing_unique_id is null and n.preparing_unique_id is not null)
                     )
-                    and n.charge_attempt_start_ts > {{ dbt.dateadd(
+                    and n.charge_attempt_start_ts > {{ timestamp_add(
                         "second", -_authorize_threshold, "b.charge_attempt_start_ts"
                     ) }}
-                    and n.charge_attempt_start_ts <= {{ dbt.dateadd(
+                    and n.charge_attempt_start_ts <= {{ timestamp_add(
                         "second", _authorize_threshold, "b.charge_attempt_start_ts"
                     ) }}
                 )
@@ -257,14 +257,15 @@ attempt_status_notifications as (
         logs.ingested_timestamp as error_ingested_ts,
         {{ payload_extract_error_code('logs.action', 'logs.payload') }} as error_code
     from attempts_final as af
+    cross join incremental_date_range
     inner join {{ ref('int_ocpp_logs') }} as logs
         on af.charger_id = logs.charger_id
         and af.connector_id = logs.connector_id
         and logs.action = 'StatusNotification'
-        and logs.message_type_id = {{ var("message_type_ids").CALL }}
+        and logs.message_type_id = '{{ var("message_type_ids").CALL }}'
         and logs.ingested_timestamp >= af.charge_attempt_start_ts
         and logs.ingested_timestamp <= coalesce(
-            af.charge_attempt_stop_ts, (select to_timestamp from incremental_date_range)
+            af.charge_attempt_stop_ts, incremental_date_range.to_timestamp
         )
 ),
 

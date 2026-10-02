@@ -105,7 +105,7 @@
     -- Identifies the vendor-specific fault-code scheme that vendorErrorCode belongs to (e.g.
     -- ChargeX's 'https://chargex.inl.gov', see the ChargeX Implementation Guide for Minimum
     -- Required Error Codes). This is not the charger's OEM/manufacturer - it names the taxonomy
-    -- used to interpret vendorErrorCode, and is what scopes the (vendor, fault_code) lookup in
+    -- used to interpret vendorErrorCode, and is what scopes the (vendor, error_code) lookup in
     -- dim_error_codes.
     case
         when {{ action }} = 'StatusNotification'

@@ -19,7 +19,7 @@
 {%- endif -%}
 
 with incremental_date_range as (
-    {{ incremental_date_range(from_timestamp_caps=from_ts_caps, buffer_minutes=30) }}
+    {{ incremental_date_range(from_timestamp_caps=from_ts_caps) }}
 ),
 
     ocpp_logs as (
@@ -56,14 +56,14 @@ with incremental_date_range as (
             port_id,
             location_id,
             {{ payload_extract_status('action', 'payload') }} as status,
-            {{ payload_extract_error_code('action', 'payload') }} as error_code,
-            {{ payload_extract_vendor_error_code('action', 'payload') }} as vendor_error_code,
-            {{ payload_extract_vendor_id('action', 'payload') }} as vendor_id,
-            {{ payload_extract_info('action', 'payload') }} as info,
+            {{ payload_extract_error_code('action', 'payload') }} as error_code_name,
+            {{ payload_extract_vendor_error_code('action', 'payload') }} as error_code,
+            {{ payload_extract_vendor_id('action', 'payload') }} as taxonomy,
+            {{ payload_extract_info('action', 'payload') }} as info,  -- noqa: RF04
             {{ payload_extract_timestamp('action', 'payload') }} as payload_ts
         from ocpp_logs
         where action = 'StatusNotification'
-            and message_type_id = {{ var("message_type_ids").CALL }}
+            and message_type_id = '{{ var("message_type_ids").CALL }}'
     ),
 
     -- Join status notifications with their confirmations
@@ -77,9 +77,9 @@ with incremental_date_range as (
             req.ingested_timestamp as ingested_ts,
             req.unique_id,
             req.status,
+            req.error_code_name,
             req.error_code,
-            req.vendor_error_code,
-            req.vendor_id,
+            req.taxonomy,
             req.info,
             req.payload,
             req.payload_ts,
@@ -90,14 +90,16 @@ with incremental_date_range as (
         from status_notification_events as req
         left join ocpp_logs as conf
             on req.unique_id = conf.unique_id
-            and conf.message_type_id = {{ var("message_type_ids").CALLRESULT }}
+            and conf.message_type_id = '{{ var("message_type_ids").CALLRESULT }}'
             and conf.ingested_timestamp >= req.ingested_timestamp
-            and conf.ingested_timestamp <= {{ dbt.dateadd("second", 15, "req.ingested_timestamp") }}
+            and conf.ingested_timestamp <= {{ timestamp_add("second", 15, "req.ingested_timestamp") }}
     ),
 
 {% if is_incremental() %}
 
-    -- Get previous statuses from the existing table to extend lag window
+    -- Each connector's open status (next_status not known yet), however old: the new batch's first status closes it.
+    -- Open rows are written again with this batch's incremental_ts, so downstream models see every ongoing status on
+    -- every run.
     statuses_buffer as (
         select
             charger_id,
@@ -107,9 +109,9 @@ with incremental_date_range as (
             ingested_ts,
             unique_id,
             status,
+            error_code_name,
             error_code,
-            vendor_error_code,
-            vendor_id,
+            taxonomy,
             info,
             payload,
             payload_ts,
@@ -119,9 +121,8 @@ with incremental_date_range as (
             previous_payload_ts,
             updated_ts
         from {{ this }}
-        where (ingested_ts >= (select buffer_from_timestamp from incremental_date_range)
-            and ingested_ts <= (select from_timestamp from incremental_date_range))
-            and next_status is null
+        where next_status is null
+            and ingested_ts <= (select from_timestamp from incremental_date_range)
     ),
 
     statuses_with_buffer as (
@@ -143,9 +144,9 @@ with incremental_date_range as (
             ingested_ts,
             unique_id,
             status,
+            error_code_name,
             error_code,
-            vendor_error_code,
-            vendor_id,
+            taxonomy,
             info,
             payload,
             payload_ts,
@@ -180,9 +181,9 @@ with incremental_date_range as (
             ingested_ts,
             unique_id,
             status,
+            error_code_name,
             error_code,
-            vendor_error_code,
-            vendor_id,
+            taxonomy,
             info,
             payload,
             payload_ts,
@@ -240,9 +241,9 @@ select
     ingested_ts,
     unique_id,
     status,
+    error_code_name,
     error_code,
-    vendor_error_code,
-    vendor_id,
+    taxonomy,
     info,
     payload,
     payload_ts,
@@ -259,3 +260,5 @@ select
     ) as updated_ts,
     (select incremental_ts from incremental) as incremental_ts
 from status_with_lead
+-- A run with no new logs has no incremental_ts: write nothing rather than rewrite the open statuses with a null stamp
+where (select incremental_ts from incremental) is not null

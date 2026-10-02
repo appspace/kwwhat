@@ -29,6 +29,26 @@ with incremental_date_range as (
     ) }}
 ),
 
+-- Charge point initiated messages (CALL messages) in this run's window
+window_messages as (
+    select
+        charger_id,
+        ingested_timestamp
+    from {{ ref("stg_ocpp_logs") }}
+    where ingested_timestamp >= (select from_timestamp from incremental_date_range)
+        and ingested_timestamp <= (select to_timestamp from incremental_date_range)
+        and message_type_id = '{{ var("message_type_ids").CALL }}'
+        and action in ({{ "'" + "', '".join(charge_point_initiated_actions) + "'" }})
+),
+
+-- Last message received. Both clocks use it: it is the batch's incremental_ts and the end of every ongoing outage, so
+-- the next run starts exactly where an ongoing outage was cut off and previous_outages finds it.
+incremental as (
+    select
+        max(ingested_timestamp) as incremental_ts
+    from window_messages
+),
+
 -- charger context: time window per charger that should have events within boundaries of this incremental run
 charger_context as (
     select
@@ -38,37 +58,27 @@ charger_context as (
             (select from_timestamp from incremental_date_range)
         ) as monitoring_start_ts,
         least(
-            coalesce(decommissioned_ts, (select to_timestamp from incremental_date_range)),
-            (select to_timestamp from incremental_date_range)
+            coalesce(decommissioned_ts, (select incremental_ts from incremental)),
+            (select incremental_ts from incremental)
         ) as monitoring_end_ts
     from {{ ref("int_chargers") }}
     where commissioned_ts is not null
-        and commissioned_ts < (select to_timestamp from incremental_date_range)
+        and commissioned_ts < (select incremental_ts from incremental)
         and (decommissioned_ts is null or decommissioned_ts > (select from_timestamp from incremental_date_range))
 ),
 
--- Charger messages: OCPP logs filtered for charge point initiated messages (CALL messages) joined with charger context
+-- Charger messages: window messages joined with charger context
 charger_messages as (
     select
         cc.charger_id,
         cc.monitoring_start_ts,
         cc.monitoring_end_ts,
-        ol.ingested_timestamp
+        wm.ingested_timestamp
     from charger_context as cc
-    inner join {{ ref("stg_ocpp_logs") }} as ol
-        on cc.charger_id = ol.charger_id
-        and ol.ingested_timestamp >= cc.monitoring_start_ts
-        and ol.ingested_timestamp <= cc.monitoring_end_ts
-        and ol.ingested_timestamp >= (select from_timestamp from incremental_date_range)
-        and ol.ingested_timestamp <= (select to_timestamp from incremental_date_range)
-        and ol.message_type_id = {{ var("message_type_ids").CALL }}
-        and ol.action in ({{ "'" + "', '".join(charge_point_initiated_actions) + "'" }})
-),
-
-incremental as (
-    select
-        max(ingested_timestamp) as incremental_ts
-    from charger_messages
+    inner join window_messages as wm
+        on cc.charger_id = wm.charger_id
+        and wm.ingested_timestamp >= cc.monitoring_start_ts
+        and wm.ingested_timestamp <= cc.monitoring_end_ts
 ),
 
 message_gaps as (
@@ -156,7 +166,7 @@ all_outages as (
         charger_id,
         from_ts,
         to_ts,
-        {{ dbt.datediff('from_ts', 'to_ts', 'seconds') }} as duration_seconds
+        {{ dbt.datediff('from_ts', 'to_ts', 'second') }} as duration_seconds
     from merged_outages
 )
 
@@ -167,7 +177,7 @@ all_outages as (
         charger_id,
         from_ts,
         to_ts,
-        {{ dbt.datediff('from_ts', 'to_ts', 'seconds') }} as duration_seconds
+        {{ dbt.datediff('from_ts', 'to_ts', 'second') }} as duration_seconds
     from new_outages
 )
 

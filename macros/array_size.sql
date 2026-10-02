@@ -14,6 +14,10 @@
     get_array_length({{ array_column }})
 {% endmacro %}
 
+{% macro bigquery__array_size(array_column) %}
+    array_length({{ array_column }})
+{% endmacro %}
+
 {% macro duckdb__array_size(array_column) %}
     len({{ array_column }})
 {% endmacro %}
