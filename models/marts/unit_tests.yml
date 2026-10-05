@@ -358,6 +358,28 @@ unit_tests:
       rows:
         - {is_successful: true}
 
+  - name: test_charge_attempt_keeps_row_with_null_port_key_when_connector_not_in_reference_data
+    description: >
+      Setup: a charge attempt whose connector has no row in int_connectors yet (OCPP logs arrived before the
+      reference data), so port_id is null upstream. Expected: the attempt is kept, with a null port_key and its
+      charger_id and connector_id preserved. Rows are not dropped when the port can't be resolved.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', port_id: null, unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-001', incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
+      - input: ref('int_transactions')
+        rows:
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: '1', port_id: null, ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'EVDisconnected', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {charger_id: 'CH-001', connector_id: '1', port_key: null}
+
   - name: test_charge_attempt_not_successful_when_energy_too_low
     description: >
       A charge attempt with energy ≤ 0.1 kWh is not successful even when all
@@ -965,6 +987,29 @@ unit_tests:
 
   # ── fact_downtime_daily ─────────────────────────────────────────────────────
 
+  # ── fact_interval_data ──────────────────────────────────────────────────────
+
+  - name: test_interval_data_keeps_row_with_null_port_key_when_connector_not_in_reference_data
+    description: >
+      Setup: a MeterValues message for a connector with no row in int_connectors yet (OCPP logs arrived before
+      the reference data), so port_id is null in int_meter_values. Expected: the interval row is kept, with a
+      null port_key and its charger_id and connector_id preserved.
+    model: fact_interval_data
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:00:00, charger_id: 'CH-001', action: 'Heartbeat', message_type_id: '2', unique_id: 'UID-000', payload: '{}'}
+          - {ingested_timestamp: 2025-10-01 10:06:00, charger_id: 'CH-001', action: 'MeterValues', message_type_id: '2', unique_id: 'UID-001', payload: '{"connectorId": 1, "transactionId": "TXN-001", "meterValue": [{"timestamp": "2025-10-01T10:05:00Z", "sampledValue": [{"measurand": "Energy.Active.Import.Register", "value": "100", "unit": "Wh"}]}]}'}
+      - input: ref('int_meter_values')
+        rows:
+          - {charger_id: 'CH-001', transaction_id: 'TXN-001', connector_id: '1', port_id: null, location_id: null, ingested_ts: 2025-10-01 10:06:00, measurand: 'Energy.Active.Import.Register', unit: 'Wh', phase: null, first_measurement_ts: 2025-10-01 10:05:00, last_measurement_ts: 2025-10-01 10:05:00, incremental_ts: 2025-10-01 10:06:00}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', connector_id: '1', transaction_id: 'TXN-001', port_key: null, avg_value: 100.0}
+
   - name: test_downtime_daily_offline_during_faulted_outage_is_left_to_post_hook
     description: >
       An offline outage whose from_ts falls inside an active faulted outage window is
@@ -996,6 +1041,39 @@ unit_tests:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 120}
         - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 120}
+
+  - name: test_downtime_daily_outages_without_port_record_are_dropped
+    description: >
+      Setup: OCPP logs produced a faulted outage on CH-001 and an offline outage on CH-002, but int_ports has
+      no row for either charger yet (reference data lags the logs). Expected: both outages are dropped, since
+      the model inner-joins int_ports. Only CH-003, which has a port row, produces a row. The dropped outages
+      are surfaced by tests/assert_outages_have_port_record.sql.
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('int_offline_outages')
+        rows:
+          - {charger_id: 'CH-002', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-003', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, incremental_ts: 2025-10-01 12:00:00}
+      - input: ref('dim_error_codes')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-003', location_id: 'LOC-001'}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-003', port_id: 'PORT-003'}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01}
+    expect:
+      rows:
+        - {charger_id: 'CH-003', port_id: 'PORT-003', downtime_type: 'OFFLINE', duration_minutes: 120}
 
   - name: test_downtime_daily_multi_day_outage_split_across_days
     description: >
