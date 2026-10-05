@@ -264,7 +264,7 @@ unit_tests:
     given:
       - input: this
         rows:
-          - {location_id: 'LOC-001', id_tag: 'TAG-001', visit_start_ts: 2025-10-02 10:00:00, visit_end_ts: 2025-10-02 10:10:00, visit_duration_minutes: 10, charge_attempt_count: 1, total_energy_transferred_kwh: 5.5, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: true, grouping_key: 'LOC-001_TAG-001', incremental_ts: 2025-10-02 10:00:00}
+          - {location_id: 'LOC-001', id_tag: 'TAG-001', visit_start_ts: 2025-10-02 10:00:00, visit_end_ts: 2025-10-02 10:10:00, visit_duration_minutes: 10, charge_attempt_count: 1, total_energy_transferred_kwh: 5.5, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: true, _grouping_key: 'LOC-001_TAG-001', incremental_ts: 2025-10-02 10:00:00}
       - input: ref('fact_charge_attempts')
         rows:
           # preparing_ingested_ts drives fact_visits' own output incremental_ts
@@ -293,7 +293,7 @@ unit_tests:
     given:
       - input: this
         rows:
-          - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 11:00:00, visit_end_ts: 2025-10-02 11:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: false, grouping_key: 'LOC-001_CH-001_1', incremental_ts: 2025-10-02 11:00:00}
+          - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 11:00:00, visit_end_ts: 2025-10-02 11:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: false, _grouping_key: 'LOC-001_CH-001_1', incremental_ts: 2025-10-02 11:00:00}
       - input: ref('fact_charge_attempts')
         rows:
           # preparing_ingested_ts drives fact_visits' own output incremental_ts
@@ -321,7 +321,7 @@ unit_tests:
     given:
       - input: this
         rows:
-          - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 12:00:00, visit_end_ts: 2025-10-02 12:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: false, grouping_key: 'LOC-001_CH-001_1', incremental_ts: 2025-10-02 12:00:00}
+          - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 12:00:00, visit_end_ts: 2025-10-02 12:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: false, _grouping_key: 'LOC-001_CH-001_1', incremental_ts: 2025-10-02 12:00:00}
       - input: ref('fact_charge_attempts')
         rows:
           - {charge_attempt_id: 'CHA2', charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 12:01:00, charge_attempt_stop_ts: 2025-10-02 12:05:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, incremental_ts: 2025-10-02 12:05:00}
