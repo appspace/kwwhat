@@ -12,7 +12,9 @@ models:
       - name: port_key
         description: "Surrogate key for the port the attempt occurred on, generated in place from charger_id + port_id (port_id resolved upstream in int_connector_preparing/int_transactions via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
-          - not_null
+          - not_null:
+              config:
+                severity: warn
           - relationships:
               arguments:
                 to: ref('dim_ports')
@@ -132,7 +134,9 @@ models:
       - name: port_key
         description: "Surrogate key for the port the interval was recorded on, generated in place from charger_id + port_id (port_id resolved upstream in int_meter_values via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
-          - not_null
+          - not_null:
+              config:
+                severity: warn
           - relationships:
               arguments:
                 to: ref('dim_ports')
@@ -206,7 +210,7 @@ models:
               - meter_15min_interval_start
 
   - name: fact_downtime_daily
-    description: "One row per date_id + charger_id + port_id + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types. Both outage sources are inner-joined to int_ports before reaching this model, so port_id is always populated."
+    description: "One row per date_id + charger_id + port_id + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types. Both outage sources are inner-joined to int_ports before reaching this model, so port_id is always populated. Ports data must therefore exist before the outage is processed: an outage whose charger or port has no int_ports row (OCPP logs arriving ahead of the reference data) is dropped, and stays missing until a full refresh if the reference data arrives after the incremental buffer. FAULTED outages are dropped upstream in int_faulted_outages, which needs int_ports to count a port's connectors; OFFLINE outages are dropped here. tests/assert_outages_have_port_record.sql warns when this happens."
     columns:
       - name: date_id
         description: "Calendar date this row's minutes fall on"
