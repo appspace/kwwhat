@@ -472,3 +472,22 @@ models:
               - charger_id
               - port_id
               - connector_id
+
+  - name: int_visits
+    description: "Driver visits built from charge attempts, incrementally merged across runs. Grain: one row per visit (location_id + first_charger_id + first_port_id + visit_start_ts). Keeps the charger_ids and charge_attempt_ids arrays that bridge_visit_chargers and bridge_visit_charge_attempts unnest; fact_visits exposes the scalar columns only. See fact_visits for the visit grouping rules."
+    columns:
+      - name: visit_id
+        description: "Unique identifier for the visit, generated from location_id, first_charger_id, first_port_id, and visit_start_ts."
+        data_tests:
+          - not_null
+          - unique
+      - name: charger_ids
+        description: "Array of distinct charger IDs used during this visit."
+        data_type: array<string>
+        data_tests:
+          - not_null
+      - name: charge_attempt_ids
+        description: "Array of distinct charge attempt IDs included in this visit."
+        data_type: array<string>
+        data_tests:
+          - not_null

@@ -17,5 +17,6 @@
 {% endmacro %}
 
 {% macro bigquery__array_unnest(array_column) %}
-    cross join unnest({{ array_column }})
+    {# Wrapped in a one-field struct so callers can use `<alias>.value` like on Snowflake. #}
+    cross join unnest(array(select as struct x as value from unnest({{ array_column }}) as x))
 {% endmacro %}
