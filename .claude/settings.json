@@ -1,5 +1,6 @@
 {
   "enabledPlugins": {
-    "dbt@dbt-agent-marketplace": true
+    "dbt@dbt-agent-marketplace": true,
+    "dbt-extras@dbt-agent-marketplace": true
   }
 }
