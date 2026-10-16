@@ -344,6 +344,17 @@ A test that only ever ran against the fixed code proves nothing on its own; it m
 
 ---
 
+## Architecture decisions
+
+Decisions and their rationale live in `docs/adr/` (index in `docs/adr/README.md`).
+
+- Before changing grain, keys, metric definitions, or cross-warehouse patterns, check for a relevant ADR.
+- If a change contradicts an accepted ADR, stop and ask.
+- For any change that alters grain, a metric definition, a key strategy, or a project-wide convention, add a new ADR from `docs/adr/0000-template.md` with status `Proposed` in the same PR, and add it to the index.
+- Never rewrite an accepted ADR. Supersede it with a new one and mark the old one `Superseded by NNNN`.
+
+---
+
 ## When Unsure
 
 The agent should ask for clarification if:
