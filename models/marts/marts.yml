@@ -915,6 +915,20 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 0
+      - name: offline_downtime_minutes
+        description: "Part of downtime_minutes when the charger was OFFLINE (stopped sending heartbeats); 0 if none."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: faulted_downtime_minutes
+        description: "Part of downtime_minutes when the port was FAULTED (every connector on the port reported Faulted); 0 if none."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
       - name: uptime_minutes
         description: "Minutes the port was commissioned and not down on this day (commissioned_minutes - downtime_minutes). Numerator of uptime."
         data_tests:
@@ -931,3 +945,7 @@ models:
               arguments:
                 min_value: 0
                 max_value: 1
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "offline_downtime_minutes + faulted_downtime_minutes = downtime_minutes"
