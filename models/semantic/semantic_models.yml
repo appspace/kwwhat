@@ -348,10 +348,6 @@ semantic_models:
       - name: port_id
         type: categorical
     measures:
-      - name: uptime_average
-        description: "Average uptime as the fraction of commissioned time that was up."
-        agg: average
-        expr: uptime
       - name: commissioned_minutes_total
         description: "Total minutes ports were commissioned. Denominator for duration-weighted uptime."
         agg: sum
@@ -489,12 +485,27 @@ metrics:
       numerator: failed_visits
       denominator: total_visits
 
-  - name: average_uptime
-    description: "Primary reliability metric. Average port uptime as the fraction of commissioned time that was up, not in outage."
-    label: "Average uptime"
+  - name: total_commissioned_minutes
+    description: "Total minutes ports were commissioned (in service) over the period. Denominator of uptime."
+    label: "Total commissioned minutes"
     type: simple
     type_params:
-      measure: uptime_average
+      measure: commissioned_minutes_total
+
+  - name: total_uptime_minutes
+    description: "Total commissioned minutes ports were up, not in outage (total_commissioned_minutes - total_downtime_minutes). Numerator of uptime."
+    label: "Total uptime minutes"
+    type: simple
+    type_params:
+      measure: uptime_minutes_total
+
+  - name: uptime_ratio
+    description: "Primary reliability metric. Duration-weighted port uptime: share of commissioned minutes that were up, not in outage (total_uptime_minutes / total_commissioned_minutes). Correct at any grain and period, because each port-day counts by its commissioned minutes, so a partial first or last day of commission weighs less than a full day. When uptime drops, drill into total_downtime_minutes_detailed to find out why."
+    label: "Uptime ratio"
+    type: ratio
+    type_params:
+      numerator: total_uptime_minutes
+      denominator: total_commissioned_minutes
 
   - name: total_downtime_minutes
     description: "Total minutes ports were down (OFFLINE + FAULTED) within their commissioned time, sliceable by port, charger, location and date. To find out why, drill into total_downtime_minutes_detailed."
