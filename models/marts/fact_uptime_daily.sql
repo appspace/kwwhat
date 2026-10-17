@@ -16,8 +16,8 @@ span_port_days as (
         p.charger_id,
         p.port_id,
         s.date_id,
-        s.minutes as minutes_commissioned
-    from {{ ref('fact_charger_commissioned_daily') }} as s
+        s.commissioned_minutes
+    from {{ ref('int_charger_commissioned_daily') }} as s
     inner join ports as p on s.charger_id = p.charger_id
 ),
 
@@ -26,7 +26,7 @@ downtime_agg as (
         date_id,
         charger_id,
         port_id,
-        sum(duration_minutes) as total_downtime_minutes
+        sum(duration_minutes) as downtime_minutes
     from {{ ref('fact_downtime_daily') }}
     group by date_id, charger_id, port_id
 ),
@@ -36,8 +36,8 @@ with_downtime as (
         s.charger_id,
         s.port_id,
         s.date_id,
-        s.minutes_commissioned,
-        coalesce(d.total_downtime_minutes, 0) as total_downtime_minutes
+        s.commissioned_minutes,
+        coalesce(d.downtime_minutes, 0) as downtime_minutes
     from span_port_days as s
     left join downtime_agg as d
         on s.charger_id = d.charger_id
@@ -48,7 +48,11 @@ with_downtime as (
 -- charger_id -> location_id (int_chargers) -> location_key generated in place
 with_location as (
     select
-        with_downtime.*,
+        with_downtime.charger_id,
+        with_downtime.port_id,
+        with_downtime.date_id,
+        with_downtime.commissioned_minutes,
+        with_downtime.downtime_minutes,
         chargers.location_id
     from with_downtime
     left join {{ ref('int_chargers') }} as chargers
@@ -64,6 +68,9 @@ select
     charger_id,
     port_id,
     date_id,
-    (minutes_commissioned - total_downtime_minutes) / minutes_commissioned as uptime
+    commissioned_minutes,
+    downtime_minutes,
+    commissioned_minutes - downtime_minutes as uptime_minutes,
+    (commissioned_minutes - downtime_minutes) / commissioned_minutes as uptime
 from with_location
-where minutes_commissioned > 0
+where commissioned_minutes > 0
