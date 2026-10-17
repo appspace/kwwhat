@@ -864,29 +864,7 @@ models:
               arguments:
                 min_value: 1
 
-  - name: fact_charger_commissioned_daily
-    description: "One row per charger per day between commissioned and decommissioned, with minutes the charger was commissioned that day. Used for uptime and availability metrics."
-    columns:
-      - name: charger_id
-        description: "Charger identifier"
-        data_tests:
-          - not_null
-      - name: date_id
-        description: "Calendar day (date)"
-        data_tests:
-          - not_null
-      - name: minutes
-        description: "Minutes the charger was commissioned on this day (partial on first/last day of commission range)"
-        data_tests:
-          - not_null
-    data_tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns:
-              - charger_id
-              - date_id
-
-  - name: fact_uptime
+  - name: fact_uptime_daily
     description: "Port-level daily uptime. One row per Port per day (charger_id + port_id + date_id). Uptime = (commissioned minutes that day − outage minutes) / commissioned minutes. Reliability is tracked at Port grain because a Port is the independently operated unit that serves one EV at a time."
     columns:
       - name: uptime_id
@@ -922,6 +900,43 @@ models:
         description: "Calendar day (date)"
         data_tests:
           - not_null
+      - name: commissioned_minutes
+        description: "Minutes the port's charger was commissioned on this day: 1440 for a full day, less on the first and last day of the commission range. Denominator of uptime."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 1440
+      - name: downtime_minutes
+        description: "Minutes the port was down (FAULTED or OFFLINE) on this day, from fact_downtime_daily; 0 if no downtime was recorded."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: offline_downtime_minutes
+        description: "Part of downtime_minutes when the charger was OFFLINE (stopped sending heartbeats); 0 if none."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: faulted_downtime_minutes
+        description: "Part of downtime_minutes when the port was FAULTED (every connector on the port reported Faulted); 0 if none."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: uptime_minutes
+        description: "Minutes the port was commissioned and not down on this day (commissioned_minutes - downtime_minutes). Numerator of uptime."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1440
       - name: uptime
         description: "Fraction of commissioned minutes that were not outage; 1 = fully up, 0 = fully down"
         data_tests:
@@ -930,3 +945,7 @@ models:
               arguments:
                 min_value: 0
                 max_value: 1
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "offline_downtime_minutes + faulted_downtime_minutes = downtime_minutes"
