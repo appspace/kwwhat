@@ -916,3 +916,28 @@ unit_tests:
     expect:
       rows:
         - {charger_id: 'CH-002', connector_id: '1', port_id: 'P-002', latest_status: 'Charging'}
+
+  # ── int_charger_commissioned_daily ──────────────────────────────────────────
+
+  - name: test_int_charger_commissioned_daily_still_commissioned_ignores_dst
+    description: "A charger that is still in commission (no decommissioned_ts) must get exactly 1440 minutes on every full day, including daylight-saving changeover days. The open end of the span must not pull the session time zone into the day boundaries."
+    model: int_charger_commissioned_daily
+    given:
+      - input: ref('int_chargers')
+        format: dict
+        rows:
+          - {charger_id: 'CH-001', commissioned_ts: 2025-09-15 10:30:00, decommissioned_ts: null}
+      - input: ref('dim_dates')
+        format: dict
+        rows:
+          - {date_id: 2025-09-15}
+          - {date_id: 2025-11-02}
+          - {date_id: 2025-11-03}
+          - {date_id: 2026-03-08}
+    expect:
+      format: dict
+      rows:
+        - {charger_id: 'CH-001', date_id: 2025-09-15, commissioned_minutes: 810}
+        - {charger_id: 'CH-001', date_id: 2025-11-02, commissioned_minutes: 1440}
+        - {charger_id: 'CH-001', date_id: 2025-11-03, commissioned_minutes: 1440}
+        - {charger_id: 'CH-001', date_id: 2026-03-08, commissioned_minutes: 1440}

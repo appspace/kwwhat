@@ -322,7 +322,7 @@ semantic_models:
 
   - name: uptime
     description: "Port-level daily uptime: fraction of commissioned minutes not lost to outages."
-    model: ref('fact_uptime')
+    model: ref('fact_uptime_daily')
     defaults:
       agg_time_dimension: date_id
     entities:
