@@ -26,3 +26,4 @@ project-wide convention.
 | [0005](0005-cross-warehouse-compatibility.md) | Cross-warehouse compatibility through dispatched kwwhat macros | Accepted |
 | [0006](0006-unified-error-code-resolution.md) | Unified error-code resolution for downtime reasons | Accepted |
 | [0007](0007-energy-based-utilisation-denominator.md) | Rated power as the denominator for energy-based utilisation | Accepted |
+| [0008](0008-duration-weighted-uptime.md) | Duration-weighted uptime | Proposed |
