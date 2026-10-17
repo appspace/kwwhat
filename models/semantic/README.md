@@ -22,6 +22,7 @@ Semantic models reference marts only.
 | Metric name | Definition |
 | ---------- | ---------- |
 | total_visits | Total number of charging visits |
+| total_successful_visits | Total number of charging visits where the driver successfully charged |
 | total_charge_attempts | Total number of charge attempts across all visits |
 | average_attempts_per_visit | Average number of charge attempts per visit (total charge attempts / total visits) |
 | first_attempt_success | Count of successful visits with just one attempt |
