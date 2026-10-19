@@ -146,6 +146,8 @@ External datasets and tools used in this repo follow their respective licenses a
 
 Open to contributions from the EV data community. If you’re building in this space and want to improve reliability tracking, user experience analytics, or charger diagnostics — join in!
 
+Design decisions and the reasoning behind them are recorded as [Architecture Decision Records](docs/adr/README.md). If your change alters grain, a metric definition, a key strategy, or a project-wide convention, add an ADR in the same PR.
+
 ---
 
 ## Contact
