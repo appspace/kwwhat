@@ -346,12 +346,6 @@ models:
           - dbt_utils.accepted_range:
               arguments:
                 min_value: 1
-      - name: charger_ids
-        description: "Array of charger IDs used during this visit. Kept as an array despite arrays being non-standard in a dimensional fact: a visit can span multiple chargers (e.g. a retry on an adjacent charger), and collapsing to a single value would lose that detail for operational drill-down. Not declared as a dimension or measure in models/semantic/semantic_models.yml, so it is excluded from metric aggregation by construction. Use first_charger_id/last_charger_id for semantic-layer-safe charger attribution."
-        data_type: array<string>
-      - name: charge_attempt_ids
-        description: "Array of charge attempt IDs included in this visit. Kept as an array for the same reason as charger_ids - it enables operational drill-down into every attempt in the visit without a separate bridge table. Not declared as a dimension or measure in models/semantic/semantic_models.yml, so it is excluded from metric aggregation by construction. Use first_charge_attempt_id/last_charge_attempt_id for semantic-layer-safe joins."
-        data_type: array<string>
       - name: first_charge_attempt_id
         description: "Charge attempt ID that started the visit"
       - name: last_charge_attempt_id
@@ -422,6 +416,62 @@ models:
             expression: "visit_end_ts >= visit_start_ts"
           config:
             severity: error
+
+  - name: bridge_visit_chargers
+    description: "Bridge between visits and the chargers used during them. One row per visit_id + charger_id, replacing the former charger_ids array on fact_visits. Join to fact_visits on visit_id and to dim_chargers on charger_key to filter or count visits by member charger."
+    columns:
+      - name: visit_id
+        description: "Visit identifier, matches fact_visits.visit_id."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fact_visits')
+                field: visit_id
+      - name: charger_key
+        description: "Surrogate key for the charger, generated in place from charger_id. Matches dim_chargers.charger_key by construction."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_chargers')
+                field: charger_key
+      - name: charger_id
+        description: "Charger identifier, kept as a degenerate dimension alongside charger_key."
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - visit_id
+              - charger_id
+
+  - name: bridge_visit_charge_attempts
+    description: "Bridge between visits and their charge attempts. One row per visit_id + charge_attempt_id, replacing the former charge_attempt_ids array on fact_visits. Join to fact_visits on visit_id and to fact_charge_attempts on charge_attempt_id."
+    columns:
+      - name: visit_id
+        description: "Visit identifier, matches fact_visits.visit_id."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fact_visits')
+                field: visit_id
+      - name: charge_attempt_id
+        description: "Charge attempt identifier, matches fact_charge_attempts.charge_attempt_id."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fact_charge_attempts')
+                field: charge_attempt_id
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - visit_id
+              - charge_attempt_id
 
   - name: dim_dates
     description: "Date dimension table for semantic models and date-based joins. Used as MetricFlow time spine."

@@ -93,6 +93,33 @@ semantic_models:
       - name: is_authorization
         type: categorical
 
+  - name: visit_chargers
+    description: "Bridge from visits to the chargers used during them (one row per visit and charger). Join via the visit entity to slice visit metrics by member charger."
+    model: ref('bridge_visit_chargers')
+    primary_entity: visit
+    entities:
+      - name: visit
+        type: foreign
+        expr: visit_id
+      - name: charger
+        type: foreign
+        expr: charger_key
+    dimensions:
+      - name: charger_id
+        type: categorical
+
+  - name: visit_charge_attempts
+    description: "Bridge from visits to their charge attempts (one row per visit and charge attempt)."
+    model: ref('bridge_visit_charge_attempts')
+    primary_entity: visit
+    entities:
+      - name: visit
+        type: foreign
+        expr: visit_id
+    dimensions:
+      - name: charge_attempt_id
+        type: categorical
+
   - name: visits
     description: "Visit-level semantic model for driver visit outcomes, attempt counts, duration, and energy transferred."
     model: ref('fact_visits')
