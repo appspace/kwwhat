@@ -7,10 +7,12 @@
   )
 }}
 
--- Incremental merge. int_status_changes writes every open status again on each run, so an ongoing fault is read
--- again on every run and extended (or closed once its next status arrives); the merge upserts it by from_ts.
--- One clock: int_status_changes.incremental_ts selects the batch, and its max is both the end of every ongoing fault
--- and this batch's incremental_ts, so the next run starts where an ongoing fault was cut off.
+-- Incremental strategy: merge one port outage per charger_id + port_id + from_ts.
+-- Watermark: max(incremental_ts) already stored in this model; batches are selected by int_status_changes.incremental_ts.
+-- Reprocessing: int_status_changes re-emits every open status, allowing an ongoing fault to be extended or closed;
+-- the upstream batch watermark is both the temporary end of open faults and this model's next checkpoint.
+-- Late arrivals are recoverable only when int_status_changes re-emits the affected status or during a backfill.
+
 
 {% if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}

@@ -7,7 +7,12 @@
     )
 }}
 
--- Incremental merge: unions new + buffered open rows, recomputes lag/lead over the combined set.
+-- Incremental strategy: merge one row per charger_id + connector_id + ingested_ts.
+-- Watermark: max(incremental_ts) already stored in this model; new OCPP logs are read strictly after it.
+-- Reprocessing: every previously open status (next_status is null) is unioned with the new batch so lag/lead can
+-- close the old status and establish the new connector state. Open rows are re-emitted with the batch watermark.
+-- Late arrivals: source rows at or before the watermark are not reread and require a backfill or full refresh.
+
 
 {% if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}

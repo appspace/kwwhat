@@ -7,7 +7,12 @@
   )
 }}
 
--- Incremental merge: left-joins against still-open outages in {{ this }}, extends via least/greatest.
+-- Incremental strategy: merge one charger outage per charger_id + from_ts.
+-- Watermark: max(incremental_ts) already stored in this model; source messages are read from that boundary through
+-- the available source maximum. The boundary is inclusive so an outage cut off by the prior run can be continued.
+-- Reprocessing: a new boundary outage joins the target outage ending at the watermark and extends it via least/greatest.
+-- Late arrivals before the boundary are not reread and require a backfill or full refresh.
+
 
 {% set charge_point_initiated_actions = [
     'Authorize', 'BootNotification', 'DataTransfer',

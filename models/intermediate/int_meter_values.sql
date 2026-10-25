@@ -7,7 +7,12 @@
     )
 }}
 
--- Incremental merge: left-joins against {{ this }}, combines via CASE least/greatest + weighted average.
+-- Incremental strategy: merge aggregated measurements on the configured composite measurement grain.
+-- Watermark: max(incremental_ts) already stored in this model; OCPP logs are read strictly after it in bounded windows.
+-- Reprocessing: a matching target row contributes its prior min/max/count and weighted average to the new aggregate.
+-- The calculated 30-minute buffer is not used by the current source filter, so there is no source lookback.
+-- Late arrivals: source rows at or before the watermark are not reread and require a backfill or full refresh.
+
 
 {% set relation_exists = adapter.get_relation(
     database=this.database, schema=this.schema, identifier=this.identifier

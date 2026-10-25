@@ -27,12 +27,13 @@
   )
 }}
 
--- Grain is date_id + outage_id: one row per outage per calendar day it covers.
--- A run reads only the outages that changed since the last run (their incremental_ts is past the watermark).
--- delete+insert on outage_id replaces all of a re-read outage's rows - every day it covers, and under its
--- latest reason if its error code changed - and leaves every other outage's rows alone.
--- An offline outage that starts during a fault is removed with a post-hook to avoid double-counting
--- The post-hook checks only the last incremental_window of days: older days were cleaned by earlier runs.
+-- Incremental strategy: delete+insert all daily rows for each changed outage_id.
+-- Grain: one row per date_id + outage_id; outage_id remains stable while an ongoing outage is extended.
+-- Watermark: max(incremental_ts) already stored in this model; only upstream outages with a newer stamp are reread.
+-- Reprocessing: deleting by outage_id replaces every calendar day and the latest reason for a changed outage while
+-- leaving unrelated outages untouched. A post-hook removes recent OFFLINE rows that begin during a FAULTED outage.
+-- Late updates are captured when an upstream outage is re-emitted with a newer incremental_ts.
+
 
 {% if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}

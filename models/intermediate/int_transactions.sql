@@ -7,7 +7,12 @@
   )
 }}
 
--- Incremental merge: left-joins new rows against a buffered slice of {{ this }}, combines via coalesce/greatest.
+-- Incremental strategy: merge one row per charger_id + connector_id + first ingested_ts.
+-- Watermark: max(incremental_ts) already stored in this model; OCPP logs are read strictly after it in bounded windows.
+-- Reprocessing: new events are matched by charger_id + transaction_id to an existing transaction that has not stopped;
+-- stable attributes are retained, arrays are deduplicated, and updated_ts advances to the latest incorporated event.
+-- Late arrivals: source rows at or before the watermark are not reread and require a backfill or full refresh.
+
 
 {% set transaction_related_actions = [
     'StartTransaction', 'StopTransaction',
