@@ -9,16 +9,13 @@
 
 -- Incremental strategy: merge one visit per location_id + first charger/port + visit_start_ts.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
--- Reprocessing: attempts with a newer incremental_ts are regrouped; target visits ending within the 30-minute lookback
+-- Reprocessing: attempts updated in the window (updated_ts) are regrouped; target visits ending within the 30-minute lookback
 -- are reread so authenticated visits can extend and unauthenticated visits can merge or gain an inferred id_tag.
 -- Older visits change only when a newly emitted attempt reconnects them through the configured business windows.
 
 
 with incremental_date_range as (
-    {{ incremental_date_range(
-        buffer_minutes=30,
-        to_timestamp_caps=["(select max(incremental_ts) from " ~ ref("fact_charge_attempts") ~ ")"]
-    ) }}
+    {{ incremental_date_range(buffer_minutes=30) }}
 ),
 
 -- Get charge attempts with location information
@@ -44,14 +41,8 @@ charge_attempts_with_location as (
         and att.connector_id = c.connector_id
     inner join {{ ref("dim_chargers") }} as ch
         on att.charger_id = ch.charger_id
-    where att.incremental_ts > (select from_timestamp from incremental_date_range)
-        and att.incremental_ts <= (select to_timestamp from incremental_date_range)
-),
-
-incremental as (
-    select
-        max(preparing_ingested_ts) as incremental_ts
-    from charge_attempts_with_location
+    where att.updated_ts > (select from_timestamp from incremental_date_range)
+        and att.updated_ts <= (select to_timestamp from incremental_date_range)
 ),
 
 -- Step 1: Infer idTag for unauthorised attempts if there is authorised right after on the same port
@@ -476,6 +467,5 @@ select
     v.is_successful,
     v.last_error_code,
     v.grouping_key,
-    {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes,
-    (select incremental_ts from incremental) as incremental_ts
+    {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes
 from visits as v

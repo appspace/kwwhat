@@ -9,7 +9,7 @@
 -- Incremental strategy: merge one cumulative row per id_tag, including the __UNKNOWN__ sentinel.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: the existing row supplies prior first/latest values, while timestamp comparisons select the correct
--- authorization status. Earlier business events are supported when their upstream incremental_ts is newer.
+-- authorization status. Earlier business events are supported when their attempt's updated_ts is in the window.
 -- The configured 30-minute buffer is not used by the current source filter.
 
 
@@ -21,11 +21,10 @@ attempts as (
     select
         att.id_tag,
         att.id_tag_status,
-        att.charge_attempt_start_ts,
-        att.incremental_ts
+        att.charge_attempt_start_ts
     from {{ ref('fact_charge_attempts') }} as att
-    where att.incremental_ts > (select from_timestamp from incremental_date_range)
-        and att.incremental_ts <= (select to_timestamp from incremental_date_range)
+    where att.updated_ts > (select from_timestamp from incremental_date_range)
+        and att.updated_ts <= (select to_timestamp from incremental_date_range)
 ),
 
 new_aggs as (
@@ -34,8 +33,7 @@ new_aggs as (
         min(charge_attempt_start_ts) as first_seen_ts,
         max(charge_attempt_start_ts) as last_seen_ts,
         {{ min_by('id_tag_status', 'charge_attempt_start_ts') }} as first_authorization_status,
-        {{ max_by('id_tag_status', 'charge_attempt_start_ts') }} as latest_authorization_status,
-        max(incremental_ts) as incremental_ts
+        {{ max_by('id_tag_status', 'charge_attempt_start_ts') }} as latest_authorization_status
     from attempts
     where id_tag is not null
     group by id_tag
@@ -47,8 +45,7 @@ new_aggs as (
         min(charge_attempt_start_ts) as first_seen_ts,
         max(charge_attempt_start_ts) as last_seen_ts,
         cast(null as {{ dbt.type_string() }}) as first_authorization_status,
-        cast(null as {{ dbt.type_string() }}) as latest_authorization_status,
-        max(incremental_ts) as incremental_ts
+        cast(null as {{ dbt.type_string() }}) as latest_authorization_status
     from attempts
     where id_tag is null
     having count(*) > 0
@@ -78,8 +75,7 @@ final as (
             when b.last_seen_ts is null or n.last_seen_ts >= b.last_seen_ts
                 then n.latest_authorization_status
             else b.latest_authorization_status
-        end as latest_authorization_status,
-        n.incremental_ts as incremental_ts
+        end as latest_authorization_status
     from new_aggs n
     left join {{ this }} b on n.id_tag = b.id_tag
 
@@ -95,6 +91,5 @@ select
     first_seen_ts,
     last_seen_ts,
     first_authorization_status,
-    latest_authorization_status,
-    incremental_ts
+    latest_authorization_status
 from final

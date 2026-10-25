@@ -21,9 +21,17 @@ Checkpoint mode is explicitly enabled per invocation. Within one checkpoint-enab
 3. An `on-run-end` hook finalizes the window only when all selected resources complete without failure or error.
 4. A failed run leaves the window pending. After its lease expires, a later invocation reclaims the same boundaries.
 
-Incremental models do not read their own targets to derive runtime processing boundaries. When checkpoint mode is disabled for a run, build, compile, full refresh, or isolated CI context, `incremental_date_range` returns a deterministic bounded range beginning at `start_processing_date`, optionally constrained by source and upstream availability. That fallback does not advance and must not be used as production pipeline state. Incremental unit tests retain a test-only mocked-target boundary because dbt's unit-test harness does not execute lifecycle hooks.
+Incremental models do not read their own targets to derive runtime processing boundaries. When checkpoint mode is disabled for a run, build, compile, full refresh, or isolated CI context, `incremental_date_range` returns a deterministic bounded range beginning at `start_processing_date`, optionally constrained by source availability. That fallback does not advance and must not be used as production pipeline state. Incremental unit tests set their window explicitly through `start_processing_date` because dbt's unit-test harness does not execute lifecycle hooks.
 
-Checkpoint rows are isolated by their target relation, `project_name`, `target.name`, and configured checkpoint name. The project name is included in the stored checkpoint key. `incremental_ts` remains row-level processing metadata and is never authoritative pipeline state.
+No model carries a processing stamp. The former `incremental_ts` column is removed everywhere, along with the upstream caps that read `max(incremental_ts)` from parent models: within one invocation every model processes the same window in DAG order, so the caps protected nothing, and they cut the tail off full refreshes (an upstream model's last row is not how far it processed). Downstream models read changed upstream rows by business timestamps that always fall inside the window that wrote them:
+
+- `updated_ts`, the latest source event reflected in a row (`int_status_changes`, `int_connector_preparing`, `int_transactions`, and `fact_charge_attempts`, which takes the later of its two inputs).
+- `to_ts` for outages: a new, extended or closed outage ends inside the window that wrote it.
+- Open-record reconciliation reads still-open rows directly (`int_faulted_outages` reads every status with no `next_status`), instead of relying on the upstream model writing them again with a new stamp.
+
+An ongoing outage ends at the last OCPP log received in the window, computed by the outage model itself.
+
+Checkpoint rows are isolated by their target relation, `project_name`, `target.name`, and configured checkpoint name. The project name is included in the stored checkpoint key.
 
 ## Alternatives considered
 
@@ -39,6 +47,7 @@ Checkpoint rows are isolated by their target relation, `project_name`, `target.n
 - The complete selected incremental pipeline advances in lockstep.
 - Incremental replays must be idempotent because a crash can occur after model writes but before finalization.
 - Populated-window replay is currently blocked by nullable merge keys in `int_meter_values` and duplicate merge matches in `fact_charge_attempts`; production cutover requires resolving and revalidating this path.
+- A full refresh and a checkpoint-driven incremental rebuild read the same rows, so they can be compared directly: no column legitimately differs between them.
 - Overlapping checkpoint-enabled builds are rejected while a lease is active.
 - Full refresh bypasses checkpoint behavior and starts from `start_processing_date`.
 - Disabled checkpoint mode is deterministic and non-advancing; it is suitable for compilation, tests, and isolated validation, not production scheduling.

@@ -9,9 +9,9 @@
 
 -- Incremental strategy: merge one port outage per charger_id + port_id + from_ts.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
--- Reprocessing: int_status_changes re-emits every open status, allowing an ongoing fault to be extended or closed;
--- the upstream batch watermark is both the temporary end of open faults and row-level processing metadata.
--- Late arrivals are recoverable only when int_status_changes re-emits the affected status or during a backfill.
+-- Reprocessing: reads status changes updated in the window (updated_ts) plus every still-open status, so an ongoing
+-- fault is extended or closed; an ongoing fault ends at the last OCPP log in the window until its next status arrives.
+-- Late arrivals are recoverable only when the affected status is updated in a later window or during a backfill.
 
 
 with incremental_date_range as (
@@ -19,12 +19,12 @@ with incremental_date_range as (
         from_timestamp_caps=[
             "coalesce((select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ "), "
             ~ "cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ "))"
-        ],
-        to_timestamp_caps=["(select max(incremental_ts) from " ~ ref("int_status_changes") ~ ")"]
+        ]
     ) }}
 ),
 
--- Get status changes filtered to faulted status transitions
+-- Status changes updated in this window, plus every still-open status: an open fault on one connector must be seen
+-- alongside a new fault on another to detect when all connectors of a port are faulted
 status_changes as (
     select
         charger_id,
@@ -36,18 +36,25 @@ status_changes as (
         error_code,
         taxonomy,
         next_status,
-        next_ingested_ts,
-        incremental_ts
+        next_ingested_ts
     from {{ ref("int_status_changes") }}
-    where incremental_ts > (select from_timestamp from incremental_date_range)
-        and incremental_ts <= (select to_timestamp from incremental_date_range)
+    where ingested_ts <= (select to_timestamp from incremental_date_range)
+        and (
+            next_status is null
+            or (
+                updated_ts > (select from_timestamp from incremental_date_range)
+                and updated_ts <= (select to_timestamp from incremental_date_range)
+            )
+        )
 ),
 
--- Last log received upstream: int_status_changes stamps each batch with max(ingested_timestamp) of the OCPP logs it read
-incremental as (
+-- Last OCPP log in this window, the same logs int_status_changes read: the end of every ongoing fault
+last_log as (
     select
-        max(incremental_ts) as incremental_ts
-    from status_changes
+        max(ingested_timestamp) as last_log_ts
+    from {{ ref("int_ocpp_logs") }}
+    where ingested_timestamp > (select from_timestamp from incremental_date_range)
+        and ingested_timestamp <= (select to_timestamp from incremental_date_range)
 ),
 
 ports_count as (
@@ -68,7 +75,7 @@ connector_fault_periods as (
         error_code,
         taxonomy,
         ingested_ts as from_ts,
-        coalesce(next_ingested_ts, (select incremental_ts from incremental)) as to_ts
+        coalesce(next_ingested_ts, (select last_log_ts from last_log)) as to_ts
     from status_changes
     where status = 'Faulted'
         and connector_id != '0'
@@ -85,7 +92,7 @@ charger_fault_periods as (
         sc.error_code,
         sc.taxonomy,
         sc.ingested_ts as from_ts,
-        coalesce(sc.next_ingested_ts, (select incremental_ts from incremental)) as to_ts
+        coalesce(sc.next_ingested_ts, (select last_log_ts from last_log)) as to_ts
     from status_changes as sc
     inner join {{ ref('int_connectors') }} as con
         on sc.charger_id = con.charger_id
@@ -250,7 +257,6 @@ select
     {{ dbt.datediff('from_ts', 'to_ts', 'minute') }} as duration_minutes,
     latest_error_code_name,
     latest_error_code,
-    latest_taxonomy,
-    (select incremental_ts from incremental) as incremental_ts
+    latest_taxonomy
 from faulted_outages_with_root_cause
 where to_ts > from_ts

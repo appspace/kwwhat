@@ -22,10 +22,7 @@
 with incremental_date_range as (
     {{ incremental_date_range(
         buffer_minutes=30,
-        to_timestamp_caps=[
-            "(select max(incremental_ts) from " ~ ref("int_status_changes") ~ ")",
-            "(select max(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ ")"
-        ]
+        to_timestamp_caps=["(select max(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ ")"]
     ) }}
 ),
 
@@ -73,12 +70,6 @@ ocpp_logs as (
     from {{ ref("int_ocpp_logs") }}
     where ingested_timestamp >= (select buffer_from_timestamp from incremental_date_range)
         and ingested_timestamp <= (select to_timestamp from incremental_date_range)
-),
-
-incremental as (
-    select
-        max(updated_ts) as incremental_ts
-    from status_changes_to_preparing
 ),
 
 
@@ -309,7 +300,6 @@ select
             then {{ array_first('transaction_ids') }}
         else null
     end as transaction_id,
-    (select incremental_ts from incremental) as incremental_ts,
     -- Count aggregations for testing
     case
         when transaction_ids is not null

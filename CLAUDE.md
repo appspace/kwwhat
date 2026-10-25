@@ -265,7 +265,7 @@ Use this shape and adapt it to the model rather than copying generic wording:
 
 ```sql
 -- Incremental strategy: merge one row per <grain>.
--- Watermark: max(<watermark_column>) from {{ this }}; source rows are read strictly after it.
+-- Watermark: the shared warehouse checkpoint window; source rows are read strictly after its start.
 -- Reprocessing: <lookback/open rows/state reconciliation behavior>.
 -- Late arrivals: <supported horizon and recovery path>.
 ```

@@ -27,8 +27,7 @@ source_window as (
         error_code,
         taxonomy,
         info,
-        ingested_ts,
-        max(ingested_ts) over () as incremental_ts
+        ingested_ts
     from {{ ref('int_status_changes') }}
     cross join incremental_date_range
     where next_status is null
@@ -46,6 +45,5 @@ select
     error_code as latest_error_code,
     taxonomy as latest_taxonomy,
     info as latest_info,
-    ingested_ts as latest_status_ts,
-    incremental_ts
+    ingested_ts as latest_status_ts
 from source_window

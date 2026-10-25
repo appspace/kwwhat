@@ -40,11 +40,11 @@ window_messages as (
         and action in ({{ "'" + "', '".join(charge_point_initiated_actions) + "'" }})
 ),
 
--- Last message received. Both clocks use it: it is the batch's incremental_ts and the end of every ongoing outage, so
--- the next run starts exactly where an ongoing outage was cut off and previous_outages finds it.
-incremental as (
+-- Last message received in this window: the end of every ongoing outage. It is also the outage's to_ts, which
+-- fact_downtime_daily reads changed outages by.
+last_message as (
     select
-        max(ingested_timestamp) as incremental_ts
+        max(ingested_timestamp) as last_message_ts
     from window_messages
 ),
 
@@ -57,12 +57,12 @@ charger_context as (
             (select from_timestamp from incremental_date_range)
         ) as monitoring_start_ts,
         least(
-            coalesce(decommissioned_ts, (select incremental_ts from incremental)),
-            (select incremental_ts from incremental)
+            coalesce(decommissioned_ts, (select last_message_ts from last_message)),
+            (select last_message_ts from last_message)
         ) as monitoring_end_ts
     from {{ ref("int_chargers") }}
     where commissioned_ts is not null
-        and commissioned_ts < (select incremental_ts from incremental)
+        and commissioned_ts < (select last_message_ts from last_message)
         and (decommissioned_ts is null or decommissioned_ts > (select from_timestamp from incremental_date_range))
 ),
 
@@ -186,7 +186,6 @@ select
     charger_id,
     from_ts,
     to_ts,
-    duration_seconds / 60 as duration_minutes,
-    (select incremental_ts from incremental) as incremental_ts
+    duration_seconds / 60 as duration_minutes
 from all_outages
 where duration_seconds > {{ var("heartbeat_interval_seconds") }}

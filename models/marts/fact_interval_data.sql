@@ -21,8 +21,7 @@
 with incremental_date_range as (
     {{ incremental_date_range(
         buffer_minutes=30,
-        from_timestamp_caps=["(select min(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"],
-        to_timestamp_caps=["(select max(incremental_ts) from " ~ ref("int_meter_values") ~ ")"]
+        from_timestamp_caps=["(select min(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"]
     ) }}
 ),
 
@@ -62,12 +61,6 @@ with incremental_date_range as (
             first_measurement_ts,
             last_measurement_ts
         from {{ ref("int_meter_values") }}
-    ),
-
-    incremental as (
-        select
-            max(ingested_ts) as incremental_ts
-        from ocpp_logs
     ),
 
     meter_value_logs as (
@@ -282,6 +275,5 @@ with incremental_date_range as (
         meter_15min_interval_start,
         meter_15min_interval_stop,
         avg_value,
-        _count,
-        (select incremental_ts from incremental) as incremental_ts
+        _count
     from final

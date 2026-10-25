@@ -58,7 +58,7 @@ docker compose -f demo/docker-compose.yml run --rm --no-deps --entrypoint dbt db
 - Before starting, refresh the raw data if the seeds may have changed: `docker compose -f demo/docker-compose.yml up duckdb-init`.
 - Shell state doesn't persist between commands, so write the full prefix each time.
 
-**How incremental windows advance (ADR 0008).** Models no longer read `max(incremental_ts)` from their own target. A checkpoint-enabled `dbt run` / `dbt build` claims one window from the warehouse checkpoint table (`_kwwhat_incremental_checkpoint` in the target schema) in `on-run-start`, every incremental model reads that same window, and `on-run-end` advances the checkpoint only if nothing failed. Consequences for this check:
+**How incremental windows advance (ADR 0008).** Models no longer read `max(...)` of any target to bound their window, and carry no processing stamp column. A checkpoint-enabled `dbt run` / `dbt build` claims one window from the warehouse checkpoint table (`_kwwhat_incremental_checkpoint` in the target schema) in `on-run-start`, every incremental model reads that same window, and `on-run-end` advances the checkpoint only if nothing failed. Consequences for this check:
 - Without `incremental_checkpoint_enabled: true` the window is fixed at `start_processing_date` plus `incremental_window` and never moves, so repeated runs reprocess the same window. Every incremental pass below must enable the checkpoint.
 - `--full-refresh` always bypasses the checkpoint.
 - A checkpoint-enabled run advances the shared window for the whole project, so incremental passes run the **full DAG** (no `--select`). The parity check therefore covers every incremental model at once.
@@ -85,10 +85,9 @@ Skip unit tests on the repeated runs (`dbt run` does not execute tests; on `dbt 
    - `dbt test --select "test_type:unit"`.
    - For each model: `dbt run-operation qa_snapshot_model --args '{model_name: <model>, suffix: incremental}'`.
 4. **Compare**, for each model
-   - Exclude `incremental_ts` from the diff. It is row-level processing metadata (ADR 0008), not business data, and legitimately differs between the two builds.
    - Row-level diff, both directions:
-     `dbt show --inline "select * exclude (incremental_ts) from {{ target.database }}.{{ target.schema }}.<model>_full except select * exclude (incremental_ts) from {{ target.database }}.{{ target.schema }}.<model>_incremental"`
-     `dbt show --inline "select * exclude (incremental_ts) from {{ target.database }}.{{ target.schema }}.<model>_incremental except select * exclude (incremental_ts) from {{ target.database }}.{{ target.schema }}.<model>_full"`
+     `dbt show --inline "select * from {{ target.database }}.{{ target.schema }}.<model>_full except select * from {{ target.database }}.{{ target.schema }}.<model>_incremental"`
+     `dbt show --inline "select * from {{ target.database }}.{{ target.schema }}.<model>_incremental except select * from {{ target.database }}.{{ target.schema }}.<model>_full"`
    - Also compare `count(*)` of each snapshot. `except` is set-based, so duplicate rows in one side (e.g. from a merge key that does not match) only show up in the counts.
    - Always qualify snapshot tables with the database (`{{ target.database }}.{{ target.schema }}.<table>`), as the macros do. On DuckDB the schema name alone is ambiguous: `ANALYTICS` matches both the schema and the `analytics` catalog (from `analytics.duckdb`), since DuckDB matches names case-insensitively.
    - Both diffs must return zero rows and the counts must match. Any divergent row is a correctness bug, not a nitpick. Report it like a failing `dbt test`, including the full row(s) and the first model in DAG order that diverges (downstream divergence is often a knock-on effect), pointing at `<model>_full` / `<model>_incremental` for further digging (do not fix it yourself, see "What you do not do").

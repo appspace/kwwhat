@@ -38,12 +38,6 @@ ocpp_logs as (
         and ingested_timestamp <= (select to_timestamp from incremental_date_range)
 ),
 
-incremental as (
-    select
-        max(ingested_ts) as incremental_ts
-    from ocpp_logs
-),
-
 -- Filter for charge attempt actions first
 transaction_events as (
     select
@@ -209,7 +203,5 @@ transactions_with_ids as (
         on transactions_final.charger_id = chargers.charger_id
 )
 
-select
-    *,
-    (select incremental_ts from incremental) as incremental_ts
+select *
 from transactions_with_ids

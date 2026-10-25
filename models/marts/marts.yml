@@ -109,8 +109,8 @@ models:
               arguments:
                 values: [true, false]
                 quote: false
-      - name: incremental_ts
-        description: "Latest incremental processing timestamp from both source models for incremental processing tracking"
+      - name: updated_ts
+        description: "The latest source event reflected in this attempt: the later of the Preparing status change's and the transaction's updated_ts, carried forward across incremental runs. Downstream models (fact_visits, int_driver_aggregates) read changed attempts by it."
         data_tests:
           - not_null
     data_tests:
@@ -401,10 +401,6 @@ models:
           - accepted_values:
               arguments:
                 values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
-      - name: incremental_ts
-        description: "Latest incremental processing timestamp for incremental processing tracking"
-        data_tests:
-          - not_null
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

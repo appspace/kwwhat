@@ -51,12 +51,6 @@ with incremental_date_range as (
         from {{ ref("int_transactions") }}
     ),
 
-    incremental as (
-        select
-            max(ingested_ts) as incremental_ts
-        from ocpp_logs
-    ),
-
     -- Example:
     -- [
     --     {
@@ -264,6 +258,5 @@ with incremental_date_range as (
         min_value,
         max_value,
         avg_value,
-        _count,
-        (select incremental_ts from incremental) as incremental_ts
+        _count
     from final

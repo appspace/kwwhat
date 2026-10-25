@@ -11,6 +11,7 @@
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: upstream rows are selected by updated_ts; existing attempts with the same transaction, plus recent
 -- incomplete attempts within the authorization threshold, are reread to fill stop, transaction, array, and energy data.
+-- updated_ts is the latest upstream updated_ts merged into an attempt; downstream models read changed attempts by it.
 -- Late updates are captured when an upstream updated_ts enters a claimed window; otherwise they require a backfill.
 
 
@@ -18,12 +19,7 @@
 {%- set _authorize_threshold = var("authorize_time_threshold_seconds") -%}
 
 with incremental_date_range as (
-    {{ incremental_date_range(
-        to_timestamp_caps=[
-            "(select max(incremental_ts) from " ~ ref("int_connector_preparing") ~ ")",
-            "(select max(incremental_ts) from " ~ ref("int_transactions") ~ ")"
-        ]
-    ) }}
+    {{ incremental_date_range() }}
 ),
 
 preparing as (
@@ -46,7 +42,8 @@ preparing as (
         transaction_id,
         -- Attempt start timestamp: use payload_ts if available, otherwise ingested_ts
         coalesce(payload_ts, ingested_ts) as preparing_start_ts,
-        coalesce(next_payload_ts, next_ingested_ts) as preparing_stop_ts
+        coalesce(next_payload_ts, next_ingested_ts) as preparing_stop_ts,
+        updated_ts as preparing_updated_ts
     from {{ ref('int_connector_preparing') }}
     where updated_ts > (select from_timestamp from incremental_date_range)
         and updated_ts <= (select to_timestamp from incremental_date_range)
@@ -67,24 +64,11 @@ transactions as (
         id_tag_statuses,
         meter_start_wh,
         meter_stop_wh,
-        energy_transferred_kwh
+        energy_transferred_kwh,
+        updated_ts as transaction_updated_ts
     from {{ ref('int_transactions') }}
     where updated_ts > (select from_timestamp from incremental_date_range)
         and updated_ts <= (select to_timestamp from incremental_date_range)
-),
-
-incremental as (
-    select
-        greatest(
-            coalesce(
-                (select max(preparing_ingested_ts) from preparing),
-                cast('1900-01-01' as {{ dbt.type_timestamp() }})
-            ),
-            coalesce(
-                (select max(transaction_ingested_ts) from transactions),
-                cast('1900-01-01' as {{ dbt.type_timestamp() }})
-            )
-        ) as incremental_ts
 ),
 
 attempts_and_transactions as (
@@ -118,7 +102,12 @@ attempts_and_transactions as (
         t.transaction_stop_reason,
         t.meter_start_wh,
         t.meter_stop_wh,
-        t.energy_transferred_kwh
+        t.energy_transferred_kwh,
+
+        greatest(
+            coalesce(p.preparing_updated_ts, t.transaction_updated_ts),
+            coalesce(t.transaction_updated_ts, p.preparing_updated_ts)
+        ) as updated_ts
 
     from preparing as p
     full outer join transactions as t
@@ -160,7 +149,8 @@ attempts_and_transactions as (
             transaction_stop_reason,
             meter_start_wh,
             meter_stop_wh,
-            energy_transferred_kwh
+            energy_transferred_kwh,
+            updated_ts
         from {{ this }} as buf
         -- All attempts with the same transaction from previous runs
         where buf.transaction_id in (
@@ -202,6 +192,7 @@ attempts_and_transactions as (
             coalesce(n.meter_start_wh, b.meter_start_wh) as meter_start_wh,
             coalesce(n.meter_stop_wh, b.meter_stop_wh) as meter_stop_wh,
             coalesce(n.energy_transferred_kwh, b.energy_transferred_kwh) as energy_transferred_kwh,
+            greatest(n.updated_ts, coalesce(b.updated_ts, n.updated_ts)) as updated_ts,
 
             -- Merge arrays using array_concat
             {{ array_distinct(array_concat('n.id_tags', 'b.id_tags')) }} as id_tags,
@@ -345,7 +336,7 @@ select
         then true
         else false
     end as is_successful,
-    (select incremental_ts from incremental) as incremental_ts
+    updated_ts
 from attempts_final
 left join attempt_errors_agg as errors
     on attempts_final.charger_id = errors.error_agg_charger_id

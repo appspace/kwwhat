@@ -9,12 +9,12 @@ Advance bounded incremental processing independently from business-model output,
 - A warehouse-resident checkpoint is claimed in `on-run-start` and finalized in `on-run-end`.
 - Failed runs preserve the pending window; expired leases permit an identical retry.
 - All incremental models read the same claimed lower and upper boundaries.
-- No runtime model derives its watermark from `max(incremental_ts)` in its own target.
-- Source and upstream caps remain only for checkpoint-disabled compatibility behavior; checkpoint-enabled windows use the warehouse control row exclusively.
+- No model reads `max(...)` of a target, its own or an upstream one, to bound its window.
+- Source caps remain only for checkpoint-disabled compatibility behavior; checkpoint-enabled windows use the warehouse control row exclusively.
 - Model-specific source lookbacks and state reconciliation remain in place.
-- `incremental_ts` remains row-level processing metadata only.
+- No model carries a processing stamp: `incremental_ts` is removed. Downstream models read changed rows by `updated_ts` (or `to_ts` for outages) and open rows directly.
 - Full refresh and checkpoint-disabled run/build invocations use a deterministic bounded range beginning at `start_processing_date` and do not advance pipeline state.
-- Incremental unit tests use a test-only mocked-target boundary because dbt unit tests do not execute lifecycle hooks.
+- Incremental unit tests set their window with `overrides: vars: {start_processing_date: ...}` because dbt unit tests do not execute lifecycle hooks.
 
 ## Activation
 
