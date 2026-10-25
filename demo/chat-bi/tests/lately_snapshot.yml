@@ -3,8 +3,8 @@ prompt: "What is the overall uptime and failed charge attempt rate for the full 
 sql: |
   SELECT
     (
-      SELECT ROUND(AVG(uptime) * 100, 2)
-      FROM analytics.ANALYTICS.fact_uptime
+      SELECT ROUND(SUM(uptime_minutes) / SUM(commissioned_minutes) * 100, 2)
+      FROM analytics.ANALYTICS.fact_uptime_daily
     ) AS avg_uptime_pct,
     (
       SELECT ROUND((1 - AVG(CASE WHEN is_successful THEN 1.0 ELSE 0.0 END)) * 100, 2)

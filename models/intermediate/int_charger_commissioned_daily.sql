@@ -17,7 +17,10 @@ charger_commissioned_span as (
     select
         charger_id,
         commissioned_ts,
-        coalesce(decommissioned_ts, {{ dbt.current_timestamp() }}) as decommissioned_ts
+        coalesce(
+            decommissioned_ts,
+            cast({{ dbt.current_timestamp() }} as {{ dbt.type_timestamp() }})
+        ) as decommissioned_ts
     from chargers
 ),
 
@@ -52,13 +55,13 @@ per_day_minutes as (
     select
         charger_id,
         date_id,
-        greatest(0, {{ dbt.datediff('span_start', 'span_end', 'minute') }}) as minutes
+        greatest(0, {{ dbt.datediff('span_start', 'span_end', 'minute') }}) as commissioned_minutes
     from span_bounds
 )
 
 select
     charger_id,
     date_id,
-    minutes
+    commissioned_minutes
 from per_day_minutes
-where minutes > 0
+where commissioned_minutes > 0

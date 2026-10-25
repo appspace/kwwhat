@@ -472,3 +472,29 @@ models:
               - charger_id
               - port_id
               - connector_id
+
+  - name: int_charger_commissioned_daily
+    description: "Time each charger was in commission on each calendar day, between its commissioned and decommissioned timestamps (up to now if still in commission). Partial on the first and last day of the commission range. Used as the denominator for uptime. One row per charger_id + date_id."
+    columns:
+      - name: charger_id
+        description: "Charger identifier"
+        data_tests:
+          - not_null
+      - name: date_id
+        description: "Calendar day (date), from the dim_dates time spine"
+        data_tests:
+          - not_null
+      - name: commissioned_minutes
+        description: "Minutes the charger was commissioned on this day (partial on the first and last day of the commission range)"
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 1440
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charger_id
+              - date_id
