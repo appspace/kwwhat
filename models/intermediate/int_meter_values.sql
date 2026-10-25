@@ -8,27 +8,21 @@
 }}
 
 -- Incremental strategy: merge aggregated measurements on the configured composite measurement grain.
--- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: a matching target row contributes its prior min/max/count and weighted average to the new aggregate.
 -- The calculated 30-minute buffer is not used by the current source filter, so there is no source lookback.
--- Late arrivals: source rows at or before the watermark are not reread and require a backfill or full refresh.
+-- Late arrivals: source rows at or before the checkpoint boundary require a backfill or full refresh.
 
 
 {% set relation_exists = adapter.get_relation(
     database=this.database, schema=this.schema, identifier=this.identifier
 ) %}
 
-{% if is_incremental() and relation_exists -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = [
-        "greatest(cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ "), "
-        ~ "(select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ "))"
-    ] -%}
-{%- endif %}
-
 with incremental_date_range as (
-    {{ incremental_date_range(from_timestamp_caps=from_ts_caps, buffer_minutes=30) }}
+    {{ incremental_date_range(
+        buffer_minutes=30,
+        from_timestamp_caps=["(select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ ")"]
+    ) }}
 ),
 
 

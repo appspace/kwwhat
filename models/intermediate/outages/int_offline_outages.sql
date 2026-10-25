@@ -8,11 +8,11 @@
 }}
 
 -- Incremental strategy: merge one charger outage per charger_id + from_ts.
--- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model.
--- Source messages are read through the available source maximum. The boundary is inclusive so an outage cut off
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
+-- Source messages are read through the claimed upper boundary. The boundary is inclusive so an outage cut off
 -- by the prior run can be continued.
 -- Reprocessing: a new boundary outage joins the target outage ending at the watermark and extends it via least/greatest.
--- Late arrivals before the boundary are not reread and require a backfill or full refresh.
+-- Late arrivals before the boundary require a backfill or full refresh.
 
 
 {% set charge_point_initiated_actions = [
@@ -22,15 +22,8 @@
     'StatusNotification', 'StopTransaction'
 ] %}
 
-{%- if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
-{%- endif -%}
-
 with incremental_date_range as (
     {{ incremental_date_range(
-        from_timestamp_caps=from_ts_caps,
         to_timestamp_caps=["(select max(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"]
     ) }}
 ),

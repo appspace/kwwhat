@@ -8,24 +8,17 @@
 }}
 
 -- Incremental strategy: merge one attempt per charger_id + connector_id + charge_attempt_start_ts.
--- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts), capped by upstream progress.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: upstream rows are selected by updated_ts; existing attempts with the same transaction, plus recent
 -- incomplete attempts within the authorization threshold, are reread to fill stop, transaction, array, and energy data.
--- Late updates are captured when an upstream updated_ts advances; otherwise they require a backfill or full refresh.
+-- Late updates are captured when an upstream updated_ts enters a claimed window; otherwise they require a backfill.
 
 
 {% set VALID_STOP_REASONS = ['Local', 'Remote', 'EVDisconnected'] %}
 {%- set _authorize_threshold = var("authorize_time_threshold_seconds") -%}
 
-{%- if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = ["cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
-{%- endif -%}
-
 with incremental_date_range as (
     {{ incremental_date_range(
-        from_timestamp_caps=from_ts_caps,
         to_timestamp_caps=[
             "(select max(incremental_ts) from " ~ ref("int_connector_preparing") ~ ")",
             "(select max(incremental_ts) from " ~ ref("int_transactions") ~ ")"

@@ -8,23 +8,16 @@
 }}
 
 -- Incremental strategy: merge one row per charger_id + connector_id + ingested_ts.
--- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: every previously open status (next_status is null) is unioned with the new batch so lag/lead can
 -- close the old status and establish the new connector state. Open rows are re-emitted with the batch watermark.
--- Late arrivals: source rows at or before the watermark are not reread and require a backfill or full refresh.
+-- Late arrivals: source rows at or before the checkpoint boundary require a backfill or full refresh.
 
-
-{% if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = [
-        "cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")",
-        "(select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ ")"
-    ] -%}
-{%- endif -%}
 
 with incremental_date_range as (
-    {{ incremental_date_range(from_timestamp_caps=from_ts_caps) }}
+    {{ incremental_date_range(
+        from_timestamp_caps=["(select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ ")"]
+    ) }}
 ),
 
     ocpp_logs as (

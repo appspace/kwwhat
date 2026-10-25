@@ -2,101 +2,41 @@
 
 ## Goal
 
-Prevent bounded incremental processing from stalling when a window contains no qualifying business rows. Processing progress must advance independently from `max(incremental_ts)` in model output.
+Advance bounded incremental processing independently from business-model output, including windows that contain no qualifying rows.
 
-## Implementation status
+## Current implementation
 
-- Implemented: lifecycle hooks, leased warehouse checkpoint, initialization, inspection, reset, shared window routing, project/target isolation, and model header updates.
-- Snowflake validated: empty-window advancement, failed-run preservation, expired-lease reclaim, and successful retry finalization.
-- Pending: production job cutover, complete DAG parity, DuckDB validation, and BigQuery validation.
-- Development validation: affected 218-resource dependency slice passes all models, data tests, and unit tests after refreshing stale incremental targets.
+- A warehouse-resident checkpoint is claimed in `on-run-start` and finalized in `on-run-end`.
+- Failed runs preserve the pending window; expired leases permit an identical retry.
+- All incremental models read the same claimed lower and upper boundaries.
+- No runtime model derives its watermark from `max(incremental_ts)` in its own target.
+- Source and upstream caps remain only for checkpoint-disabled compatibility behavior; checkpoint-enabled windows use the warehouse control row exclusively.
+- Model-specific source lookbacks and state reconciliation remain in place.
+- `incremental_ts` remains row-level processing metadata only.
+- Full refresh and checkpoint-disabled run/build invocations use a deterministic bounded range beginning at `start_processing_date` and do not advance pipeline state.
+- Incremental unit tests use a test-only mocked-target boundary because dbt unit tests do not execute lifecycle hooks.
 
+## Activation
 
+Checkpoint mode remains explicit:
 
-## Current state
+```text
+dbt build --exclude "test_type:unit" --vars '{incremental_checkpoint_enabled: true}'
+```
 
-- Twelve models are incremental.
-- Most use `max(incremental_ts)` from `{{ this }}` as the next lower boundary.
-- An empty bounded window writes no rows, so that boundary does not advance.
-- The scheduled production job currently runs `dbt build --full-refresh --exclude "test_type:unit"`, so production is not yet exposed to the stall.
-- The CI job runs `dbt build --select state:modified+` and must remain unaffected until checkpoint mode is explicitly enabled.
+Production must use the complete DAG when checkpoint mode is enabled. Partial production selections can finalize a shared window for models that were not selected and are therefore unsupported.
 
-## Decision
+CI remains checkpoint-disabled unless it receives an isolated checkpoint initialization and selection strategy.
 
-Use a warehouse-resident pipeline checkpoint managed by dbt lifecycle hooks.
+## Production state
 
-- `on-run-start` claims one deterministic processing window.
-- Every incremental model in the invocation reads the same pending window.
-- `on-run-end` finalizes the window only when all selected resources succeed.
-- A failed or crashed run leaves the window pending for replay.
-- A lease prevents overlapping invocations from claiming the same pipeline concurrently.
-- Checkpoint mode is opt-in during rollout.
+A one-off production run on `refactor/incremental_checkpoint` initialized and exercised an empty checkpoint window successfully. The production checkpoint is completed at `2025-10-15T07:55:00.100Z`, with no pending claim or lease.
 
-The checkpoint is isolated by target database, target schema, project name, target name, and configured checkpoint name. The stored `checkpoint_name` key is prefixed with the dbt project name. Disposable runners and self-hosted containers are supported because state lives in the warehouse.
+The scheduled production job still runs full refresh until the feature is promoted and its command is updated.
 
+## Known rollout blocker
 
-## Implementation
-
-### Checkpoint relation
-
-The target schema contains `_kwwhat_incremental_checkpoint` with:
-
-- `checkpoint_name`
-- `target_name`
-- `status`
-- `completed_through_ts`
-- `pending_from_ts`
-- `pending_to_ts`
-- `claim_id`
-- `claimed_at`
-- `lease_expires_at`
-- `updated_at`
-
-### Claim behavior
-
-1. Create the checkpoint relation if needed.
-2. Initialize from `start_processing_date` when no row exists.
-3. Claim the next bounded window using the maximum timestamp in `stg_ocpp_logs` as the source cap.
-4. Reclaim an expired pending window without changing its boundaries.
-5. Reject an overlapping run while another lease is active.
-
-### Finalize behavior
-
-1. Inspect the `on-run-end` results.
-2. Leave the checkpoint pending if any resource failed or errored.
-3. On success, set `completed_through_ts = pending_to_ts` and clear the pending state.
-4. Require the same dbt `invocation_id` that claimed the window.
-
-### Model behavior
-
-When `incremental_checkpoint_enabled: true`, `incremental_date_range` reads the pending checkpoint instead of deriving its lower boundary from `{{ this }}`. Existing model-specific lookbacks and state reconciliation remain in place.
-
-`incremental_ts` remains row-level processing metadata. It is no longer authoritative pipeline state in checkpoint mode.
-
-## Validation
-
-- Parse and compile with checkpoint mode disabled.
-- Initialize a development checkpoint after a successful full refresh.
-- Build the complete incremental DAG with checkpoint mode enabled.
-- Test an empty window followed by a populated window.
-- Test build failure and retry of the same pending window.
-- Replay one window and verify idempotency.
-- Run full-refresh versus incremental parity on DuckDB.
-- Validate Snowflake and BigQuery implementations before production cutover.
-
-## Rollout
-
-1. Merge the opt-in framework while production remains full refresh.
-2. Initialize the production checkpoint to the raw source maximum included in a successful full refresh.
-3. Change the production command to:
-
-   ```text
-   dbt build --exclude "test_type:unit" --vars '{incremental_checkpoint_enabled: true}'
-   ```
-
-4. Keep CI checkpoint mode disabled unless CI receives an isolated initialization flow.
-5. Monitor pending/completed boundaries and replay behavior.
-6. Remove legacy target-derived checkpoint paths only after production and self-hosted validation.
+A populated-window replay over already-loaded development targets is not idempotent. Nullable merge keys produce duplicate `int_meter_values` groups, and `fact_charge_attempts` receives duplicate merge matches. The checkpoint correctly remains pending, but production cutover must wait until replay is fixed and revalidated.
 
 ## Operational recovery
 
@@ -104,14 +44,13 @@ When `incremental_checkpoint_enabled: true`, `incremental_date_range` reads the 
 - Initialize or reset state only with an explicit timestamp using `dbt run-operation initialize_incremental_checkpoint`.
 - An active lease blocks overlap.
 - An expired lease permits the next build to reclaim the same pending window.
-- Never advance a checkpoint manually beyond data already represented by a successful full refresh or incremental build.
+- Never advance a checkpoint manually beyond data represented by a successful full refresh or incremental build.
 
-## Definition of done
+## Remaining rollout work
 
-- Empty windows advance without inserting sentinel business rows.
-- Failed runs do not advance `completed_through_ts`.
-- Retries use identical boundaries.
-- Replays are idempotent.
-- Full-refresh and incremental business output match.
-- Dev, CI, production, and self-hosted targets do not share checkpoint state.
-- Model headers and ADR 0008 describe the implemented behavior.
+1. Fix populated-window replay idempotency in `int_meter_values` and `fact_charge_attempts`.
+2. Revalidate a populated window, forced failure, and identical-window retry.
+3. Promote the checkpoint implementation through the repository deployment branches.
+4. Update the production job to the checkpoint-enabled command.
+5. Trigger and inspect the first scheduled-equivalent run.
+6. Monitor several populated windows for successful advancement and replay behavior.

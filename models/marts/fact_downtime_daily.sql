@@ -29,20 +29,14 @@
 
 -- Incremental strategy: delete+insert all daily rows for each changed outage_id.
 -- Grain: one row per date_id + outage_id; outage_id remains stable while an ongoing outage is extended.
--- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: deleting by outage_id replaces every calendar day and the latest reason for a changed outage while
 -- leaving unrelated outages untouched. A post-hook removes recent OFFLINE rows that begin during a FAULTED outage.
--- Late updates are captured when an upstream outage is re-emitted with a newer incremental_ts.
+-- Late updates are captured when an upstream outage is re-emitted within a claimed checkpoint window.
 
-
-{% if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
-{%- endif -%}
 
 with incremental_date_range as (
-    {{ incremental_date_range(from_timestamp_caps=from_ts_caps) }}
+    {{ incremental_date_range() }}
 ),
 
 ports as (

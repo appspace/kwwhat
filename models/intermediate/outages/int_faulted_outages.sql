@@ -8,27 +8,18 @@
 }}
 
 -- Incremental strategy: merge one port outage per charger_id + port_id + from_ts.
--- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: int_status_changes re-emits every open status, allowing an ongoing fault to be extended or closed;
--- the upstream batch watermark is both the temporary end of open faults and this model's next checkpoint.
+-- the upstream batch watermark is both the temporary end of open faults and row-level processing metadata.
 -- Late arrivals are recoverable only when int_status_changes re-emits the affected status or during a backfill.
 
 
-{% if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {#- Start where int_status_changes starts (the first log, not start_processing_date), so this model's first
-        window ends where the upstream's first batch ends and that batch's incremental_ts is inside it -#}
-    {%- set start_ts = "cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")" -%}
-    {%- set from_ts_caps = [
-        start_ts,
-        "coalesce((select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ "), " ~ start_ts ~ ")"
-    ] -%}
-{%- endif -%}
-
 with incremental_date_range as (
     {{ incremental_date_range(
-        from_timestamp_caps=from_ts_caps,
+        from_timestamp_caps=[
+            "coalesce((select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ "), "
+            ~ "cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ "))"
+        ],
         to_timestamp_caps=["(select max(incremental_ts) from " ~ ref("int_status_changes") ~ ")"]
     ) }}
 ),

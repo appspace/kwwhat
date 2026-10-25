@@ -8,29 +8,20 @@
 }}
 
 -- Incremental strategy: merge one measurement row per transaction, measurand, phase, and 15-minute interval grain.
--- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts), capped by int_meter_values progress.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- OCPP logs are read strictly after the watermark. A matching target row contributes its count and weighted average.
 -- The calculated 30-minute buffer is not used by the current source filter, so there is no source lookback.
--- Late arrivals at or before the watermark require an upstream replay, backfill, or full refresh.
+-- Late arrivals at or before the checkpoint boundary require an upstream replay, backfill, or full refresh.
 
 
 {% set relation_exists = adapter.get_relation(
     database=this.database, schema=this.schema, identifier=this.identifier
 ) %}
 
-{%- if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = [
-        "cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")",
-        "(select min(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"
-    ] -%}
-{%- endif -%}
-
 with incremental_date_range as (
     {{ incremental_date_range(
-        from_timestamp_caps=from_ts_caps,
         buffer_minutes=30,
+        from_timestamp_caps=["(select min(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"],
         to_timestamp_caps=["(select max(incremental_ts) from " ~ ref("int_meter_values") ~ ")"]
     ) }}
 ),
