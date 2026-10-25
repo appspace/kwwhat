@@ -9,7 +9,8 @@ Prevent bounded incremental processing from stalling when a window contains no q
 - Implemented: lifecycle hooks, leased warehouse checkpoint, initialization, inspection, reset, shared window routing, project/target isolation, and model header updates.
 - Snowflake validated: empty-window advancement, failed-run preservation, expired-lease reclaim, and successful retry finalization.
 - Pending: production job cutover, complete DAG parity, DuckDB validation, and BigQuery validation.
-- Existing blockers: current dev builds fail on missing upstream `error_code_name` and `port_id` columns, plus two unrelated unit fixture schema mismatches.
+- Development validation: affected 218-resource dependency slice passes all models, data tests, and unit tests after refreshing stale incremental targets.
+
 
 
 ## Current state
