@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: merge one Preparing status change per charger_id + connector_id + ingested_ts.
--- Watermark: max(incremental_ts) already stored in this model, capped by upstream status and raw-log progress.
+-- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts), capped by upstream progress.
 -- Reprocessing: status changes and related OCPP events use a 30-minute lookback; matching open target rows retain
 -- prior values, deduplicate event arrays, and advance updated_ts when the next status or transaction becomes known.
 -- Late arrivals: status or event rows outside the lookback are not reconsidered without a backfill or full refresh.

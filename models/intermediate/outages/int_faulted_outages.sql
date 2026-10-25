@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: merge one port outage per charger_id + port_id + from_ts.
--- Watermark: max(incremental_ts) already stored in this model; batches are selected by int_status_changes.incremental_ts.
+-- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model.
 -- Reprocessing: int_status_changes re-emits every open status, allowing an ongoing fault to be extended or closed;
 -- the upstream batch watermark is both the temporary end of open faults and this model's next checkpoint.
 -- Late arrivals are recoverable only when int_status_changes re-emits the affected status or during a backfill.

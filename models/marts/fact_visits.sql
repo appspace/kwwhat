@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: merge one visit per location_id + first charger/port + visit_start_ts.
--- Watermark: max(incremental_ts) already stored in this model, capped by fact_charge_attempts progress.
+-- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts), capped by attempt progress.
 -- Reprocessing: attempts with a newer incremental_ts are regrouped; target visits ending within the 30-minute lookback
 -- are reread so authenticated visits can extend and unauthenticated visits can merge or gain an inferred id_tag.
 -- Older visits change only when a newly emitted attempt reconnects them through the configured business windows.

@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: merge one measurement row per transaction, measurand, phase, and 15-minute interval grain.
--- Watermark: max(incremental_ts) already stored in this model, capped by int_meter_values progress; OCPP logs are read
+-- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts), capped by int_meter_values progress.
 -- strictly after the watermark. A matching target row contributes its count and weighted average to the new aggregate.
 -- The calculated 30-minute buffer is not used by the current source filter, so there is no source lookback.
 -- Late arrivals at or before the watermark require an upstream replay, backfill, or full refresh.

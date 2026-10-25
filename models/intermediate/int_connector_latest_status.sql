@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: merge one current snapshot per charger_id + connector_id + port_id.
--- Watermark: max(incremental_ts) already stored in this model; qualifying status rows are read from that point onward.
+-- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model.
 -- Reprocessing: no lookback or target-state join is used; dbt's merge replaces the snapshot for each connector key.
 -- Only int_status_changes rows with next_status is null are eligible, so the output represents current open states.
 
@@ -41,6 +41,8 @@ source_window as (
     cross join incremental_date_range
     where next_status is null
         and ingested_ts >= incremental_date_range.from_timestamp
+        and ingested_ts <= incremental_date_range.to_timestamp
+
 )
 
 select

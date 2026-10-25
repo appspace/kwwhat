@@ -29,7 +29,7 @@
 
 -- Incremental strategy: delete+insert all daily rows for each changed outage_id.
 -- Grain: one row per date_id + outage_id; outage_id remains stable while an ongoing outage is extended.
--- Watermark: max(incremental_ts) already stored in this model; only upstream outages with a newer stamp are reread.
+-- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model.
 -- Reprocessing: deleting by outage_id replaces every calendar day and the latest reason for a changed outage while
 -- leaving unrelated outages untouched. A post-hook removes recent OFFLINE rows that begin during a FAULTED outage.
 -- Late updates are captured when an upstream outage is re-emitted with a newer incremental_ts.

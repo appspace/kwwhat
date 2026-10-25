@@ -24,33 +24,37 @@
         to_timestamp_caps (list):   SQL expressions applied as least() caps on to_timestamp.
 #}
 {% macro incremental_date_range(from_timestamp_caps, buffer_minutes=0, to_timestamp_caps=[]) %}
-    {%- if from_timestamp_caps | length == 1 -%}
-        {%- set from_ts_expr = from_timestamp_caps[0] -%}
-    {%- else -%}
-        {%- set from_ts_expr -%}
-            greatest(
-                {{ from_timestamp_caps | join(",\n                ") }}
-            )
-        {%- endset -%}
-    {%- endif -%}
+    {% if incremental_checkpoint_enabled() %}
+        {{ incremental_checkpoint_window_sql(buffer_minutes=buffer_minutes) }}
+    {% else %}
+        {%- if from_timestamp_caps | length == 1 -%}
+            {%- set from_ts_expr = from_timestamp_caps[0] -%}
+        {%- else -%}
+            {%- set from_ts_expr -%}
+                greatest(
+                    {{ from_timestamp_caps | join(",\n                ") }}
+                )
+            {%- endset -%}
+        {%- endif -%}
 
-    {%- set base_to_ts = timestamp_add(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") -%}
+        {%- set base_to_ts = timestamp_add(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") -%}
 
-    {%- if to_timestamp_caps | length > 0 -%}
-        {%- set to_ts_expr -%}
-            least(
-                {{ ([base_to_ts] + to_timestamp_caps) | join(",\n                ") }}
-            )
-        {%- endset -%}
-    {%- else -%}
-        {%- set to_ts_expr = base_to_ts -%}
-    {%- endif -%}
+        {%- if to_timestamp_caps | length > 0 -%}
+            {%- set to_ts_expr -%}
+                least(
+                    {{ ([base_to_ts] + to_timestamp_caps) | join(",\n                ") }}
+                )
+            {%- endset -%}
+        {%- else -%}
+            {%- set to_ts_expr = base_to_ts -%}
+        {%- endif -%}
 
-    select
-        from_timestamp,
-        {{ timestamp_add("minute", -buffer_minutes, "from_timestamp") }} as buffer_from_timestamp,
-        {{ to_ts_expr }} as to_timestamp
-    from (
-        select {{ from_ts_expr }} as from_timestamp
-    )
+        select
+            from_timestamp,
+            {{ timestamp_add("minute", -buffer_minutes, "from_timestamp") }} as buffer_from_timestamp,
+            {{ to_ts_expr }} as to_timestamp
+        from (
+            select {{ from_ts_expr }} as from_timestamp
+        )
+    {% endif %}
 {%- endmacro %}

@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: merge aggregated measurements on the configured composite measurement grain.
--- Watermark: max(incremental_ts) already stored in this model; OCPP logs are read strictly after it in bounded windows.
+-- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model.
 -- Reprocessing: a matching target row contributes its prior min/max/count and weighted average to the new aggregate.
 -- The calculated 30-minute buffer is not used by the current source filter, so there is no source lookback.
 -- Late arrivals: source rows at or before the watermark are not reread and require a backfill or full refresh.
@@ -18,38 +18,19 @@
     database=this.database, schema=this.schema, identifier=this.identifier
 ) %}
 
-{% if is_incremental() and relation_exists %}
-    with incremental_date_range as (
-            select
-                from_timestamp,
-                {{ timestamp_add("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-                {{ timestamp_add(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
-        from
-            (
-                select (select max(incremental_ts) from {{ this }}) as from_timestamp
-            )
-        ),
+{% if is_incremental() and relation_exists -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {%- set from_ts_caps = [
+        "greatest(cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ "), "
+        ~ "(select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ "))"
+    ] -%}
+{%- endif %}
 
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ timestamp_add("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            {{ timestamp_add(
-                var("incremental_window").unit,
-                var("incremental_window").length,
-                "from_timestamp"
-            ) }} as to_timestamp
-        from
-            (
-                    select
-                    greatest(
-                        cast('{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}),
-                        (select min(ingested_timestamp) from {{ ref("int_ocpp_logs") }})
-                    ) as from_timestamp
-                )
-        ),
-{% endif %}
+with incremental_date_range as (
+    {{ incremental_date_range(from_timestamp_caps=from_ts_caps, buffer_minutes=30) }}
+),
+
 
     ocpp_logs as (
         select

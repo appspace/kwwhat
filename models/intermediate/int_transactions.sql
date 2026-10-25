@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: merge one row per charger_id + connector_id + first ingested_ts.
--- Watermark: max(incremental_ts) already stored in this model; OCPP logs are read strictly after it in bounded windows.
+-- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model.
 -- Reprocessing: new events are matched by charger_id + transaction_id to an existing transaction that has not stopped;
 -- stable attributes are retained, arrays are deduplicated, and updated_ts advances to the latest incorporated event.
 -- Late arrivals: source rows at or before the watermark are not reread and require a backfill or full refresh.
@@ -19,36 +19,18 @@
     'RemoteStartTransaction', 'RemoteStopTransaction', 'MeterValues'
 ] %}
 
-{% if is_incremental() %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ timestamp_add(
-                var("incremental_window").unit,
-                var("incremental_window").length,
-                "from_timestamp"
-            ) }} as to_timestamp
-        from
-            (
-                select (select max(incremental_ts) from {{ this }}) as from_timestamp
-            )
-    ),
+{% if is_incremental() -%}
+    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
+{%- else -%}
+    {%- set from_ts_caps = [
+        "cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"
+    ] -%}
+{%- endif %}
 
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ timestamp_add(
-                var("incremental_window").unit,
-                var("incremental_window").length,
-                "from_timestamp"
-            ) }} as to_timestamp
-        from
-            (
-                select cast('{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
-            )
-    ),
-{% endif %}
+with incremental_date_range as (
+    {{ incremental_date_range(from_timestamp_caps=from_ts_caps) }}
+),
+
 
 ocpp_logs as (
     select

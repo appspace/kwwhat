@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: merge one attempt per charger_id + connector_id + charge_attempt_start_ts.
--- Watermark: max(incremental_ts) already stored in this model, capped by Preparing and transaction model progress.
+-- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts), capped by upstream progress.
 -- Reprocessing: upstream rows are selected by updated_ts; existing attempts with the same transaction, plus recent
 -- incomplete attempts within the authorization threshold, are reread to fill stop, transaction, array, and energy data.
 -- Late updates are captured when an upstream updated_ts advances; otherwise they require a backfill or full refresh.

@@ -25,6 +25,13 @@ clean-targets:         # directories to be removed by `dbt clean`
   - "dbt_packages"
 
 
+on-run-start:
+  - "{{ claim_incremental_checkpoint() }}"
+
+on-run-end:
+  - "{{ finalize_incremental_checkpoint(results) }}"
+
+
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
 
@@ -56,6 +63,12 @@ vars:
   incremental_window:
     unit: "month"
     length: 3
+  incremental_checkpoint_enabled: false
+  incremental_checkpoint_name: "ocpp_incremental_pipeline"
+  incremental_checkpoint_identifier: "_kwwhat_incremental_checkpoint"
+  incremental_checkpoint_lease_minutes: 120
+
+
 
   success_energy_threshold_kwh: 0.1
   authorize_time_threshold_seconds: 300

@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: merge one charger outage per charger_id + from_ts.
--- Watermark: max(incremental_ts) already stored in this model; source messages are read from that boundary through
+-- Watermark: shared checkpoint window when enabled; otherwise max(incremental_ts) from this model. Source messages
 -- the available source maximum. The boundary is inclusive so an outage cut off by the prior run can be continued.
 -- Reprocessing: a new boundary outage joins the target outage ending at the watermark and extends it via least/greatest.
 -- Late arrivals before the boundary are not reread and require a backfill or full refresh.
