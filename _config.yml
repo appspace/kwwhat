@@ -1,2 +1,3 @@
 exclude:
   - CLAUDE.md
+  - docs/adr/
