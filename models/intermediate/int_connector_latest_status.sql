@@ -7,7 +7,11 @@
   )
 }}
 
--- Incremental merge: no buffer - relies on dbt's merge upsert alone.
+-- Incremental strategy: merge one current snapshot per charger_id + connector_id + port_id.
+-- Watermark: max(incremental_ts) already stored in this model; qualifying status rows are read from that point onward.
+-- Reprocessing: no lookback or target-state join is used; dbt's merge replaces the snapshot for each connector key.
+-- Only int_status_changes rows with next_status is null are eligible, so the output represents current open states.
+
 
 {% if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}

@@ -249,6 +249,32 @@ Define:
 - unique key
 - invalidation logic
 
+### Incremental model header comments
+
+Every incremental model must include a short SQL comment header immediately after its `config()` block. The header documents operational behavior that cannot be inferred from `materialized`, `unique_key`, and `incremental_strategy` alone.
+
+Cover these topics in three to six concise comment lines:
+
+- **Strategy and grain:** how rows are written (`merge`, `delete+insert`, etc.) and the key or grain used to match them
+- **Watermark:** which column and relation determine the next processing boundary, including whether bounds are strict or inclusive
+- **Reprocessing:** which source or target rows are reread, the lookback or buffer applied, and how existing state is reconciled
+- **Late arrivals:** which late updates are handled automatically and when a backfill or full refresh is required
+- **Special behavior:** relevant checkpoint, open-record, post-hook, or empty-window behavior that a maintainer must preserve
+
+Use this shape and adapt it to the model rather than copying generic wording:
+
+```sql
+-- Incremental strategy: merge one row per <grain>.
+-- Watermark: max(<watermark_column>) from {{ this }}; source rows are read strictly after it.
+-- Reprocessing: <lookback/open rows/state reconciliation behavior>.
+-- Late arrivals: <supported horizon and recovery path>.
+```
+
+The header must describe the current SQL exactly, including known limitations such as a calculated buffer that is not used by the source filter. Update it whenever the incremental filter, unique key, watermark, lookback, merge behavior, or late-arrival handling changes.
+
+Keep model-specific mechanics in the SQL header. Put project-wide decisions about checkpoint storage, replay guarantees, and backfill architecture in an ADR. The header does not replace schema YAML descriptions, data tests, or incremental unit and integration tests.
+
+
 ### Jinja whitespace trim after a SQL comment
 
 Never put a leading-trim tag (`{%-`) right after a `--` comment. The trim strips the newline that ends the comment, so the next rendered line (usually `with incremental_date_range as (`) joins the comment and the whole query is commented out:

@@ -6,7 +6,12 @@
   )
 }}
 
--- Incremental merge: left-joins against {{ this }}, combines via CASE comparison (earliest/latest wins).
+-- Incremental strategy: merge one cumulative row per id_tag, including the __UNKNOWN__ sentinel.
+-- Watermark: max(incremental_ts) already stored in this model; only later fact_charge_attempts updates are aggregated.
+-- Reprocessing: the existing row supplies prior first/latest values, while timestamp comparisons select the correct
+-- authorization status. Earlier business events are supported when their upstream incremental_ts is newer.
+-- The configured 30-minute buffer is not used by the current source filter.
+
 
 {% if is_incremental() -%}
     {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
