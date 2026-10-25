@@ -26,7 +26,10 @@ clean-targets:         # directories to be removed by `dbt clean`
 
 
 on-run-start:
-  - "{{ claim_incremental_checkpoint() }}"
+  - |
+    -- depends_on: {{ ref('stg_ocpp_logs') }}
+    {{ claim_incremental_checkpoint() }}
+
 
 on-run-end:
   - "{{ finalize_incremental_checkpoint(results) }}"

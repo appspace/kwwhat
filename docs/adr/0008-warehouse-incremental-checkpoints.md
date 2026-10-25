@@ -21,7 +21,8 @@ Checkpoint mode is explicitly enabled per invocation. Within one `dbt build` or 
 3. An `on-run-end` hook finalizes the window only when all selected resources complete without failure or error.
 4. A failed run leaves the window pending. After its lease expires, a later invocation reclaims the same boundaries.
 
-Checkpoint rows are isolated by their target relation, `target.name`, and checkpoint name. `incremental_ts` remains row metadata and is not authoritative pipeline state while checkpoint mode is enabled.
+Checkpoint rows are isolated by their target relation, `project_name`, `target.name`, and configured checkpoint name. The project name is included in the stored checkpoint key. `incremental_ts` remains row metadata and is not authoritative pipeline state while checkpoint mode is enabled.
+
 
 The initial rollout is opt-in. Production remains full refresh and CI keeps legacy behavior until their commands are intentionally changed.
 

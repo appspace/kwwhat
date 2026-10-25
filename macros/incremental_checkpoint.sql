@@ -7,7 +7,8 @@
 {% endmacro %}
 
 {% macro incremental_checkpoint_name() %}
-    {{ return(var('incremental_checkpoint_name', 'ocpp_incremental_pipeline')) }}
+    {{ return(project_name ~ ':' ~ var('incremental_checkpoint_name', 'ocpp_incremental_pipeline')) }}
+
 {% endmacro %}
 
 {% macro incremental_checkpoint_relation() %}
@@ -252,6 +253,20 @@
     {% endset %}
     {% set checkpoint = run_query(query) %}
     {% if execute %}
-        {{ log(checkpoint.print_table(), info=True) }}
+        {% do checkpoint.print_table() %}
     {% endif %}
+
+{% endmacro %}
+
+
+{% macro reset_incremental_checkpoint(checkpoint_name=none) %}
+    {% set checkpoint_relation = ensure_incremental_checkpoint_relation() %}
+    {% set selected_name = checkpoint_name if checkpoint_name is not none else incremental_checkpoint_name() %}
+    {% set reset_sql %}
+        delete from {{ checkpoint_relation }}
+        where checkpoint_name = {{ incremental_checkpoint_string(selected_name) }}
+            and target_name = {{ incremental_checkpoint_string(target.name) }}
+    {% endset %}
+    {% do run_query(reset_sql) %}
+    {{ log('Reset checkpoint ' ~ selected_name, info=True) }}
 {% endmacro %}

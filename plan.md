@@ -4,6 +4,14 @@
 
 Prevent bounded incremental processing from stalling when a window contains no qualifying business rows. Processing progress must advance independently from `max(incremental_ts)` in model output.
 
+## Implementation status
+
+- Implemented: lifecycle hooks, leased warehouse checkpoint, initialization, inspection, reset, shared window routing, project/target isolation, and model header updates.
+- Snowflake validated: empty-window advancement, failed-run preservation, expired-lease reclaim, and successful retry finalization.
+- Pending: production job cutover, complete DAG parity, DuckDB validation, and BigQuery validation.
+- Existing blockers: current dev builds fail on missing upstream `error_code_name` and `port_id` columns, plus two unrelated unit fixture schema mismatches.
+
+
 ## Current state
 
 - Twelve models are incremental.
@@ -23,7 +31,8 @@ Use a warehouse-resident pipeline checkpoint managed by dbt lifecycle hooks.
 - A lease prevents overlapping invocations from claiming the same pipeline concurrently.
 - Checkpoint mode is opt-in during rollout.
 
-The checkpoint is isolated by target database, target schema, target name, and checkpoint name. Disposable runners and self-hosted containers are supported because state lives in the warehouse.
+The checkpoint is isolated by target database, target schema, project name, target name, and configured checkpoint name. The stored `checkpoint_name` key is prefixed with the dbt project name. Disposable runners and self-hosted containers are supported because state lives in the warehouse.
+
 
 ## Implementation
 
