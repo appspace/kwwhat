@@ -209,7 +209,9 @@ outage_days as (
 -- charger_id -> location_id (int_chargers) -> location_key generated in place
 outage_days_with_ids as (
     select
-        {{ dbt_utils.generate_surrogate_key(['od.charger_id', 'od.port_id', 'od.downtime_type', 'od.from_ts']) }} as outage_id,
+        {{ dbt_utils.generate_surrogate_key([
+            'od.charger_id', 'od.port_id', 'od.downtime_type', 'od.from_ts'
+        ]) }} as outage_id,
         od.charger_id,
         od.port_id,
         od.date_id,
