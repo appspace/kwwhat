@@ -1,4 +1,4 @@
-FROM getnao/nao:latest
+FROM nao-fork:evals
 
 COPY nao_config.yaml /app/kwwhat/nao_config.yaml
 COPY RULES.md /app/kwwhat/RULES.md
