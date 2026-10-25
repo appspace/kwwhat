@@ -23,7 +23,8 @@
         {{ incremental_checkpoint_window_sql(buffer_minutes=buffer_minutes) }}
     {% else %}
         {% set start_ts = "cast('" ~ var('start_processing_date') ~ "' as " ~ dbt.type_timestamp() ~ ")" %}
-        {% if flags.WHICH == 'test' and is_incremental() %}
+        {# resource_type, not flags.WHICH: unit tests also run under `dbt build` #}
+        {% if model.resource_type == 'unit_test' and is_incremental() %}
             {% set from_ts = '(select max(incremental_ts) from ' ~ this ~ ')' %}
         {% elif from_timestamp_caps | length > 0 %}
             {% set from_ts = 'greatest(' ~ ([start_ts] + from_timestamp_caps) | join(', ') ~ ')' %}
