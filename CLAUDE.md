@@ -249,6 +249,14 @@ Define:
 - unique key
 - invalidation logic
 
+### Checkpoint mode runs the full DAG
+
+Incremental windows advance only through the shared warehouse checkpoint (ADR 0008), which is enabled per invocation with `--vars '{incremental_checkpoint_enabled: true}'`. The end-of-run hook marks the window done for the whole project, not just for the selected models, so:
+
+- Only enable checkpoint mode for a full-DAG run, e.g. `dbt build --exclude "test_type:unit" --vars '{incremental_checkpoint_enabled: true}'`. Never combine it with `--select`, or with an `--exclude` that drops models (excluding unit tests is fine): models outside the selection would skip that window for good.
+- Leave it disabled for dev, CI, compile and ad hoc runs. Without it, a run processes the fixed window from `start_processing_date` plus `incremental_window` and never advances, which is safe to repeat.
+- Nothing enforces this in code yet; the claim and finalize hooks do not check the selection.
+
 ### Incremental model header comments
 
 Every incremental model must include a short SQL comment header immediately after its `config()` block. The header documents operational behavior that cannot be inferred from `materialized`, `unique_key`, and `incremental_strategy` alone.
