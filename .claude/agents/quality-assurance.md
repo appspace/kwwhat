@@ -45,7 +45,7 @@ Run `dbt test --select <model>` and report:
 
 ### Full-refresh vs. incremental parity
 
-For incremental models a full-refresh and an incremental rebuild over the same data must land on identical results. Run this check on request, and proactively before approving a PR that changes a model's `unique_key`, its incremental filter/watermark column, or its buffer/merge CTEs, and before approving a PR that changes `macros/incremental_date_range.sql`, `macros/incremental_checkpoint.sql`, or the `on-run-start` / `on-run-end` hooks.
+For incremental models a full-refresh and an incremental rebuild over the same data must land on identical results. Run this check on request, and proactively before approving a PR that changes a model's `unique_key`, its incremental filter, its buffer/merge CTEs, or the incremental window and checkpoint macros.
 
 **Run it on the demo DuckDB, not Snowflake.** The demo (`demo/docker-compose.yml`) has a `dbt` service with the DuckDB adapter and the project mounted at `/kwwhat`; its data lives in the `demo_duckdb-data` volume (`raw.duckdb` for sources, `analytics.duckdb` for models). Every `dbt ...` command in the steps below runs inside that container, from the repo root:
 
@@ -58,45 +58,31 @@ docker compose -f demo/docker-compose.yml run --rm --no-deps --entrypoint dbt db
 - Before starting, refresh the raw data if the seeds may have changed: `docker compose -f demo/docker-compose.yml up duckdb-init`.
 - Shell state doesn't persist between commands, so write the full prefix each time.
 
-**How incremental windows advance (ADR 0008).** Models no longer read `max(...)` of any target to bound their window, and carry no processing stamp column. A checkpoint-enabled `dbt run` / `dbt build` claims one window from the warehouse checkpoint table (`_kwwhat_incremental_checkpoint` in the target schema) in `on-run-start`, every incremental model reads that same window, and `on-run-end` advances the checkpoint only if nothing failed. Consequences for this check:
-- Without `incremental_checkpoint_enabled: true` the window is fixed at `start_processing_date` plus `incremental_window` and never moves, so repeated runs reprocess the same window. Every incremental pass below must enable the checkpoint.
-- `--full-refresh` always bypasses the checkpoint.
-- A checkpoint-enabled run advances the shared window for the whole project, so incremental passes run the **full DAG** (no `--select`). The parity check therefore covers every incremental model at once.
-- The seed data covers 2025-10-01T08:00 to 2025-10-15T07:55:00.100. With a **one-day** `incremental_window` that is 15 populated windows, which exercises multi-batch merges, buffers and open-record handling at every day boundary.
+Incremental windows only advance in checkpoint mode on a full-DAG run (see "Checkpoint mode runs the full DAG" in `CLAUDE.md`), so every incremental pass below enables the checkpoint and runs without `--select`. A one-day `incremental_window` splits the 14 days of seed data into 15 windows, which exercises the merge logic at every day boundary.
 
-Use the `qa_snapshot_model` / `qa_drop_snapshot` macros (`macros/qa_snapshot_table.sql`) to materialize each build's output as its own table, so a failure leaves the exact divergent rows queryable instead of just a pass/fail number.
+Use the `qa_snapshot_model` / `qa_drop_snapshot` macros (`macros/qa_snapshot_table.sql`) to materialize each build's output as its own table, so a failure leaves the exact divergent rows queryable instead of just a pass/fail number. "Each model" below means every model from `dbt ls --select config.materialized:incremental --resource-type model`.
 
-The incremental models are: `int_connector_latest_status`, `int_connector_preparing`, `int_driver_aggregates`, `int_meter_values`, `int_status_changes`, `int_transactions`, `int_faulted_outages`, `int_offline_outages`, `fact_charge_attempts`, `fact_downtime_daily`, `fact_interval_data`, `fact_visits`. Confirm the list first with `dbt ls --select config.materialized:incremental --resource-type model`. Below, "for each model" means every model in that list (or only `<model>` if the request names one; the passes still run the full DAG).
-
-Skip unit tests on the repeated runs (`dbt run` does not execute tests; on `dbt build` use `--exclude "test_type:unit"`). Run them once after the baseline and once after the incremental catch-up.
+Run unit tests (`dbt test --select "test_type:unit"`) once after the baseline and once after the catch-up, not on every pass.
 
 1. **Full-refresh baseline**
-   - `dbt build --full-refresh --exclude "test_type:unit"` (default vars: the 3-month window covers all seed data in one pass).
-   - `dbt test --select "test_type:unit"`.
-   - For each model: `dbt run-operation qa_snapshot_model --args '{model_name: <model>, suffix: full}'`.
-2. **Bootstrap empty incremental tables**
-   - `dbt build --full-refresh --exclude "test_type:unit" --vars '{"incremental_window": {"unit": "day", "length": 0}}'`. A zero-length window creates every incremental table with its schema but (almost) no rows, so all data then arrives through checkpoint windows, as in production. Data tests may warn on empty tables; ignore that here.
-   - `dbt run-operation initialize_incremental_checkpoint --args '{completed_through_ts: "2025-10-01 00:00:00"}'` (use `start_processing_date`).
-3. **One-day incremental passes**
-   - Repeat: `dbt run --vars '{"incremental_checkpoint_enabled": true, "incremental_window": {"unit": "day", "length": 1}}'`
-   - After each pass, `dbt run-operation show_incremental_checkpoint`. Status must be `completed` and `completed_through_ts` must have moved forward one day (the last window is capped at the source max).
-   - Stop when `completed_through_ts` equals the source max (`2025-10-15 07:55:00.100`), about 15 passes. Then run **one more** pass: it is an empty window and must succeed and leave the checkpoint `completed` at the source max (empty-window regression check).
-   - If a pass fails, the checkpoint stays `pending` with a 120-minute lease and the next pass will be refused. Do not wait it out or reset it to keep going. Stop, report the failing model and the window (`pending_from_ts` / `pending_to_ts`) as the finding, and skip to step 5.
-   - `dbt test --select "test_type:unit"`.
-   - For each model: `dbt run-operation qa_snapshot_model --args '{model_name: <model>, suffix: incremental}'`.
+   - `dbt build --full-refresh --exclude "test_type:unit"`
+   - Snapshot each model: `dbt run-operation qa_snapshot_model --args '{model_name: <model>, suffix: full}'`
+2. **Empty start**
+   - `dbt build --full-refresh --exclude "test_type:unit" --vars '{"incremental_window": {"unit": "day", "length": 0}}'` creates the incremental tables with no rows, so all data then arrives through checkpoint windows.
+   - `dbt run-operation initialize_incremental_checkpoint --args '{completed_through_ts: "<start_processing_date> 00:00:00"}'`
+3. **One-day passes**
+   - Repeat `dbt run --vars '{"incremental_checkpoint_enabled": true, "incremental_window": {"unit": "day", "length": 1}}'` until `completed_through_ts` (`dbt run-operation show_incremental_checkpoint`) equals the source max (`max(ingested_timestamp)` of `stg_ocpp_logs`; compare with a query, the printed value is truncated). Then run one more pass: an empty window must succeed and leave the checkpoint `completed`.
+   - If a pass fails, the checkpoint stays `pending` and later passes are refused. Stop, report the failing model and window, and go to step 5.
+   - Snapshot each model with `suffix: incremental`.
 4. **Compare**, for each model
-   - Row-level diff, both directions:
-     `dbt show --inline "select * from {{ target.database }}.{{ target.schema }}.<model>_full except select * from {{ target.database }}.{{ target.schema }}.<model>_incremental"`
-     `dbt show --inline "select * from {{ target.database }}.{{ target.schema }}.<model>_incremental except select * from {{ target.database }}.{{ target.schema }}.<model>_full"`
-   - Also compare `count(*)` of each snapshot. `except` is set-based, so duplicate rows in one side (e.g. from a merge key that does not match) only show up in the counts.
-   - Always qualify snapshot tables with the database (`{{ target.database }}.{{ target.schema }}.<table>`), as the macros do. On DuckDB the schema name alone is ambiguous: `ANALYTICS` matches both the schema and the `analytics` catalog (from `analytics.duckdb`), since DuckDB matches names case-insensitively.
-   - Both diffs must return zero rows and the counts must match. Any divergent row is a correctness bug, not a nitpick. Report it like a failing `dbt test`, including the full row(s) and the first model in DAG order that diverges (downstream divergence is often a knock-on effect), pointing at `<model>_full` / `<model>_incremental` for further digging (do not fix it yourself, see "What you do not do").
-   - Known gaps (ADR 0008, `plan.md`, #179): nullable `phase` in the `int_meter_values` / `fact_interval_data` merge keys, and duplicate merge matches in `fact_charge_attempts`. Report divergence there as still open (known) rather than new, and treat divergence anywhere else as a regression.
+   - `dbt show --inline "select * from {{ target.database }}.{{ target.schema }}.<model>_full except select * from {{ target.database }}.{{ target.schema }}.<model>_incremental"`, and the same in the other direction.
+   - Also compare `count(*)`: `except` ignores duplicate rows.
+   - Always qualify snapshot tables with the database, as the macros do. On DuckDB the schema name alone is ambiguous: `ANALYTICS` matches both the schema and the `analytics` catalog.
+   - Both diffs must be empty and the counts equal. Any divergent row is a correctness bug: report it like a failing `dbt test`, with the full row(s) and the first diverging model in DAG order (do not fix it yourself, see "What you do not do").
 5. **Clean up**
-   - `dbt run-operation reset_incremental_checkpoint` so the demo is not left with QA checkpoint state.
-   - **Pass (no divergence)**: drop both snapshots of each model (`qa_drop_snapshot` with `suffix: full` and `suffix: incremental`).
-   - **Fail**: leave the divergent models' `<model>_full` / `<model>_incremental` in place and name them, fully qualified, in the report. Drop the snapshots of models that matched.
-   - Either way, finish with `dbt build --full-refresh --exclude "test_type:unit"` with default vars so the demo tables are complete again.
+   - `dbt run-operation reset_incremental_checkpoint`
+   - Drop the snapshots of models that matched; leave diverging models' snapshots in place and name them, fully qualified, in the report.
+   - Finish with `dbt build --full-refresh --exclude "test_type:unit"` so the demo tables are complete again.
 
 Add a row for this to the coverage table: `Full-refresh vs. incremental parity | row-level diff | ✓/✗ | ✓/✗`.
 
