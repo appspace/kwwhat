@@ -11,7 +11,8 @@
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Source messages are read through the claimed upper boundary. The boundary is inclusive so an outage cut off
 -- by the prior run can be continued.
--- Reprocessing: a new boundary outage joins the target outage ending at the watermark and extends it via least/greatest.
+-- Reprocessing: an ongoing outage ends at the window end, so the next window's boundary outage joins it
+-- (to_ts = from_timestamp) and extends it via least/greatest. A window with no messages writes nothing.
 -- Late arrivals before the boundary require a backfill or full refresh.
 
 
@@ -40,11 +41,16 @@ window_messages as (
         and action in ({{ "'" + "', '".join(charge_point_initiated_actions) + "'" }})
 ),
 
--- Last message received in this window: the end of every ongoing outage. It is also the outage's to_ts, which
--- fact_downtime_daily reads changed outages by.
-last_message as (
+-- End of monitoring: the window end, never past the newest source row (the checkpoint and the to_timestamp cap
+-- both bound it). An ongoing outage runs to it, so the next window, which starts there, continues the outage. Null
+-- when the window has no messages at all, so a gap in ingestion is not read as every charger going offline. It is
+-- also the to_ts of ongoing outages, which fact_downtime_daily reads changed outages by.
+window_end as (
     select
-        max(ingested_timestamp) as last_message_ts
+        case
+            when max(ingested_timestamp) is not null
+                then (select to_timestamp from incremental_date_range)
+        end as monitoring_end_ts
     from window_messages
 ),
 
@@ -57,12 +63,12 @@ charger_context as (
             (select from_timestamp from incremental_date_range)
         ) as monitoring_start_ts,
         least(
-            coalesce(decommissioned_ts, (select last_message_ts from last_message)),
-            (select last_message_ts from last_message)
+            coalesce(decommissioned_ts, (select monitoring_end_ts from window_end)),
+            (select monitoring_end_ts from window_end)
         ) as monitoring_end_ts
     from {{ ref("int_chargers") }}
     where commissioned_ts is not null
-        and commissioned_ts < (select last_message_ts from last_message)
+        and commissioned_ts < (select monitoring_end_ts from window_end)
         and (decommissioned_ts is null or decommissioned_ts > (select from_timestamp from incremental_date_range))
 ),
 

@@ -686,13 +686,50 @@ unit_tests:
       rows:
         - {charger_id: 'CH-001', from_ts: '2025-10-01 09:00:00', to_ts: '2025-10-01 10:30:00'}
 
-  - name: test_offline_outages_ongoing_outage_ends_at_last_message_received
+  - name: test_offline_outages_ongoing_outage_runs_to_window_end
     description: >
-      Setup: catch-up full build. The 3-month window ends 2026-01-01, but the logs go on to 2026-03-01,
-      so the window end is not a message. CH-001 sends its last message at 10:00 and CH-002 at 11:30,
-      the last message received in the window.
-      Expected: CH-001's ongoing outage runs 10:00-11:30, ending at the last message received, not at
-      the window end, so the next run can pick it up and extend it. CH-002 has no outage yet.
+      Setup: the window is 23:30-00:00 and the logs go on past it (a message at 00:05). CH-001 goes
+      silent after 23:40, while CH-002 keeps sending until 23:59.
+      Expected: CH-001's ongoing outage runs 23:40-00:00, to the window end, not to 23:59 (the last
+      message any charger sent in the window). The next window starts at 00:00, so its previous_outages
+      join (to_ts = from_timestamp) continues the outage instead of splitting it in two and losing
+      23:59-00:00.
+    model: int_offline_outages
+    overrides:
+      macros:
+        is_incremental: false
+      vars:
+        start_processing_date: '2025-10-01 23:30:00'
+        incremental_window: {unit: 'minute', length: 30}
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 23:30:00, charger_id: 'CH-001', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-01 23:35:00, charger_id: 'CH-001', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-01 23:40:00, charger_id: 'CH-001', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-01 23:30:00, charger_id: 'CH-002', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-01 23:35:00, charger_id: 'CH-002', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-01 23:40:00, charger_id: 'CH-002', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-01 23:45:00, charger_id: 'CH-002', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-01 23:50:00, charger_id: 'CH-002', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-01 23:55:00, charger_id: 'CH-002', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-01 23:59:00, charger_id: 'CH-002', action: 'Heartbeat', message_type_id: '2'}
+          - {ingested_timestamp: 2025-10-02 00:05:00, charger_id: 'CH-002', action: 'Heartbeat', message_type_id: '2'}
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-10-01 00:00:00, decommissioned_ts: null}
+          - {charger_id: 'CH-002', location_id: 'LOC-001', commissioned_ts: 2025-10-01 00:00:00, decommissioned_ts: null}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', from_ts: '2025-10-01 23:40:00', to_ts: '2025-10-02 00:00:00'}
+
+  - name: test_offline_outages_catch_up_outages_run_to_window_end
+    description: >
+      Setup: catch-up full build. The 3-month window ends 2026-01-01, but the logs go on to 2026-03-01.
+      CH-001 sends its last message at 10:00 and CH-002 at 11:30; nothing else arrives in the window.
+      Expected: both ongoing outages run to the window end (2026-01-01), not to 11:30, the last message
+      received. Everything up to the window end has been read and neither charger sent anything after
+      its last message, so the next window, starting at 2026-01-01, continues both outages.
     model: int_offline_outages
     overrides:
       macros:
@@ -709,7 +746,8 @@ unit_tests:
           - {charger_id: 'CH-002', location_id: 'LOC-001', commissioned_ts: 2025-10-01 11:29:00, decommissioned_ts: null}
     expect:
       rows:
-        - {charger_id: 'CH-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 11:30:00'}
+        - {charger_id: 'CH-001', from_ts: '2025-10-01 10:00:00', to_ts: '2026-01-01 00:00:00'}
+        - {charger_id: 'CH-002', from_ts: '2025-10-01 11:30:00', to_ts: '2026-01-01 00:00:00'}
 
   # ── int_connector_preparing ─────────────────────────────────────────────────
 
