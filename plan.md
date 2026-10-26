@@ -10,7 +10,7 @@ Advance bounded incremental processing independently from business-model output,
 - Failed runs preserve the pending window; expired leases permit an identical retry.
 - All incremental models read the same claimed lower and upper boundaries.
 - No model reads `max(...)` of a target, its own or an upstream one, to bound its window.
-- Source caps remain only for checkpoint-disabled compatibility behavior; checkpoint-enabled windows use the warehouse control row exclusively.
+- Checkpoint-disabled runs use the same window rule as the claim: from `start_processing_date` to `least(start + incremental_window, newest source row)`. No model passes its own caps.
 - Model-specific source lookbacks and state reconciliation remain in place.
 - No model carries a processing stamp: `incremental_ts` is removed. Downstream models read changed rows by `updated_ts` (or `to_ts` for outages) and open rows directly.
 - Full refresh and checkpoint-disabled run/build invocations use a deterministic bounded range beginning at `start_processing_date` and do not advance pipeline state.

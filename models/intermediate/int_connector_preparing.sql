@@ -20,10 +20,7 @@
 ] %}
 
 with incremental_date_range as (
-    {{ incremental_date_range(
-        buffer_minutes=30,
-        to_timestamp_caps=["(select max(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ ")"]
-    ) }}
+    {{ incremental_date_range(buffer_minutes=30) }}
 ),
 
 -- Get status changes from the dedicated status changes model

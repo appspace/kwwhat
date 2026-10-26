@@ -39,6 +39,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 10:35:00}
       - input: ref('fact_charge_attempts')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, updated_ts: 2025-10-02 10:20:00}
@@ -64,6 +67,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 10:35:00}
       - input: ref('fact_charge_attempts')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, last_error_code: 'HighTemperature', is_successful: false, updated_ts: 2025-10-02 10:20:00}
@@ -85,6 +91,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 10:35:00}
       - input: ref('fact_charge_attempts')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, updated_ts: 2025-10-02 10:20:00}
@@ -107,6 +116,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 10:41:00}
       - input: ref('fact_charge_attempts')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:05:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, updated_ts: 2025-10-02 10:40:00}
@@ -129,6 +141,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 11:35:00}
       - input: ref('fact_charge_attempts')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:10:00, energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
@@ -151,6 +166,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 11:20:00}
       - input: ref('fact_charge_attempts')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
@@ -172,6 +190,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 12:20:00}
       - input: ref('fact_charge_attempts')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 12:00:00, charge_attempt_stop_ts: 2025-10-02 12:00:30, energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 12:20:00}
@@ -194,6 +215,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 11:20:00}
       - input: ref('fact_charge_attempts')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
@@ -215,6 +239,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 13:20:00}
       - input: ref('fact_charge_attempts')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 13:00:00, charge_attempt_stop_ts: 2025-10-02 13:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 13:20:00}
@@ -237,6 +264,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 11:20:30}
       - input: ref('fact_charge_attempts')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:58:00, charge_attempt_stop_ts: 2025-10-02 10:58:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
@@ -262,6 +292,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-02 10:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 10:20:00}
       - input: this
         rows:
           - {location_id: 'LOC-001', id_tag: 'TAG-001', visit_start_ts: 2025-10-02 10:00:00, visit_end_ts: 2025-10-02 10:10:00, visit_duration_minutes: 10, charge_attempt_count: 1, total_energy_transferred_kwh: 5.5, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: true, grouping_key: 'LOC-001_TAG-001'}
@@ -288,6 +321,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-02 11:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 11:02:00}
       - input: this
         rows:
           - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 11:00:00, visit_end_ts: 2025-10-02 11:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: false, grouping_key: 'LOC-001_CH-001_1'}
@@ -313,6 +349,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-02 12:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 12:05:00}
       - input: this
         rows:
           - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 12:00:00, visit_end_ts: 2025-10-02 12:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: false, grouping_key: 'LOC-001_CH-001_1'}
@@ -340,6 +379,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:30:00}
@@ -361,6 +403,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:05:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:05:00}
@@ -381,6 +426,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:05:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:05:00}
@@ -401,6 +449,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:10:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:10:00, status: 'Preparing', next_status: 'Faulted', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:10:00}
@@ -422,6 +473,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:10:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:10:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:10:00}
@@ -446,6 +500,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-01 10:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:29:00}
       - input: this
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', transaction_id: 'TXN-001', transaction_start_ts: 2025-10-01 10:01:00}
@@ -470,6 +527,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
@@ -491,6 +551,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
@@ -514,6 +577,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
@@ -539,6 +605,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
@@ -567,6 +636,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-01 10:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: this
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:00:00}
@@ -599,6 +671,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-002', updated_ts: 2025-10-01 10:30:00}
@@ -631,6 +706,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:29:00}
       - input: ref('int_connector_preparing')
         rows: []
       - input: ref('int_transactions')
@@ -658,6 +736,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:15:00}
       - input: ref('int_connector_preparing')
         rows:
           - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:15:00, status: 'Preparing', next_status: 'Available', transaction_id: null, updated_ts: 2025-10-01 10:15:00}
@@ -692,6 +773,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-01 10:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:15:00}
       - input: this
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', status: 'Preparing', transaction_id: null}
@@ -723,6 +807,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-01 10:01:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:29:00}
       - input: this
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:01:00, transaction_id: 'TXN-004', transaction_start_ts: 2025-10-01 10:01:00, meter_start_wh: 1000}
@@ -765,6 +852,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-05 09:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-05 10:29:00}
       - input: this
         rows:
           # The processing window (start_processing_date) has advanced 4 days past this
@@ -811,6 +901,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-01 09:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 09:29:00}
       - input: this
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 09:00:00, preparing_unique_id: null, status: null, transaction_id: 'TXN-010', transaction_start_ts: 2025-10-01 09:00:00}
@@ -857,6 +950,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-01 10:01:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00}
       - input: this
         rows:
           - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:01:00, preparing_unique_id: null, transaction_id: 'TXN-100', transaction_start_ts: 2025-10-01 10:01:00}
@@ -899,6 +995,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-01 11:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 11:29:00}
       - input: this
         rows:
           - {charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-01 11:00:00, preparing_unique_id: 'UID-200', status: 'Preparing', transaction_id: null}
@@ -932,6 +1031,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 12:30:00}
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
@@ -964,6 +1066,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 04:00:00}
       - input: ref('int_faulted_outages')
         rows: []
       - input: ref('int_offline_outages')
@@ -996,6 +1101,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 00:00:00}
       - input: ref('int_faulted_outages')
         rows: []
       - input: ref('int_offline_outages')
@@ -1030,6 +1138,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: 'OtherError', latest_error_code: 'CX003', latest_taxonomy: 'https://chargex.inl.gov'}
@@ -1065,6 +1176,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX002', latest_taxonomy: 'https://chargex.inl.gov'}
@@ -1100,6 +1214,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 18:30:00}
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
@@ -1138,6 +1255,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
@@ -1171,6 +1291,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
@@ -1204,6 +1327,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: null, latest_taxonomy: null}
@@ -1234,6 +1360,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX001', latest_taxonomy: 'https://chargex.inl.gov'}
@@ -1264,6 +1393,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: null, latest_taxonomy: null}
@@ -1294,6 +1426,9 @@ unit_tests:
       macros:
         is_incremental: false
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
           - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX999', latest_taxonomy: 'https://chargex.inl.gov'}
@@ -1330,6 +1465,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-01 12:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 20:00:00}
       - input: this
         rows:
           - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 240}
@@ -1370,6 +1508,9 @@ unit_tests:
       vars:
         start_processing_date: '2025-10-02 18:00:00'
     given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-03 06:00:00}
       - input: this
         rows:
           - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 300}

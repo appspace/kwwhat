@@ -24,9 +24,7 @@
 ] %}
 
 with incremental_date_range as (
-    {{ incremental_date_range(
-        to_timestamp_caps=["(select max(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"]
-    ) }}
+    {{ incremental_date_range() }}
 ),
 
 -- Charge point initiated messages (CALL messages) in this run's window
@@ -41,8 +39,8 @@ window_messages as (
         and action in ({{ "'" + "', '".join(charge_point_initiated_actions) + "'" }})
 ),
 
--- End of monitoring: the window end, never past the newest source row (the checkpoint and the to_timestamp cap
--- both bound it). An ongoing outage runs to it, so the next window, which starts there, continues the outage. Null
+-- End of monitoring: the window end, which incremental_date_range never lets pass the newest source row. An ongoing
+-- outage runs to it, so the next window, which starts there, continues the outage. Null
 -- when the window has no messages at all, so a gap in ingestion is not read as every charger going offline. It is
 -- also the to_ts of ongoing outages, which fact_downtime_daily reads changed outages by.
 window_end as (
