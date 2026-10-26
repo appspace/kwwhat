@@ -71,6 +71,9 @@ vars:
   incremental_checkpoint_enabled: false
   incremental_checkpoint_name: "ocpp_incremental_pipeline"
   incremental_checkpoint_identifier: "_kwwhat_incremental_checkpoint"
+  # How long a claimed window stays locked against other checkpoint runs. The lease is not renewed during a run,
+  # so set it to roughly your longest full-DAG checkpoint run, times 2 to 3: shorter lets a second run claim the
+  # same window mid-run, longer delays the retry after a crashed run.
   incremental_checkpoint_lease_minutes: 120
 
 
