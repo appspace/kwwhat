@@ -81,11 +81,6 @@ unit_tests:
     given:
       - input: ref('int_ocpp_logs')
         rows:
-          # from_timestamp = greatest(start_processing_date, min(ingested_timestamp)),
-          # then filtered with a strict `>` - without a row earlier than the first
-          # real event, min(ingested_timestamp) becomes that event's own timestamp
-          # and the boundary filter excludes it.
-          - {ingested_timestamp: 2025-10-01 09:59:00}
           - {ingested_timestamp: 2025-10-01 10:00:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-001', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'}
           - {ingested_timestamp: 2025-10-01 10:30:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-002', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'}
     expect:
@@ -126,9 +121,6 @@ unit_tests:
     given:
       - input: ref('int_ocpp_logs')
         rows:
-          # See test_status_changes_deduplicates_consecutive_same_status for why
-          # this earlier stub row is required (from_timestamp boundary exclusion).
-          - {ingested_timestamp: 2025-10-01 09:59:00}
           - {ingested_timestamp: 2025-10-01 10:00:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-001', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'}
           - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-002', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'}
           - {ingested_timestamp: 2025-10-01 10:10:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-003', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Charging"}'}
@@ -137,6 +129,26 @@ unit_tests:
         - {status: 'Available',  previous_status: null,        next_status: 'Preparing'}
         - {status: 'Preparing',  previous_status: 'Available', next_status: 'Charging'}
         - {status: 'Charging',   previous_status: 'Preparing', next_status: null}
+
+  - name: test_status_changes_full_refresh_keeps_status_at_first_log
+    description: >
+      Setup: full refresh. The very first OCPP log, at 08:00:00, is a StatusNotification; the window
+      starts at start_processing_date (2025-10-01 00:00).
+      Expected: the 08:00:00 status is kept. The window must not start at the first log itself,
+      because source rows are read strictly after the window start.
+    model: int_status_changes
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('int_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 08:00:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-001', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'}
+          - {ingested_timestamp: 2025-10-01 08:05:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', unique_id: 'UID-002', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'}
+    expect:
+      rows:
+        - {ingested_ts: '2025-10-01 08:00:00', status: 'Available', next_status: 'Preparing'}
+        - {ingested_ts: '2025-10-01 08:05:00', status: 'Preparing', next_status: null}
 
   - name: test_status_changes_incremental_buffer_restores_previous_status
     description: >
@@ -386,13 +398,12 @@ unit_tests:
       rows:
         - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: '2025-10-01 10:00:00', to_ts: '2025-10-01 12:00:00', duration_minutes: 120}
 
-  - name: test_faulted_outages_full_refresh_starts_where_status_changes_start
+  - name: test_faulted_outages_full_refresh_window_starts_at_start_processing_date
     description: >
-      Setup: full refresh with a 6-day window. The first log arrives at 2025-10-01 08:00, so
-      int_status_changes starts there and stamps its first batch 2025-10-07 08:00, the last log in
-      its window. Connector 1 is Faulted from 08:11:07 to 08:12:37 on 10-01, in that batch.
-      Expected: the fault is an outage. int_faulted_outages starts from the same point (the first
-      log, not midnight), so its first window ends at the same time as the upstream's first batch.
+      Setup: full refresh with a 6-day window, which starts at start_processing_date (2025-10-01
+      00:00), like int_status_changes' window. Connector 1 is Faulted from 08:11:07 to 08:12:37 on
+      10-01, so that status change was updated at 08:12:37, inside the window.
+      Expected: the fault is an outage.
     model: int_faulted_outages
     overrides:
       macros:
@@ -402,15 +413,14 @@ unit_tests:
     given:
       - input: ref('int_status_changes')
         rows:
-          - {charger_id: 'CH-002', port_id: '1', connector_id: '1', ingested_ts: 2025-10-01 08:11:07, status: 'Faulted', next_status: 'Available', next_ingested_ts: 2025-10-01 08:12:37, updated_ts: 2025-10-07 08:00:00}
+          - {charger_id: 'CH-002', port_id: '1', connector_id: '1', ingested_ts: 2025-10-01 08:11:07, status: 'Faulted', next_status: 'Available', next_ingested_ts: 2025-10-01 08:12:37, updated_ts: 2025-10-01 08:12:37}
       - input: ref('int_ports')
         rows:
           - {charger_id: 'CH-002', port_id: '1', connector_count: 1}
       - input: ref('int_connectors')
         rows: []
       - input: ref('int_ocpp_logs')
-        rows:
-          - {ingested_timestamp: 2025-10-01 08:00:00}
+        rows: []
     expect:
       rows:
         - {charger_id: 'CH-002', port_id: '1', from_ts: '2025-10-01 08:11:07', to_ts: '2025-10-01 08:12:37'}

@@ -16,9 +16,7 @@
 
 
 with incremental_date_range as (
-    {{ incremental_date_range(
-        from_timestamp_caps=["(select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ ")"]
-    ) }}
+    {{ incremental_date_range() }}
 ),
 
     ocpp_logs as (

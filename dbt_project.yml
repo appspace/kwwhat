@@ -62,6 +62,8 @@ vars:
   chargers_identifier: "chargers"
   ports_identifier: "ports"
   connectors_identifier: "connectors"
+  # Start of every incremental window when the checkpoint is off (full refresh, dev, CI) and of the first
+  # checkpoint window. Set it at or just before the first source log: windows are not moved to the data.
   start_processing_date: "2025-10-01"
   incremental_window:
     unit: "month"

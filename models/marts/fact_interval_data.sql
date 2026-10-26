@@ -20,8 +20,7 @@
 
 with incremental_date_range as (
     {{ incremental_date_range(
-        buffer_minutes=30,
-        from_timestamp_caps=["(select min(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"]
+        buffer_minutes=30
     ) }}
 ),
 

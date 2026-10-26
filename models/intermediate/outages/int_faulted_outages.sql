@@ -15,12 +15,7 @@
 
 
 with incremental_date_range as (
-    {{ incremental_date_range(
-        from_timestamp_caps=[
-            "coalesce((select min(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ "), "
-            ~ "cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ "))"
-        ]
-    ) }}
+    {{ incremental_date_range() }}
 ),
 
 -- Status changes updated in this window, plus every still-open status: an open fault on one connector must be seen
