@@ -40,10 +40,10 @@ preparing as (
         id_tags,
         id_tag_statuses,
         transaction_id,
+        updated_ts as preparing_updated_ts,
         -- Attempt start timestamp: use payload_ts if available, otherwise ingested_ts
         coalesce(payload_ts, ingested_ts) as preparing_start_ts,
-        coalesce(next_payload_ts, next_ingested_ts) as preparing_stop_ts,
-        updated_ts as preparing_updated_ts
+        coalesce(next_payload_ts, next_ingested_ts) as preparing_stop_ts
     from {{ ref('int_connector_preparing') }}
     where updated_ts > (select from_timestamp from incremental_date_range)
         and updated_ts <= (select to_timestamp from incremental_date_range)
