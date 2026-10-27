@@ -7,7 +7,8 @@
   )
 }}
 
--- Incremental strategy: merge one Preparing status change per charger_id + connector_id + ingested_ts.
+-- Incremental strategy: buffered open-record reconciliation; merge one Preparing status change per
+-- charger_id + connector_id + ingested_ts.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: status changes and related OCPP events use a 30-minute lookback; matching open target rows retain
 -- prior values, deduplicate event arrays, and advance updated_ts when the next status or transaction becomes known.

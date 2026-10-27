@@ -7,7 +7,7 @@
   )
 }}
 
--- Incremental strategy: merge one current snapshot per charger_id + connector_id + port_id.
+-- Incremental strategy: append-window processing; merge one current snapshot per charger_id + connector_id + port_id.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: no lookback or target-state join is used; dbt's merge replaces the snapshot for each connector key.
 -- Only int_status_changes rows with next_status is null are eligible, so the output represents current open states.

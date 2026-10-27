@@ -7,7 +7,7 @@
   )
 }}
 
--- Incremental strategy: merge one charger outage per charger_id + from_ts.
+-- Incremental strategy: open-record reconciliation; merge one charger outage per charger_id + from_ts.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Source messages are read through the claimed upper boundary. The boundary is inclusive so an outage cut off
 -- by the prior run can be continued.

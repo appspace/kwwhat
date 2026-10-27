@@ -7,7 +7,7 @@
   )
 }}
 
--- Incremental strategy: merge one port outage per charger_id + port_id + from_ts.
+-- Incremental strategy: open-record reconciliation; merge one port outage per charger_id + port_id + from_ts.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: reads status changes updated in the window (updated_ts) plus every still-open status, so an ongoing
 -- fault is extended or closed; an ongoing fault ends at the last OCPP log in the window until its next status arrives.

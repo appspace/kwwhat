@@ -7,10 +7,11 @@
     )
 }}
 
--- Incremental strategy: merge one measurement row per transaction, measurand, phase, and 15-minute interval grain.
+-- Incremental strategy: append-window processing with cumulative aggregates; merge one measurement row per
+-- transaction, measurand, phase, and 15-minute interval grain.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- OCPP logs are read strictly after the watermark. A matching target row contributes its count and weighted average.
--- The calculated 30-minute buffer is not used by the current source filter, so there is no source lookback.
+-- No lookback: windows do not overlap, so each source row is added to the aggregate exactly once.
 -- Late arrivals at or before the checkpoint boundary require an upstream replay, backfill, or full refresh.
 
 
@@ -19,9 +20,7 @@
 ) %}
 
 with incremental_date_range as (
-    {{ incremental_date_range(
-        buffer_minutes=30
-    ) }}
+    {{ incremental_date_range() }}
 ),
 
     ocpp_logs as (

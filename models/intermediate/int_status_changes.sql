@@ -7,7 +7,7 @@
     )
 }}
 
--- Incremental strategy: merge one row per charger_id + connector_id + ingested_ts.
+-- Incremental strategy: open-record reconciliation; merge one row per charger_id + connector_id + ingested_ts.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: every previously open status (next_status is null) is unioned with the new batch so lag/lead can
 -- close the old status and establish the new connector state. updated_ts records the latest event that changed a row

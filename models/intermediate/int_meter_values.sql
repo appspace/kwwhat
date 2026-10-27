@@ -7,10 +7,11 @@
     )
 }}
 
--- Incremental strategy: merge aggregated measurements on the configured composite measurement grain.
+-- Incremental strategy: append-window processing with cumulative aggregates; merge measurements on the configured
+-- composite measurement grain.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: a matching target row contributes its prior min/max/count and weighted average to the new aggregate.
--- The calculated 30-minute buffer is not used by the current source filter, so there is no source lookback.
+-- No lookback: windows do not overlap, so each source row is added to the aggregate exactly once.
 -- Late arrivals: source rows at or before the checkpoint boundary require a backfill or full refresh.
 
 
@@ -19,9 +20,7 @@
 ) %}
 
 with incremental_date_range as (
-    {{ incremental_date_range(
-        buffer_minutes=30
-    ) }}
+    {{ incremental_date_range() }}
 ),
 
 

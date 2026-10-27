@@ -7,7 +7,8 @@
   )
 }}
 
--- Incremental strategy: merge one attempt per charger_id + connector_id + charge_attempt_start_ts.
+-- Incremental strategy: open-record reconciliation; merge one attempt per
+-- charger_id + connector_id + charge_attempt_start_ts.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: upstream rows are selected by updated_ts; existing attempts with the same transaction, plus recent
 -- incomplete attempts within the authorization threshold, are reread to fill stop, transaction, array, and energy data.

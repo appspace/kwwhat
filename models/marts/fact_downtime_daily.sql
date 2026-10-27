@@ -27,7 +27,7 @@
   )
 }}
 
--- Incremental strategy: delete+insert all daily rows for each changed outage_id.
+-- Incremental strategy: delete+insert daily expansion; replace all daily rows for each changed outage_id.
 -- Grain: one row per date_id + outage_id; outage_id remains stable while an ongoing outage is extended.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: deleting by outage_id replaces every calendar day and the latest reason for a changed outage while

@@ -7,7 +7,8 @@
   )
 }}
 
--- Incremental strategy: merge one visit per location_id + first charger/port + visit_start_ts.
+-- Incremental strategy: buffered sessionization; merge one visit per
+-- location_id + first charger/port + visit_start_ts.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: attempts updated in the window (updated_ts) are regrouped; target visits ending within the 30-minute lookback
 -- are reread so authenticated visits can extend and unauthenticated visits can merge or gain an inferred id_tag.

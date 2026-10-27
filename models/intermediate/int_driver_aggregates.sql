@@ -6,15 +6,15 @@
   )
 }}
 
--- Incremental strategy: merge one cumulative row per id_tag, including the __UNKNOWN__ sentinel.
+-- Incremental strategy: cumulative aggregates; merge one row per id_tag, including the __UNKNOWN__ sentinel.
 -- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: the existing row supplies prior first/latest values, while timestamp comparisons select the correct
 -- authorization status. Earlier business events are supported when their attempt's updated_ts is in the window.
--- The configured 30-minute buffer is not used by the current source filter.
+-- No lookback: attempts are read by updated_ts strictly after the window start.
 
 
 with incremental_date_range as (
-    {{ incremental_date_range(buffer_minutes=30) }}
+    {{ incremental_date_range() }}
 ),
 
 attempts as (
