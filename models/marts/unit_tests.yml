@@ -1577,3 +1577,118 @@ unit_tests:
         - {connector_id: '2', latest_error_code_key: 'ocpp-connectorlockfailure'}
         - {connector_id: '3', latest_error_code_key: null}
         - {connector_id: '4', latest_error_code_key: 'chargex-cx010'}
+
+
+
+  # ── incremental replay idempotency ──────────────────────────────────────────
+
+  - name: test_fact_interval_data_replaying_same_window_is_idempotent
+    description: "Replaying an already-applied MeterValues window emits no interval aggregate contribution."
+    model: fact_interval_data
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {charger_id: 'CH-001', action: 'MeterValues', message_type_id: '2', ingested_timestamp: 2025-10-01 10:10:00, payload: '{"connectorId": 1, "transactionId": "TXN-001", "meterValue": [{"timestamp": "2025-10-01T10:10:00Z", "sampledValue": [{"measurand": "Energy.Active.Import.Register", "unit": "Wh", "value": "1000"}]}]}' }
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', transaction_id: 'TXN-001', ingested_ts: 2025-10-01 09:55:00, connector_id: '1', measurand: 'Energy.Active.Import.Register', unit: 'Wh', phase: null, meter_15min_interval_start: 2025-10-01 10:10:00, meter_15min_interval_stop: 2025-10-01 10:10:00, avg_value: 1000.0, _count: 1, _last_window_from_ts: 2025-10-01 10:00:00, _last_window_to_ts: 2025-10-01 10:10:00}
+      - input: ref('int_meter_values')
+        rows:
+          - {charger_id: 'CH-001', transaction_id: 'TXN-001', ingested_ts: 2025-10-01 09:55:00, connector_id: '1', port_id: 'P-001', location_id: 'LOC-001', measurand: 'Energy.Active.Import.Register', unit: 'Wh', phase: null, first_measurement_ts: 2025-10-01 10:10:00, last_measurement_ts: 2025-10-01 10:10:00}
+    expect:
+      rows: []
+
+  - name: test_fact_charge_attempts_replaying_same_window_is_idempotent
+    description: "Replaying one already-materialized attempt emits exactly one unchanged merge row for its configured key."
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:05:00, charge_attempt_stop_ts: 2025-10-01 10:20:00, preparing_unique_id: 'prep-001', preparing_ingested_ts: 2025-10-01 10:05:00, status: 'Preparing', next_status: 'Available', id_tags: ['TAG-001'], id_tag_statuses: ['Accepted'], transaction_id: 'TXN-001', transaction_ingested_ts: 2025-10-01 10:06:00, transaction_start_ts: 2025-10-01 10:06:00, transaction_stop_ts: 2025-10-01 10:20:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:20:00}
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001', location_id: 'LOC-001', unique_id: 'prep-001', ingested_ts: 2025-10-01 10:05:00, next_ingested_ts: 2025-10-01 10:20:00, status: 'Preparing', next_status: 'Available', id_tags: ['TAG-001'], id_tag_statuses: ['Accepted'], transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:20:00}
+      - input: ref('int_transactions')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001', location_id: 'LOC-001', transaction_id: 'TXN-001', ingested_ts: 2025-10-01 10:06:00, transaction_start_ts: 2025-10-01 10:06:00, transaction_stop_ts: 2025-10-01 10:20:00, transaction_stop_reason: 'Local', id_tags: ['TAG-001'], id_tag_statuses: ['Accepted'], meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:20:00}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:05:00, charge_attempt_stop_ts: 2025-10-01 10:20:00, transaction_id: 'TXN-001', energy_transferred_kwh: 5.0, is_successful: true, updated_ts: 2025-10-01 10:20:00}
+
+  - name: test_fact_visits_replaying_same_window_is_idempotent
+    description: "Replaying an attempt that already formed a visit emits one unchanged visit rather than adding its measures twice."
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
+      - input: this
+        rows:
+          - {visit_id: 'VISIT-001', location_id: 'LOC-001', charger_ids: ['CH-001'], id_tag: 'TAG-001', visit_start_ts: 2025-10-01 10:05:00, visit_end_ts: 2025-10-01 10:20:00, charge_attempt_count: 1, charge_attempt_ids: ['ATTEMPT-001'], total_energy_transferred_kwh: 5.0, visit_duration_minutes: 15, first_charge_attempt_id: 'ATTEMPT-001', last_charge_attempt_id: 'ATTEMPT-001', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: 'P-001', last_port_id: 'P-001', is_successful: true, grouping_key: 'LOC-001_TAG-001'}
+      - input: ref('fact_charge_attempts')
+        rows:
+          - {charge_attempt_id: 'ATTEMPT-001', charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:05:00, charge_attempt_stop_ts: 2025-10-01 10:20:00, id_tags: ['TAG-001'], id_tag_statuses: ['Accepted'], id_tag: 'TAG-001', energy_transferred_kwh: 5.0, is_successful: true, updated_ts: 2025-10-01 10:20:00}
+      - input: ref('dim_connectors')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001'}
+      - input: ref('dim_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001'}
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', visit_start_ts: 2025-10-01 10:05:00, visit_end_ts: 2025-10-01 10:20:00, charge_attempt_count: 1, total_energy_transferred_kwh: 5.0, first_charger_id: 'CH-001', first_port_id: 'P-001', is_successful: true}
+
+  - name: test_fact_downtime_daily_replaying_same_window_is_idempotent
+    description: "Replaying the same changed outage emits the same daily replacement row for its stable outage_id."
+    model: fact_downtime_daily
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 12:00:00}
+      - input: this
+        rows:
+          - {date_id: 2025-10-01, outage_id: 'existing-outage-id', charger_id: 'CH-001', port_id: 'P-001', downtime_type: 'FAULTED', outage_from_ts: 2025-10-01 10:15:00, outage_to_ts: 2025-10-01 11:15:00, duration_minutes: 60}
+      - input: ref('int_faulted_outages')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'P-001', from_ts: 2025-10-01 10:15:00, to_ts: 2025-10-01 11:15:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
+      - input: ref('int_offline_outages')
+        rows: []
+      - input: ref('dim_error_codes')
+        rows: []
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001'}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'P-001'}
+      - input: ref('dim_dates')
+        rows:
+          - {date_id: 2025-10-01, date_day: 2025-10-01}
+    expect:
+      rows:
+        - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'P-001', downtime_type: 'FAULTED', reason: 'NoError', outage_from_ts: 2025-10-01 10:15:00, outage_to_ts: 2025-10-01 11:15:00, duration_minutes: 60}
