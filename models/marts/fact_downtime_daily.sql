@@ -27,22 +27,17 @@
   )
 }}
 
--- Incremental strategy: delete+insert all daily rows for each changed outage_id.
+-- Incremental strategy: delete+insert daily expansion; replace all daily rows for each changed outage_id.
 -- Grain: one row per date_id + outage_id; outage_id remains stable while an ongoing outage is extended.
--- Watermark: max(incremental_ts) already stored in this model; only upstream outages with a newer stamp are reread.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: deleting by outage_id replaces every calendar day and the latest reason for a changed outage while
 -- leaving unrelated outages untouched. A post-hook removes recent OFFLINE rows that begin during a FAULTED outage.
--- Late updates are captured when an upstream outage is re-emitted with a newer incremental_ts.
+-- Changed outages are read by to_ts: a new, extended or closed outage always ends within the window that wrote it.
+-- Late updates are captured when an upstream outage changes within a claimed checkpoint window.
 
-
-{% if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
-{%- endif -%}
 
 with incremental_date_range as (
-    {{ incremental_date_range(from_timestamp_caps=from_ts_caps) }}
+    {{ incremental_date_range() }}
 ),
 
 ports as (
@@ -81,8 +76,7 @@ faulted_outages_resolved as (
         error_codes.error_code_name as latest_error_code_name,
         f.latest_error_code,
         f.latest_taxonomy,
-        error_codes.error_code_key as latest_error_code_key,
-        f.incremental_ts
+        error_codes.error_code_key as latest_error_code_key
     from {{ ref('int_faulted_outages') }} as f
     inner join ports as p
         on f.charger_id = p.charger_id
@@ -102,8 +96,8 @@ faulted_outages_resolved as (
             and error_codes.taxonomy = 'ocpp1.6'
             and f.latest_error_code_name = error_codes.error_code_name
         )
-    where f.incremental_ts > (select from_timestamp from incremental_date_range)
-        and f.incremental_ts <= (select to_timestamp from incremental_date_range)
+    where f.to_ts > (select from_timestamp from incremental_date_range)
+        and f.to_ts <= (select to_timestamp from incremental_date_range)
 ),
 
 faulted_outages as (
@@ -114,7 +108,6 @@ faulted_outages as (
         to_ts,
         duration_minutes,
         latest_error_code_key,
-        incremental_ts,
         'FAULTED' as downtime_type,
         -- Every reported code takes its dim_error_codes name, never the raw errorCode - including OCPP's
         -- NoError sentinel, which is in the OCPP 1.6 seed. Nothing reported at all is labelled NoError too;
@@ -136,13 +129,12 @@ offline_outages as (
         o.to_ts,
         o.duration_minutes,
         cast(null as {{ dbt.type_string() }}) as latest_error_code_key,
-        o.incremental_ts,
         'OFFLINE' as downtime_type,
         'NoHeartbeat' as reason
     from {{ ref('int_offline_outages') }} as o
     inner join ports as p on o.charger_id = p.charger_id
-    where o.incremental_ts > (select from_timestamp from incremental_date_range)
-        and o.incremental_ts <= (select to_timestamp from incremental_date_range)
+    where o.to_ts > (select from_timestamp from incremental_date_range)
+        and o.to_ts <= (select to_timestamp from incremental_date_range)
 ),
 
 outages as (
@@ -153,7 +145,6 @@ outages as (
         to_ts,
         duration_minutes,
         latest_error_code_key,
-        incremental_ts,
         downtime_type,
         reason
     from offline_outages
@@ -165,7 +156,6 @@ outages as (
         to_ts,
         duration_minutes,
         latest_error_code_key,
-        incremental_ts,
         downtime_type,
         reason
     from faulted_outages
@@ -180,7 +170,6 @@ filtered_outages as (
         o.from_ts,
         o.to_ts,
         o.latest_error_code_key,
-        o.incremental_ts,
         o.downtime_type,
         o.reason,
         d.date_id
@@ -188,11 +177,6 @@ filtered_outages as (
     inner join {{ ref('dim_dates') }} as d
         on d.date_id >= cast(o.from_ts as date)
         and cast(d.date_id as {{ dbt.type_timestamp() }}) < o.to_ts
-),
-
-incremental as (
-    select max(incremental_ts) as incremental_ts
-    from filtered_outages
 ),
 
 -- Part of each outage that falls on each day
@@ -215,7 +199,9 @@ outage_days as (
 -- charger_id -> location_id (int_chargers) -> location_key generated in place
 outage_days_with_ids as (
     select
-        {{ dbt_utils.generate_surrogate_key(['od.charger_id', 'od.port_id', 'od.downtime_type', 'od.from_ts']) }} as outage_id,
+        {{ dbt_utils.generate_surrogate_key([
+            'od.charger_id', 'od.port_id', 'od.downtime_type', 'od.from_ts'
+        ]) }} as outage_id,
         od.charger_id,
         od.port_id,
         od.date_id,
@@ -246,6 +232,5 @@ select
     reason,
     from_ts as outage_from_ts,
     to_ts as outage_to_ts,
-    duration_minutes,
-    (select incremental_ts from incremental) as incremental_ts
+    duration_minutes
 from outage_days_with_ids

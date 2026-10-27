@@ -25,6 +25,16 @@ clean-targets:         # directories to be removed by `dbt clean`
   - "dbt_packages"
 
 
+on-run-start:
+  - |
+    -- depends_on: {{ ref('stg_ocpp_logs') }}
+    {{ claim_incremental_checkpoint() }}
+
+
+on-run-end:
+  - "{{ finalize_incremental_checkpoint(results) }}"
+
+
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
 
@@ -52,10 +62,21 @@ vars:
   chargers_identifier: "chargers"
   ports_identifier: "ports"
   connectors_identifier: "connectors"
+  # Start of every incremental window when the checkpoint is off (full refresh, dev, CI) and of the first
+  # checkpoint window. Set it at or just before the first source log: windows are not moved to the data.
   start_processing_date: "2025-10-01"
   incremental_window:
     unit: "month"
     length: 3
+  incremental_checkpoint_enabled: false
+  incremental_checkpoint_name: "ocpp_incremental_pipeline"
+  incremental_checkpoint_identifier: "_kwwhat_incremental_checkpoint"
+  # How long a claimed window stays locked against other checkpoint runs. The lease is not renewed during a run,
+  # so set it to roughly your longest full-DAG checkpoint run, times 2 to 3: shorter lets a second run claim the
+  # same window mid-run, longer delays the retry after a crashed run.
+  incremental_checkpoint_lease_minutes: 120
+
+
 
   success_energy_threshold_kwh: 0.1
   authorize_time_threshold_seconds: 300

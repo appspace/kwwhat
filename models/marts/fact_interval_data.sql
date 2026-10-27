@@ -7,32 +7,20 @@
     )
 }}
 
--- Incremental strategy: merge one measurement row per transaction, measurand, phase, and 15-minute interval grain.
--- Watermark: max(incremental_ts) already stored in this model, capped by int_meter_values progress; OCPP logs are read
--- strictly after the watermark. A matching target row contributes its count and weighted average to the new aggregate.
--- The calculated 30-minute buffer is not used by the current source filter, so there is no source lookback.
--- Late arrivals at or before the watermark require an upstream replay, backfill, or full refresh.
+-- Incremental strategy: append-window processing with cumulative aggregates; merge one measurement row per
+-- transaction, measurand, phase, and 15-minute interval grain.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
+-- OCPP logs are read strictly after the watermark. A matching target row contributes its count and weighted average.
+-- No lookback: windows do not overlap, so each source row is added to the aggregate exactly once.
+-- Late arrivals at or before the checkpoint boundary require an upstream replay, backfill, or full refresh.
 
 
 {% set relation_exists = adapter.get_relation(
     database=this.database, schema=this.schema, identifier=this.identifier
 ) %}
 
-{%- if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = [
-        "cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")",
-        "(select min(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"
-    ] -%}
-{%- endif -%}
-
 with incremental_date_range as (
-    {{ incremental_date_range(
-        from_timestamp_caps=from_ts_caps,
-        buffer_minutes=30,
-        to_timestamp_caps=["(select max(incremental_ts) from " ~ ref("int_meter_values") ~ ")"]
-    ) }}
+    {{ incremental_date_range() }}
 ),
 
     ocpp_logs as (
@@ -71,12 +59,6 @@ with incremental_date_range as (
             first_measurement_ts,
             last_measurement_ts
         from {{ ref("int_meter_values") }}
-    ),
-
-    incremental as (
-        select
-            max(ingested_ts) as incremental_ts
-        from ocpp_logs
     ),
 
     meter_value_logs as (
@@ -291,6 +273,5 @@ with incremental_date_range as (
         meter_15min_interval_start,
         meter_15min_interval_stop,
         avg_value,
-        _count,
-        (select incremental_ts from incremental) as incremental_ts
+        _count
     from final

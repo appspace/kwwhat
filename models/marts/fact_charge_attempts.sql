@@ -7,30 +7,20 @@
   )
 }}
 
--- Incremental strategy: merge one attempt per charger_id + connector_id + charge_attempt_start_ts.
--- Watermark: max(incremental_ts) already stored in this model, capped by Preparing and transaction model progress.
+-- Incremental strategy: open-record reconciliation; merge one attempt per
+-- charger_id + connector_id + charge_attempt_start_ts.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: upstream rows are selected by updated_ts; existing attempts with the same transaction, plus recent
 -- incomplete attempts within the authorization threshold, are reread to fill stop, transaction, array, and energy data.
--- Late updates are captured when an upstream updated_ts advances; otherwise they require a backfill or full refresh.
+-- updated_ts is the latest upstream updated_ts merged into an attempt; downstream models read changed attempts by it.
+-- Late updates are captured when an upstream updated_ts enters a claimed window; otherwise they require a backfill.
 
 
 {% set VALID_STOP_REASONS = ['Local', 'Remote', 'EVDisconnected'] %}
 {%- set _authorize_threshold = var("authorize_time_threshold_seconds") -%}
 
-{%- if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = ["cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
-{%- endif -%}
-
 with incremental_date_range as (
-    {{ incremental_date_range(
-        from_timestamp_caps=from_ts_caps,
-        to_timestamp_caps=[
-            "(select max(incremental_ts) from " ~ ref("int_connector_preparing") ~ ")",
-            "(select max(incremental_ts) from " ~ ref("int_transactions") ~ ")"
-        ]
-    ) }}
+    {{ incremental_date_range() }}
 ),
 
 preparing as (
@@ -51,6 +41,7 @@ preparing as (
         id_tags,
         id_tag_statuses,
         transaction_id,
+        updated_ts as preparing_updated_ts,
         -- Attempt start timestamp: use payload_ts if available, otherwise ingested_ts
         coalesce(payload_ts, ingested_ts) as preparing_start_ts,
         coalesce(next_payload_ts, next_ingested_ts) as preparing_stop_ts
@@ -74,24 +65,11 @@ transactions as (
         id_tag_statuses,
         meter_start_wh,
         meter_stop_wh,
-        energy_transferred_kwh
+        energy_transferred_kwh,
+        updated_ts as transaction_updated_ts
     from {{ ref('int_transactions') }}
     where updated_ts > (select from_timestamp from incremental_date_range)
         and updated_ts <= (select to_timestamp from incremental_date_range)
-),
-
-incremental as (
-    select
-        greatest(
-            coalesce(
-                (select max(preparing_ingested_ts) from preparing),
-                cast('1900-01-01' as {{ dbt.type_timestamp() }})
-            ),
-            coalesce(
-                (select max(transaction_ingested_ts) from transactions),
-                cast('1900-01-01' as {{ dbt.type_timestamp() }})
-            )
-        ) as incremental_ts
 ),
 
 attempts_and_transactions as (
@@ -125,7 +103,12 @@ attempts_and_transactions as (
         t.transaction_stop_reason,
         t.meter_start_wh,
         t.meter_stop_wh,
-        t.energy_transferred_kwh
+        t.energy_transferred_kwh,
+
+        greatest(
+            coalesce(p.preparing_updated_ts, t.transaction_updated_ts),
+            coalesce(t.transaction_updated_ts, p.preparing_updated_ts)
+        ) as updated_ts
 
     from preparing as p
     full outer join transactions as t
@@ -167,7 +150,8 @@ attempts_and_transactions as (
             transaction_stop_reason,
             meter_start_wh,
             meter_stop_wh,
-            energy_transferred_kwh
+            energy_transferred_kwh,
+            updated_ts
         from {{ this }} as buf
         -- All attempts with the same transaction from previous runs
         where buf.transaction_id in (
@@ -209,6 +193,7 @@ attempts_and_transactions as (
             coalesce(n.meter_start_wh, b.meter_start_wh) as meter_start_wh,
             coalesce(n.meter_stop_wh, b.meter_stop_wh) as meter_stop_wh,
             coalesce(n.energy_transferred_kwh, b.energy_transferred_kwh) as energy_transferred_kwh,
+            greatest(n.updated_ts, coalesce(b.updated_ts, n.updated_ts)) as updated_ts,
 
             -- Merge arrays using array_concat
             {{ array_distinct(array_concat('n.id_tags', 'b.id_tags')) }} as id_tags,
@@ -352,7 +337,7 @@ select
         then true
         else false
     end as is_successful,
-    (select incremental_ts from incremental) as incremental_ts
+    updated_ts
 from attempts_final
 left join attempt_errors_agg as errors
     on attempts_final.charger_id = errors.error_agg_charger_id

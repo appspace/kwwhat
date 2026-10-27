@@ -7,11 +7,13 @@
   )
 }}
 
--- Incremental strategy: merge one charger outage per charger_id + from_ts.
--- Watermark: max(incremental_ts) already stored in this model; source messages are read from that boundary through
--- the available source maximum. The boundary is inclusive so an outage cut off by the prior run can be continued.
--- Reprocessing: a new boundary outage joins the target outage ending at the watermark and extends it via least/greatest.
--- Late arrivals before the boundary are not reread and require a backfill or full refresh.
+-- Incremental strategy: open-record reconciliation; merge one charger outage per charger_id + from_ts.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
+-- Source messages are read through the claimed upper boundary. The boundary is inclusive so an outage cut off
+-- by the prior run can be continued.
+-- Reprocessing: an ongoing outage ends at the window end, so the next window's boundary outage joins it
+-- (to_ts = from_timestamp) and extends it via least/greatest. A window with no messages writes nothing.
+-- Late arrivals before the boundary require a backfill or full refresh.
 
 
 {% set charge_point_initiated_actions = [
@@ -21,17 +23,8 @@
     'StatusNotification', 'StopTransaction'
 ] %}
 
-{%- if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
-{%- endif -%}
-
 with incremental_date_range as (
-    {{ incremental_date_range(
-        from_timestamp_caps=from_ts_caps,
-        to_timestamp_caps=["(select max(ingested_timestamp) from " ~ ref("stg_ocpp_logs") ~ ")"]
-    ) }}
+    {{ incremental_date_range() }}
 ),
 
 -- Charge point initiated messages (CALL messages) in this run's window
@@ -46,11 +39,16 @@ window_messages as (
         and action in ({{ "'" + "', '".join(charge_point_initiated_actions) + "'" }})
 ),
 
--- Last message received. Both clocks use it: it is the batch's incremental_ts and the end of every ongoing outage, so
--- the next run starts exactly where an ongoing outage was cut off and previous_outages finds it.
-incremental as (
+-- End of monitoring: the window end, which incremental_date_range never lets pass the newest source row. An ongoing
+-- outage runs to it, so the next window, which starts there, continues the outage. Null
+-- when the window has no messages at all, so a gap in ingestion is not read as every charger going offline. It is
+-- also the to_ts of ongoing outages, which fact_downtime_daily reads changed outages by.
+window_end as (
     select
-        max(ingested_timestamp) as incremental_ts
+        case
+            when max(ingested_timestamp) is not null
+                then (select to_timestamp from incremental_date_range)
+        end as monitoring_end_ts
     from window_messages
 ),
 
@@ -63,12 +61,12 @@ charger_context as (
             (select from_timestamp from incremental_date_range)
         ) as monitoring_start_ts,
         least(
-            coalesce(decommissioned_ts, (select incremental_ts from incremental)),
-            (select incremental_ts from incremental)
+            coalesce(decommissioned_ts, (select monitoring_end_ts from window_end)),
+            (select monitoring_end_ts from window_end)
         ) as monitoring_end_ts
     from {{ ref("int_chargers") }}
     where commissioned_ts is not null
-        and commissioned_ts < (select incremental_ts from incremental)
+        and commissioned_ts < (select monitoring_end_ts from window_end)
         and (decommissioned_ts is null or decommissioned_ts > (select from_timestamp from incremental_date_range))
 ),
 
@@ -192,7 +190,6 @@ select
     charger_id,
     from_ts,
     to_ts,
-    duration_seconds / 60 as duration_minutes,
-    (select incremental_ts from incremental) as incremental_ts
+    duration_seconds / 60 as duration_minutes
 from all_outages
 where duration_seconds > {{ var("heartbeat_interval_seconds") }}

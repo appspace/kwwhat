@@ -7,11 +7,12 @@
   )
 }}
 
--- Incremental strategy: merge one Preparing status change per charger_id + connector_id + ingested_ts.
--- Watermark: max(incremental_ts) already stored in this model, capped by upstream status and raw-log progress.
+-- Incremental strategy: buffered open-record reconciliation; merge one Preparing status change per
+-- charger_id + connector_id + ingested_ts.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: status changes and related OCPP events use a 30-minute lookback; matching open target rows retain
 -- prior values, deduplicate event arrays, and advance updated_ts when the next status or transaction becomes known.
--- Late arrivals: status or event rows outside the lookback are not reconsidered without a backfill or full refresh.
+-- Late arrivals: status or event rows outside the lookback require a backfill or full refresh.
 
 
 {% set charge_attempt_actions = [
@@ -19,21 +20,8 @@
     'StatusNotification', 'RemoteStartTransaction', 'RemoteStopTransaction'
 ] %}
 
-{%- if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = ["cast('" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
-{%- endif -%}
-
 with incremental_date_range as (
-    {{ incremental_date_range(
-        from_timestamp_caps=from_ts_caps,
-        buffer_minutes=30,
-        to_timestamp_caps=[
-            "(select max(incremental_ts) from " ~ ref("int_status_changes") ~ ")",
-            "(select max(ingested_timestamp) from " ~ ref("int_ocpp_logs") ~ ")"
-        ]
-    ) }}
+    {{ incremental_date_range(buffer_minutes=30) }}
 ),
 
 -- Get status changes from the dedicated status changes model
@@ -80,12 +68,6 @@ ocpp_logs as (
     from {{ ref("int_ocpp_logs") }}
     where ingested_timestamp >= (select buffer_from_timestamp from incremental_date_range)
         and ingested_timestamp <= (select to_timestamp from incremental_date_range)
-),
-
-incremental as (
-    select
-        max(updated_ts) as incremental_ts
-    from status_changes_to_preparing
 ),
 
 
@@ -316,7 +298,6 @@ select
             then {{ array_first('transaction_ids') }}
         else null
     end as transaction_id,
-    (select incremental_ts from incremental) as incremental_ts,
     -- Count aggregations for testing
     case
         when transaction_ids is not null

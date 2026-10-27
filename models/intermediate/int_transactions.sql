@@ -7,11 +7,11 @@
   )
 }}
 
--- Incremental strategy: merge one row per charger_id + connector_id + first ingested_ts.
--- Watermark: max(incremental_ts) already stored in this model; OCPP logs are read strictly after it in bounded windows.
+-- Incremental strategy: open-record reconciliation; merge one row per charger_id + connector_id + first ingested_ts.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
 -- Reprocessing: new events are matched by charger_id + transaction_id to an existing transaction that has not stopped;
 -- stable attributes are retained, arrays are deduplicated, and updated_ts advances to the latest incorporated event.
--- Late arrivals: source rows at or before the watermark are not reread and require a backfill or full refresh.
+-- Late arrivals: source rows at or before the checkpoint boundary require a backfill or full refresh.
 
 
 {% set transaction_related_actions = [
@@ -19,36 +19,10 @@
     'RemoteStartTransaction', 'RemoteStopTransaction', 'MeterValues'
 ] %}
 
-{% if is_incremental() %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ timestamp_add(
-                var("incremental_window").unit,
-                var("incremental_window").length,
-                "from_timestamp"
-            ) }} as to_timestamp
-        from
-            (
-                select (select max(incremental_ts) from {{ this }}) as from_timestamp
-            )
-    ),
+with incremental_date_range as (
+    {{ incremental_date_range() }}
+),
 
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ timestamp_add(
-                var("incremental_window").unit,
-                var("incremental_window").length,
-                "from_timestamp"
-            ) }} as to_timestamp
-        from
-            (
-                select cast('{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}) as from_timestamp
-            )
-    ),
-{% endif %}
 
 ocpp_logs as (
     select
@@ -62,12 +36,6 @@ ocpp_logs as (
     from {{ ref("int_ocpp_logs") }}
     where ingested_timestamp > (select from_timestamp from incremental_date_range)
         and ingested_timestamp <= (select to_timestamp from incremental_date_range)
-),
-
-incremental as (
-    select
-        max(ingested_ts) as incremental_ts
-    from ocpp_logs
 ),
 
 -- Filter for charge attempt actions first
@@ -235,7 +203,5 @@ transactions_with_ids as (
         on transactions_final.charger_id = chargers.charger_id
 )
 
-select
-    *,
-    (select incremental_ts from incremental) as incremental_ts
+select *
 from transactions_with_ids

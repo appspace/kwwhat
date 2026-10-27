@@ -43,7 +43,7 @@ models:
         data_tests:
           - not_null
       - name: to_ts
-        description: "Timestamp when the faulted outage period ended (when at least one connector, or connector 0 for a charger-wide fault, reported its next status). For an ongoing outage, the batch's incremental_ts (the last log received upstream); the next run extends it."
+        description: "Timestamp when the faulted outage period ended (when at least one connector, or connector 0 for a charger-wide fault, reported its next status). For an ongoing outage, the last OCPP log received in the processing window; the next run extends it."
         data_tests:
           - not_null
       - name: duration_minutes

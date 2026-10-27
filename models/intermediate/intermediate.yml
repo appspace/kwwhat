@@ -135,7 +135,7 @@ models:
       - name: confirmation_ingested_ts
         description: "Timestamp when the confirmation was ingested"
       - name: updated_ts
-        description: "The latest real event timestamp incorporated into this row so far - next_ingested_ts once known, else the status event's own ingested_ts - carried forward and advanced (via greatest()) across every incremental run that touches the row. Downstream consumers (int_connector_preparing) use this, not ingested_ts, to avoid understating their own progress when a row is re-emitted with newly-known next_status."
+        description: "The latest real event timestamp incorporated into this row so far - next_ingested_ts once known, else the status event's own ingested_ts - carried forward and advanced (via greatest()) across every incremental run that touches the row. Downstream consumers (int_connector_preparing, int_faulted_outages) use this, not ingested_ts, to pick up a row again once its next_status becomes known."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -306,10 +306,6 @@ models:
           - accepted_values:
               arguments:
                 values: ['Accepted', 'Blocked', 'Expired', 'Invalid', 'ConcurrentTx']
-      - name: incremental_ts
-        description: "Largest incremental_ts from fact_charge_attempts processed into this row. Serves as the watermark for the next incremental run."
-        data_tests:
-          - not_null
     data_tests:
       - dbt_utils.expression_is_true:
           arguments:

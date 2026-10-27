@@ -7,25 +7,16 @@
   )
 }}
 
--- Incremental strategy: merge one visit per location_id + first charger/port + visit_start_ts.
--- Watermark: max(incremental_ts) already stored in this model, capped by fact_charge_attempts progress.
--- Reprocessing: attempts with a newer incremental_ts are regrouped; target visits ending within the 30-minute lookback
+-- Incremental strategy: buffered sessionization; merge one visit per
+-- location_id + first charger/port + visit_start_ts.
+-- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
+-- Reprocessing: attempts updated in the window (updated_ts) are regrouped; target visits ending within the 30-minute lookback
 -- are reread so authenticated visits can extend and unauthenticated visits can merge or gain an inferred id_tag.
 -- Older visits change only when a newly emitted attempt reconnects them through the configured business windows.
 
 
-{% if is_incremental() -%}
-    {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-{%- else -%}
-    {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
-{%- endif -%}
-
 with incremental_date_range as (
-    {{ incremental_date_range(
-        from_timestamp_caps=from_ts_caps,
-        buffer_minutes=30,
-        to_timestamp_caps=["(select max(incremental_ts) from " ~ ref("fact_charge_attempts") ~ ")"]
-    ) }}
+    {{ incremental_date_range(buffer_minutes=30) }}
 ),
 
 -- Get charge attempts with location information
@@ -51,14 +42,8 @@ charge_attempts_with_location as (
         and att.connector_id = c.connector_id
     inner join {{ ref("dim_chargers") }} as ch
         on att.charger_id = ch.charger_id
-    where att.incremental_ts > (select from_timestamp from incremental_date_range)
-        and att.incremental_ts <= (select to_timestamp from incremental_date_range)
-),
-
-incremental as (
-    select
-        max(preparing_ingested_ts) as incremental_ts
-    from charge_attempts_with_location
+    where att.updated_ts > (select from_timestamp from incremental_date_range)
+        and att.updated_ts <= (select to_timestamp from incremental_date_range)
 ),
 
 -- Step 1: Infer idTag for unauthorised attempts if there is authorised right after on the same port
@@ -483,6 +468,5 @@ select
     v.is_successful,
     v.last_error_code,
     v.grouping_key,
-    {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes,
-    (select incremental_ts from incremental) as incremental_ts
+    {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes
 from visits as v
