@@ -1109,3 +1109,202 @@ unit_tests:
     expect:
       rows:
         - {charger_id: 'CH-002', connector_id: '1', port_id: 'P-002', latest_status: 'Charging'}
+
+
+
+  # ── incremental replay idempotency ──────────────────────────────────────────
+
+  - name: test_int_status_changes_replaying_same_window_is_idempotent
+    description: "Replaying a window that already produced an open status emits the same single merge row."
+    model: int_status_changes
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00}
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:01:00, unique_id: 'status-001', status: 'Available', next_status: null, updated_ts: 2025-10-01 10:01:00}
+      - input: ref('int_ocpp_logs')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001', location_id: 'LOC-001', action: 'StatusNotification', ingested_timestamp: 2025-10-01 10:01:00, message_type_id: '2', unique_id: 'status-001', payload: '{"status": "Available", "errorCode": "NoError"}'}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:01:00, status: 'Available', next_status: null, updated_ts: 2025-10-01 10:01:00}
+
+  - name: test_int_meter_values_replaying_same_window_is_idempotent
+    description: "Replaying an already-applied MeterValues window emits no aggregate contribution."
+    model: int_meter_values
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', transaction_id: 'TXN-001', ingested_ts: 2025-10-01 09:55:00, connector_id: '1', port_id: 'P-001', location_id: 'LOC-001', measurand: 'Energy.Active.Import.Register', unit: 'Wh', phase: null, first_measurement_ts: 2025-10-01 10:10:00, last_measurement_ts: 2025-10-01 10:10:00, min_value: 1000.0, max_value: 1000.0, avg_value: 1000.0, _count: 1, _last_window_from_ts: 2025-10-01 10:00:00, _last_window_to_ts: 2025-10-01 10:30:00}
+      - input: ref('int_ocpp_logs')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001', location_id: 'LOC-001', action: 'MeterValues', ingested_timestamp: 2025-10-01 10:10:00, message_type_id: '2', payload: '{"transactionId": "TXN-001", "meterValue": [{"timestamp": "2025-10-01T10:10:00Z", "sampledValue": [{"measurand": "Energy.Active.Import.Register", "unit": "Wh", "value": "1000"}]}]}' }
+      - input: ref('int_transactions')
+        rows:
+          - {charger_id: 'CH-001', transaction_id: 'TXN-001', connector_id: '1', ingested_ts: 2025-10-01 09:55:00, last_ingested_ts: 2025-10-01 10:30:00}
+    expect:
+      rows: []
+
+  - name: test_int_transactions_replaying_same_window_is_idempotent
+    description: "Replaying the same transaction request and confirmation preserves one unchanged transaction row."
+    model: int_transactions
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00}
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', transaction_id: 'TXN-001', connector_id: '1', connector_ids: ['1'], ingested_ts: 2025-10-01 10:01:00, last_ingested_ts: 2025-10-01 10:01:00, updated_ts: 2025-10-01 10:01:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: null, id_tags: ['TAG-001'], id_tag_statuses: ['Accepted'], meter_start_wh: 1000}
+      - input: ref('int_ocpp_logs')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', action: 'StartTransaction', ingested_timestamp: 2025-10-01 10:01:00, message_type_id: '2', unique_id: 'start-001', payload: '{"idTag": "TAG-001", "meterStart": 1000, "timestamp": "2025-10-01T10:01:00Z"}'}
+          - {charger_id: 'CH-001', connector_id: null, action: null, ingested_timestamp: 2025-10-01 10:01:01, message_type_id: '3', unique_id: 'start-001', payload: '{"transactionId": "TXN-001", "idTagInfo": {"status": "Accepted"}}'}
+      - input: ref('int_connectors')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001'}
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', location_id: 'LOC-001'}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', transaction_id: 'TXN-001', connector_id: '1', ingested_ts: 2025-10-01 10:01:00, last_ingested_ts: 2025-10-01 10:01:00, updated_ts: 2025-10-01 10:01:00, meter_start_wh: 1000, _unique_connectors_count: 1}
+
+  - name: test_int_driver_aggregates_replaying_same_window_is_idempotent
+    description: "Replaying an already-aggregated attempt leaves the driver's first and latest values unchanged."
+    model: int_driver_aggregates
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
+      - input: this
+        rows:
+          - {id_tag: 'TAG-001', first_seen_ts: 2025-10-01 10:05:00, last_seen_ts: 2025-10-01 10:05:00, first_authorization_status: 'Accepted', latest_authorization_status: 'Accepted'}
+      - input: ref('fact_charge_attempts')
+        rows:
+          - {id_tag: 'TAG-001', id_tag_status: 'Accepted', charge_attempt_start_ts: 2025-10-01 10:05:00, updated_ts: 2025-10-01 10:10:00}
+    expect:
+      rows:
+        - {id_tag: 'TAG-001', first_seen_ts: 2025-10-01 10:05:00, last_seen_ts: 2025-10-01 10:05:00, first_authorization_status: 'Accepted', latest_authorization_status: 'Accepted'}
+
+  - name: test_int_connector_preparing_replaying_same_window_is_idempotent
+    description: "Replaying an already-merged Preparing event preserves one row and deduplicates its arrays."
+    model: int_connector_preparing
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:10:00}
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'status-001', ingested_ts: 2025-10-01 10:01:00, status: 'Preparing', next_status: 'Charging', next_ingested_ts: 2025-10-01 10:10:00, id_tags: ['TAG-001'], id_tag_statuses: ['Accepted'], parent_id_tags: [], transaction_ids: ['TXN-001'], transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:10:00}
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001', location_id: 'LOC-001', unique_id: 'status-001', ingested_ts: 2025-10-01 10:01:00, status: 'Preparing', next_status: 'Charging', next_ingested_ts: 2025-10-01 10:10:00, updated_ts: 2025-10-01 10:10:00}
+      - input: ref('int_ocpp_logs')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', action: 'StartTransaction', ingested_timestamp: 2025-10-01 10:02:00, message_type_id: '2', unique_id: 'start-001', payload: '{"idTag": "TAG-001"}'}
+          - {charger_id: 'CH-001', connector_id: null, action: null, ingested_timestamp: 2025-10-01 10:02:01, message_type_id: '3', unique_id: 'start-001', payload: '{"transactionId": "TXN-001", "idTagInfo": {"status": "Accepted"}}'}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:01:00, status: 'Preparing', next_status: 'Charging', id_tags: ['TAG-001'], transaction_ids: ['TXN-001'], transaction_id: 'TXN-001', _unique_transaction_count: 1, updated_ts: 2025-10-01 10:10:00}
+
+  - name: test_int_connector_latest_status_replaying_same_window_is_idempotent
+    description: "Replaying the same open status emits one unchanged connector snapshot."
+    model: int_connector_latest_status
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001', latest_status: 'Available', latest_status_ts: 2025-10-01 10:05:00}
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001', status: 'Available', next_status: null, ingested_ts: 2025-10-01 10:05:00}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', connector_id: '1', port_id: 'P-001', latest_status: 'Available', latest_status_ts: 2025-10-01 10:05:00}
+
+  - name: test_int_faulted_outages_replaying_same_window_is_idempotent
+    description: "Replaying the same closed fault period emits the same single port outage."
+    model: int_faulted_outages
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
+      - input: ref('int_status_changes')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'P-001', connector_id: '1', ingested_ts: 2025-10-01 10:05:00, status: 'Faulted', error_code_name: 'ConnectorLockFailure', next_status: 'Available', next_ingested_ts: 2025-10-01 10:20:00, updated_ts: 2025-10-01 10:20:00}
+      - input: ref('int_ports')
+        rows:
+          - {charger_id: 'CH-001', port_id: 'P-001', connector_count: 1}
+      - input: ref('int_connectors')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'P-001', from_ts: 2025-10-01 10:05:00, to_ts: 2025-10-01 10:20:00, duration_minutes: 15, latest_error_code_name: 'ConnectorLockFailure'}
+
+  - name: test_int_offline_outages_replaying_same_window_is_idempotent
+    description: "Replaying the same heartbeat gap emits the same single charger outage."
+    model: int_offline_outages
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-01 10:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {charger_id: 'CH-001', action: 'Heartbeat', message_type_id: '2', ingested_timestamp: 2025-10-01 10:00:00}
+          - {charger_id: 'CH-001', action: 'Heartbeat', message_type_id: '2', ingested_timestamp: 2025-10-01 10:20:00}
+      - input: this
+        rows:
+          - {charger_id: 'CH-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 10:20:00, duration_minutes: 20}
+      - input: ref('int_chargers')
+        rows:
+          - {charger_id: 'CH-001', commissioned_ts: 2025-10-01 09:00:00, decommissioned_ts: null}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 10:20:00, duration_minutes: 20}
