@@ -1,27 +1,47 @@
 {{
     config(
         materialized="incremental",
-        unique_key=["charger_id", "transaction_id", "ingested_ts", "connector_id", "measurand", "unit", "phase"],
+        unique_key="meter_value_id",
         incremental_strategy="merge",
+        on_schema_change="append_new_columns",
         cluster_by="ingested_ts"
     )
 }}
 
--- Incremental strategy: append-window processing with cumulative aggregates; merge measurements on the configured
--- composite measurement grain.
--- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
--- Reprocessing: a matching target row contributes its prior min/max/count and weighted average to the new aggregate.
--- No lookback: windows do not overlap, so each source row is added to the aggregate exactly once.
--- Late arrivals: source rows at or before the checkpoint boundary require a backfill or full refresh.
+-- Incremental strategy: cumulative merge on meter_value_id, a null-safe surrogate key for the measurement grain.
+-- Watermark: the shared checkpoint claims the window; the target watermark narrows it to the unapplied suffix.
+-- Reprocessing: an already-applied window becomes empty; a new suffix adds its aggregate to prior state.
+-- Late arrivals: source rows at or before the model watermark require a backfill or full refresh.
 
-
-{% set relation_exists = adapter.get_relation(
-    database=this.database, schema=this.schema, identifier=this.identifier
-) %}
-
-with incremental_date_range as (
+with claimed_incremental_date_range as (
     {{ incremental_date_range() }}
 ),
+
+    model_applied_through as (
+    {% if is_incremental() %}
+
+        select
+            max(_last_window_to_ts) as applied_through_ts
+        from {{ this }}
+
+    {% else %}
+
+        select
+            cast(null as {{ dbt.type_timestamp() }}) as applied_through_ts
+
+    {% endif %}
+    ),
+
+    incremental_date_range as (
+        select
+            greatest(
+                r.from_timestamp,
+                coalesce(m.applied_through_ts, r.from_timestamp)
+            ) as from_timestamp,
+            r.to_timestamp
+        from claimed_incremental_date_range as r
+        cross join model_applied_through as m
+    ),
 
 
     ocpp_logs as (
@@ -187,7 +207,7 @@ with incremental_date_range as (
     ),
 
     final as (
-    {% if is_incremental() and relation_exists %}
+    {% if is_incremental() %}
 
         select
             n.charger_id,
@@ -223,15 +243,15 @@ with incremental_date_range as (
                 when b._count is null then n._count
                 else n._count + b._count
             end as _count
-        from agg_transaction n
-        left join {{ this }} b
+        from agg_transaction as n
+        left join {{ this }} as b
             on n.charger_id = b.charger_id
             and n.connector_id = b.connector_id
             and n.transaction_id = b.transaction_id
             and n.ingested_ts = b.ingested_ts
             and n.measurand = b.measurand
             and n.unit = b.unit
-            and n.phase = b.phase
+            and ((n.phase is null and b.phase is null) or n.phase = b.phase)
 
     {% else %}
 
@@ -242,6 +262,10 @@ with incremental_date_range as (
     )
 
     select
+        {{ dbt_utils.generate_surrogate_key([
+            'charger_id', 'transaction_id', 'ingested_ts',
+            'connector_id', 'measurand', 'unit', 'phase'
+        ]) }} as meter_value_id,
         charger_id,
         transaction_id,
         ingested_ts,
@@ -256,5 +280,7 @@ with incremental_date_range as (
         min_value,
         max_value,
         avg_value,
-        _count
+        _count,
+        (select from_timestamp from incremental_date_range) as _last_window_from_ts,
+        (select to_timestamp from incremental_date_range) as _last_window_to_ts
     from final

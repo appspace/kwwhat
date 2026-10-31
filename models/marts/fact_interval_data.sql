@@ -1,27 +1,47 @@
 {{
     config(
         materialized="incremental",
-        unique_key=["charger_id", "transaction_id", "ingested_ts", "connector_id", "measurand", "unit", "phase", "meter_15min_interval_start"],
+        unique_key="interval_data_id",
         incremental_strategy="merge",
+        on_schema_change="append_new_columns",
         cluster_by="ingested_ts"
     )
 }}
 
--- Incremental strategy: append-window processing with cumulative aggregates; merge one measurement row per
--- transaction, measurand, phase, and 15-minute interval grain.
--- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
--- OCPP logs are read strictly after the watermark. A matching target row contributes its count and weighted average.
--- No lookback: windows do not overlap, so each source row is added to the aggregate exactly once.
--- Late arrivals at or before the checkpoint boundary require an upstream replay, backfill, or full refresh.
+-- Incremental strategy: cumulative merge on interval_data_id, a null-safe surrogate key for the interval grain.
+-- Watermark: the shared checkpoint claims the window; the target watermark narrows it to the unapplied suffix.
+-- Reprocessing: an already-applied window becomes empty; a new suffix adds its aggregate to prior state.
+-- Late arrivals at or before the model watermark require an upstream replay, backfill, or full refresh.
 
-
-{% set relation_exists = adapter.get_relation(
-    database=this.database, schema=this.schema, identifier=this.identifier
-) %}
-
-with incremental_date_range as (
+with claimed_incremental_date_range as (
     {{ incremental_date_range() }}
 ),
+
+    model_applied_through as (
+    {% if is_incremental() %}
+
+        select
+            max(_last_window_to_ts) as applied_through_ts
+        from {{ this }}
+
+    {% else %}
+
+        select
+            cast(null as {{ dbt.type_timestamp() }}) as applied_through_ts
+
+    {% endif %}
+    ),
+
+    incremental_date_range as (
+        select
+            greatest(
+                r.from_timestamp,
+                coalesce(m.applied_through_ts, r.from_timestamp)
+            ) as from_timestamp,
+            r.to_timestamp
+        from claimed_incremental_date_range as r
+        cross join model_applied_through as m
+    ),
 
     ocpp_logs as (
         select
@@ -209,7 +229,7 @@ with incremental_date_range as (
     ),
 
     final as (
-    {% if is_incremental() and relation_exists %}
+    {% if is_incremental() %}
 
         select
             n.charger_id,
@@ -229,7 +249,7 @@ with incremental_date_range as (
             end as avg_value,
             case
                 when b._count is null then n._count
-                else (n._count + b._count)
+                else n._count + b._count
             end as _count
         from agg_15min as n
         left join {{ this }} as b
@@ -239,7 +259,7 @@ with incremental_date_range as (
             and n.ingested_ts = b.ingested_ts
             and n.measurand = b.measurand
             and n.unit = b.unit
-            and n.phase = b.phase
+            and ((n.phase is null and b.phase is null) or n.phase = b.phase)
             and n.meter_15min_interval_start = b.meter_15min_interval_start
 
     {% else %}
@@ -273,5 +293,7 @@ with incremental_date_range as (
         meter_15min_interval_start,
         meter_15min_interval_stop,
         avg_value,
-        _count
+        _count,
+        (select from_timestamp from incremental_date_range) as _last_window_from_ts,
+        (select to_timestamp from incremental_date_range) as _last_window_to_ts
     from final

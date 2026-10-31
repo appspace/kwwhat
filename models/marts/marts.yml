@@ -129,6 +129,11 @@ models:
   - name: fact_interval_data
     description: "One row per charger_id + connector_id + transaction_id + ingested_ts + measurand + unit + phase + 15-minute interval. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
     columns:
+      - name: interval_data_id
+        description: "Null-safe surrogate key for the interval record, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start. Used as the incremental merge key."
+        data_tests:
+          - unique
+          - not_null
       - name: port_key
         description: "Surrogate key for the port the interval was recorded on, generated in place from charger_id + port_id (port_id resolved upstream in int_meter_values via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
@@ -187,11 +192,15 @@ models:
         description: "Number of measurements within this 15-minute interval"
         data_tests:
           - not_null
-      - name: interval_data_id
-        description: "Surrogate key for the interval data record, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start"
+      - name: _last_window_from_ts
+        description: "Internal replay marker: lower boundary of the most recent checkpoint window accumulated into this row."
         data_tests:
-          - unique
           - not_null
+      - name: _last_window_to_ts
+        description: "Internal replay marker: upper boundary of the most recent checkpoint window accumulated into this row."
+        data_tests:
+          - not_null
+
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

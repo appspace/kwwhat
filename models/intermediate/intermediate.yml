@@ -317,6 +317,11 @@ models:
   - name: int_meter_values
     description: "Intermediate incremental model that processes transaction-level aggregated meter values. Provides min, max, and average values for each measurand aggregated across the entire transaction. Use for transaction-level analysis."
     columns:
+      - name: meter_value_id
+        description: "Null-safe surrogate key for the measurement aggregate, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, and phase. Used as the incremental merge key."
+        data_tests:
+          - unique
+          - not_null
       - name: charger_id
         description: "Unique identifier for the charging point"
         data_tests:
@@ -371,6 +376,15 @@ models:
         description: "Total number of measurements for the transaction"
         data_tests:
           - not_null
+      - name: _last_window_from_ts
+        description: "Internal replay marker: lower boundary of the most recent checkpoint window accumulated into this row."
+        data_tests:
+          - not_null
+      - name: _last_window_to_ts
+        description: "Internal replay marker: upper boundary of the most recent checkpoint window accumulated into this row."
+        data_tests:
+          - not_null
+
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:

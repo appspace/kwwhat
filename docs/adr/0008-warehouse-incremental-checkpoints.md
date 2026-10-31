@@ -21,9 +21,11 @@ Checkpoint mode is explicitly enabled per invocation. Within one checkpoint-enab
 3. An `on-run-end` hook finalizes the window only when all selected resources complete without failure or error.
 4. A failed run leaves the window pending. After its lease expires, a later invocation reclaims the same boundaries.
 
-Incremental models do not read their own targets to derive runtime processing boundaries. When checkpoint mode is disabled for a run, build, compile, full refresh, or isolated CI context, `incremental_date_range` returns a deterministic bounded range from `start_processing_date` to `least(start + incremental_window, newest source row)`, the same rule the claim uses, so a window never ends past the data. Models do not pass their own caps, and the start is never moved to the first source row: every model, with or without the checkpoint, uses the same window. That fallback does not advance and must not be used as production pipeline state. Incremental unit tests set their window explicitly through `start_processing_date` because dbt's unit-test harness does not execute lifecycle hooks.
+Incremental models use the claimed checkpoint window as the authoritative upper boundary and as the only state that can advance the pipeline. When checkpoint mode is disabled for a run, build, compile, full refresh, or isolated CI context, `incremental_date_range` returns a deterministic bounded range from `start_processing_date` to `least(start + incremental_window, newest source row)`, the same rule the claim uses, so a window never ends past the data. Models do not pass upstream caps, and the start is never moved to the first source row. That fallback does not advance and must not be used as production pipeline state. Incremental unit tests set their window explicitly through `start_processing_date` because dbt's unit-test harness does not execute lifecycle hooks.
 
-No model carries a processing stamp. The former `incremental_ts` column is removed everywhere, along with the upstream caps that read `max(incremental_ts)` from parent models: within one invocation every model processes the same window in DAG order, so the caps protected nothing, and they cut the tail off full refreshes (an upstream model's last row is not how far it processed). Downstream models read changed upstream rows by business timestamps that always fall inside the window that wrote them:
+Cumulative aggregate models may narrow the claimed lower boundary with their own `max(_last_window_to_ts)`, producing an effective range from `greatest(claimed_from_ts, model_applied_through_ts)` through the unchanged claimed upper boundary. This target watermark records model-level application, not pipeline progress: it cannot expand the claimed window, advance the shared checkpoint, or affect another model. Atomic model DML means a committed model can skip an already-applied suffix after a later DAG failure, while a model that did not commit still processes the full pending window. The source rows inside an applied range are treated as immutable; corrections or late arrivals at or before the model watermark require a backfill or full refresh.
+
+No model carries the former pipeline processing stamp, `incremental_ts`. It is removed everywhere, along with the upstream caps that read `max(incremental_ts)` from parent models: within one invocation every model receives the same claimed window in DAG order, so those caps protected nothing, and they cut the tail off full refreshes. The cumulative aggregate replay markers are model-local application metadata and do not replace the warehouse checkpoint. Downstream models read changed upstream rows by business timestamps that always fall inside the window that wrote them:
 
 - `updated_ts`, the latest source event reflected in a row (`int_status_changes`, `int_connector_preparing`, `int_transactions`, and `fact_charge_attempts`, which takes the later of its two inputs).
 - `to_ts` for outages: a new, extended or closed outage ends inside the window that wrote it.
@@ -35,7 +37,7 @@ Checkpoint rows are isolated by their target relation, `project_name`, `target.n
 
 ## Alternatives considered
 
-- **Keep target-derived watermarks.** Empty windows cannot advance, which is the failure being corrected.
+- **Keep target-derived pipeline watermarks.** Empty windows cannot advance pipeline state, which is the failure being corrected. Model-local aggregate watermarks may only narrow a checkpoint-owned range for retry idempotency.
 - **Insert sentinel rows into every model.** This pollutes business grains and complicates tests and consumers.
 - **Use a platform-only orchestration checkpoint.** This would not support self-hosted dbt or disposable runners consistently.
 - **Run separate claim, build, and finalize commands.** Separate dbt invocations have different `invocation_id` values and require an external claim token. Lifecycle hooks keep ownership and result inspection in one invocation.
@@ -46,7 +48,7 @@ Checkpoint rows are isolated by their target relation, `project_name`, `target.n
 - Empty windows advance after a successful checkpoint-enabled DAG execution.
 - The complete selected incremental pipeline advances in lockstep.
 - Incremental replays must be idempotent because a crash can occur after model writes but before finalization.
-- Populated-window replay is currently blocked by nullable merge keys in `int_meter_values` and duplicate merge matches in `fact_charge_attempts`; production cutover requires resolving and revalidating this path.
+- Populated-window replay for cumulative meter aggregates uses null-safe surrogate merge keys and model-local applied-through watermarks. Production cutover remains blocked by duplicate merge matches in `fact_charge_attempts` and requires revalidating the full populated-window retry path.
 - A full refresh and a checkpoint-driven incremental rebuild read the same rows, so they can be compared directly: no column legitimately differs between them.
 - Overlapping checkpoint-enabled builds are rejected while a lease is active.
 - Full refresh bypasses checkpoint behavior and starts from `start_processing_date`.
