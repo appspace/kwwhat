@@ -1502,7 +1502,9 @@ unit_tests:
         start_processing_date: '2025-10-01 12:00:00'
     given:
       - input: ref('int_status_changes')
-        rows: []
+        rows:
+          - {incremental_ts: 2025-10-01 12:00:00}
+          - {incremental_ts: 2025-10-01 20:00:00}
 
       - input: ref('stg_ocpp_logs')
         rows:
@@ -1548,7 +1550,9 @@ unit_tests:
         start_processing_date: '2025-10-02 18:00:00'
     given:
       - input: ref('int_status_changes')
-        rows: []
+        rows:
+          - {incremental_ts: 2025-10-02 18:00:00}
+          - {incremental_ts: 2025-10-03 06:00:00}
 
       - input: ref('stg_ocpp_logs')
         rows:

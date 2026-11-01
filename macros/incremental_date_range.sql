@@ -8,10 +8,8 @@
     Sparse models can pass dense_watermark_model. During incremental runs they use that model's
     latest two distinct incremental_ts values as the range boundaries, so an empty sparse output
     does not stall progress. The configured incremental_window and newest source row still cap
-    the upper boundary.
-
-    Unit tests can exercise the dense-watermark path with unit_test_dense_watermark_from and
-    unit_test_dense_watermark_to without adding the dense model to every test fixture.
+    the upper boundary. Unit tests exercise this path with historical watermark rows in the mocked
+    dense model.
 
     Columns produced:
         from_timestamp        start of the processing window
@@ -22,27 +20,12 @@
     {% set start_processing_ts = "cast('" ~ var('start_processing_date') ~ "' as " ~ dbt.type_timestamp() ~ ")" %}
     {% set source_max_ts = "coalesce((select max(ingested_timestamp) from " ~ ref('stg_ocpp_logs') ~ "), " ~ start_processing_ts ~ ")" %}
 
-    {% set unit_test_dense_from = var('unit_test_dense_watermark_from', none) %}
-    {% set unit_test_dense_to = var('unit_test_dense_watermark_to', none) %}
-    {% set use_unit_test_dense_watermark = (
-        flags.WHICH == 'test'
-        and is_incremental()
-        and dense_watermark_model is not none
-        and unit_test_dense_from is not none
-        and unit_test_dense_to is not none
-    ) %}
-
-    {% if use_unit_test_dense_watermark %}
-        {% set from_ts = "cast('" ~ unit_test_dense_from ~ "' as " ~ dbt.type_timestamp() ~ ")" %}
-        {% set dense_to_ts = "cast('" ~ unit_test_dense_to ~ "' as " ~ dbt.type_timestamp() ~ ")" %}
-        {% set use_target_watermark = false %}
-    {% elif flags.WHICH == 'test' %}
-        {% set target_has_incremental_ts = var('unit_test_model_watermark_enabled', false) %}
-        {% set use_target_watermark = is_incremental() and target_has_incremental_ts %}
-    {% elif is_incremental() and dense_watermark_model is not none and execute %}
+    {% if is_incremental() and dense_watermark_model is not none and execute %}
         {% set dense_watermark_relation = ref(dense_watermark_model) %}
         {% set dense_to_ts = "coalesce((select max(incremental_ts) from " ~ dense_watermark_relation ~ "), " ~ start_processing_ts ~ ")" %}
         {% set from_ts = "coalesce((select max(incremental_ts) from " ~ dense_watermark_relation ~ " where incremental_ts < " ~ dense_to_ts ~ "), " ~ start_processing_ts ~ ")" %}
+        {% set use_target_watermark = false %}
+    {% elif flags.WHICH == 'test' %}
         {% set use_target_watermark = false %}
     {% elif is_incremental() and execute %}
         {% set target_column_names = adapter.get_columns_in_relation(this)
