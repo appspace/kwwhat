@@ -1,55 +1,22 @@
 {{
     config(
         materialized="incremental",
-        unique_key=["charger_id", "transaction_id", "ingested_ts", "connector_id", "measurand", "unit", "phase"],
+        unique_key="meter_value_id",
         incremental_strategy="merge",
+        on_schema_change="append_new_columns",
         cluster_by="ingested_ts"
     )
 }}
 
--- Incremental strategy: merge aggregated measurements on the configured composite measurement grain.
--- Watermark: max(incremental_ts) already stored in this model; OCPP logs are read strictly after it in bounded windows.
--- Reprocessing: a matching target row contributes its prior min/max/count and weighted average to the new aggregate.
--- The calculated 30-minute buffer is not used by the current source filter, so there is no source lookback.
--- Late arrivals: source rows at or before the watermark are not reread and require a backfill or full refresh.
+-- Incremental strategy: cumulative merge on meter_value_id, a null-safe surrogate key for the measurement grain.
+-- Watermark: max(_incremental_ts) in this model; new meter events are read strictly after it through one bounded window.
+-- Reprocessing: each new window suffix adds its aggregate to prior state; completed windows are not replayed.
+-- Late arrivals: source rows at or before the model watermark require a backfill or full refresh.
 
+with incremental_date_range as (
+    {{ incremental_date_range() }}
+),
 
-{% set relation_exists = adapter.get_relation(
-    database=this.database, schema=this.schema, identifier=this.identifier
-) %}
-
-{% if is_incremental() and relation_exists %}
-    with incremental_date_range as (
-            select
-                from_timestamp,
-                {{ timestamp_add("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-                {{ timestamp_add(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") }} as to_timestamp
-        from
-            (
-                select (select max(incremental_ts) from {{ this }}) as from_timestamp
-            )
-        ),
-
-{% else %}
-    with incremental_date_range as (
-        select
-            from_timestamp,
-            {{ timestamp_add("minute", -30, "from_timestamp") }} as buffer_from_timestamp,
-            {{ timestamp_add(
-                var("incremental_window").unit,
-                var("incremental_window").length,
-                "from_timestamp"
-            ) }} as to_timestamp
-        from
-            (
-                    select
-                    greatest(
-                        cast('{{ var("start_processing_date") }}' as {{ dbt.type_timestamp() }}),
-                        (select min(ingested_timestamp) from {{ ref("int_ocpp_logs") }})
-                    ) as from_timestamp
-                )
-        ),
-{% endif %}
 
     ocpp_logs as (
         select
@@ -74,12 +41,6 @@
             ingested_ts,
             last_ingested_ts
         from {{ ref("int_transactions") }}
-    ),
-
-    incremental as (
-        select
-            max(ingested_ts) as incremental_ts
-        from ocpp_logs
     ),
 
     -- Example:
@@ -220,7 +181,7 @@
     ),
 
     final as (
-    {% if is_incremental() and relation_exists %}
+    {% if is_incremental() %}
 
         select
             n.charger_id,
@@ -256,15 +217,15 @@
                 when b._count is null then n._count
                 else n._count + b._count
             end as _count
-        from agg_transaction n
-        left join {{ this }} b
+        from agg_transaction as n
+        left join {{ this }} as b
             on n.charger_id = b.charger_id
             and n.connector_id = b.connector_id
             and n.transaction_id = b.transaction_id
             and n.ingested_ts = b.ingested_ts
             and n.measurand = b.measurand
             and n.unit = b.unit
-            and n.phase = b.phase
+            and ((n.phase is null and b.phase is null) or n.phase = b.phase)
 
     {% else %}
 
@@ -275,6 +236,10 @@
     )
 
     select
+        {{ dbt_utils.generate_surrogate_key([
+            'charger_id', 'transaction_id', 'ingested_ts',
+            'connector_id', 'measurand', 'unit', 'phase'
+        ]) }} as meter_value_id,
         charger_id,
         transaction_id,
         ingested_ts,
@@ -290,5 +255,5 @@
         max_value,
         avg_value,
         _count,
-        (select incremental_ts from incremental) as incremental_ts
+        (select to_timestamp from incremental_date_range) as _incremental_ts
     from final

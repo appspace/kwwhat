@@ -109,8 +109,8 @@ models:
               arguments:
                 values: [true, false]
                 quote: false
-      - name: incremental_ts
-        description: "Latest incremental processing timestamp from both source models for incremental processing tracking"
+      - name: updated_ts
+        description: "The latest source event reflected in this attempt: the later of the Preparing status change's and the transaction's updated_ts, carried forward across incremental runs. Downstream models (fact_visits, int_driver_aggregates) read changed attempts by it."
         data_tests:
           - not_null
     data_tests:
@@ -129,6 +129,11 @@ models:
   - name: fact_interval_data
     description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
     columns:
+      - name: interval_data_id
+        description: "Null-safe surrogate key for the interval record, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start. Used as the incremental merge key."
+        data_tests:
+          - unique
+          - not_null
       - name: port_key
         description: "Surrogate key for the port the interval was recorded on, generated in place from charger_id + port_id (port_id resolved upstream in int_meter_values via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
@@ -187,12 +192,10 @@ models:
         description: "Number of measurements within this 15-minute interval"
         data_tests:
           - not_null
-      - name: interval_data_id
-        description: "Surrogate key for the interval data record, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start"
-        data_tests:
-          - unique
-          - not_null
     data_tests:
+      - not_null:
+          arguments:
+            column_name: _incremental_ts
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
@@ -401,14 +404,6 @@ models:
           - accepted_values:
               arguments:
                 values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
-      - name: _grouping_key
-        description: "Internal key the grouping algorithm partitioned attempts on to build this visit: location_id + id_tag for authenticated visits, or location_id + charger_id + port_id for unauthenticated visits. Underscore-prefixed because it is a diagnostic artifact of the grouping/merge logic, not a business dimension - exposed to sanity-check why a set of charge attempts did or didn't end up in the same visit, not for BI filtering or grouping."
-        data_tests:
-          - not_null
-      - name: incremental_ts
-        description: "Latest incremental processing timestamp for incremental processing tracking"
-        data_tests:
-          - not_null
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
