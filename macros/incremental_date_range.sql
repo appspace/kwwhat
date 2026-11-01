@@ -23,7 +23,8 @@
         {% set dense_to_ts = "coalesce((select max(_incremental_ts) from " ~ dense_watermark_relation ~ "), " ~ start_processing_ts ~ ")" %}
         {% set from_ts = "coalesce((select max(_incremental_ts) from " ~ dense_watermark_relation ~ " where _incremental_ts < " ~ dense_to_ts ~ "), " ~ start_processing_ts ~ ")" %}
         {% set use_target_watermark = false %}
-    {% elif flags.WHICH == 'test' %}
+    {% elif this is string %}
+        {# Unit tests replace this with a mocked fixture name, not a relation: start at start_processing_date #}
         {% set use_target_watermark = false %}
     {% elif is_incremental() and execute %}
         {% set target_column_names = adapter.get_columns_in_relation(this)
