@@ -1,6 +1,6 @@
 # 0008. Duration-weighted uptime
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-17
 - Related: `fact_uptime_daily`, `int_charger_commissioned_daily`, metrics `uptime_ratio`, `average_uptime` (removed), `total_downtime_minutes`
 
