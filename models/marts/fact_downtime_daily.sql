@@ -1,6 +1,3 @@
--- depends_on: {{ ref('int_status_changes') }}
-
-
 {{
   config(
     materialized='incremental',
@@ -41,7 +38,7 @@
 
 
 with incremental_date_range as (
-    {{ incremental_date_range(dense_watermark_model='int_status_changes') }}
+    {{ incremental_date_range(dense_watermark_relation=ref('int_status_changes')) }}
 ),
 
 ports as (

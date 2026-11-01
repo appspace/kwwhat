@@ -16,7 +16,7 @@
 
 
 with incremental_date_range as (
-    {{ incremental_date_range(dense_watermark_model='int_status_changes') }}
+    {{ incremental_date_range(dense_watermark_relation=ref('int_status_changes')) }}
 ),
 
 -- Status changes updated in this window, plus every still-open status: an open fault on one connector must be seen
