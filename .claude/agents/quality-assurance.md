@@ -58,7 +58,7 @@ docker compose -f demo/docker-compose.yml run --rm --no-deps --entrypoint dbt db
 - Before starting, refresh the raw data if the seeds may have changed: `docker compose -f demo/docker-compose.yml up duckdb-init`.
 - Shell state doesn't persist between commands, so write the full prefix each time.
 
-A one-day `incremental_window` splits the 14 days of seed data into 15 windows, which exercises the merge logic at every day boundary.
+A two-day `incremental_window` splits the 14 days of seed data into 8 windows, which exercises the merge logic at every other day boundary. Do not use one-day windows: the seed has no transactions or meter values on 2025-10-13, so a one-day window there writes nothing and `int_transactions`, `int_meter_values`, and `fact_interval_data` stall on it permanently.
 
 Use the `qa_snapshot_model` / `qa_drop_snapshot` macros (`macros/qa_snapshot_table.sql`) to materialize each build's output as its own table, so a failure leaves the exact divergent rows queryable instead of just a pass/fail number. "Each model" below means every model from `dbt ls --select config.materialized:incremental --resource-type model`.
 
@@ -69,14 +69,16 @@ Run all tests (`dbt test`, data and unit) once after the baseline and once after
    - Snapshot each model: `dbt run-operation qa_snapshot_model --args '{model_name: <model>, suffix: full}'`
 2. **Empty start**
    - `dbt run --full-refresh --vars '{"incremental_window": {"unit": "day", "length": 0}}'` creates the incremental tables with no rows. Normal models then advance from `start_processing_date` using their own `max(_incremental_ts)`.
-3. **One-day passes**
-   - Repeat `dbt run --vars '{"incremental_window": {"unit": "day", "length": 1}}'` over the whole project. Keep `int_status_changes`, `int_faulted_outages`, `int_offline_outages`, and `fact_downtime_daily` in the same invocation. The sparse consumers use the latest two distinct `int_status_changes._incremental_ts` values and must not be allowed to fall behind while the dense model advances separately.
-   - After each pass, compare the source maximum `stg_ocpp_logs.ingested_timestamp` with `max(_incremental_ts)` in every normal incremental model. Exclude the three sparse consumers from this completion check because their own outputs may legitimately be empty; `int_status_changes` is their processing clock.
-   - Catch-up is complete when every normal incremental model has reached the source maximum. Run one more whole-project pass: an empty window must succeed without changing results.
-   - If a normal model's watermark does not advance, stop and investigate the project's qualifying-data invariant before continuing. Report the stalled model and its last watermark.
+3. **Two-day passes**
+   - Repeat `dbt run --vars '{"incremental_window": {"unit": "day", "length": 2}}'` over the whole project. Keep `int_status_changes`, `int_faulted_outages`, `int_offline_outages`, and `fact_downtime_daily` in the same invocation. The sparse consumers use the latest two distinct `int_status_changes._incremental_ts` values and must not be allowed to fall behind while the dense model advances separately.
+   - After each pass, record `max(_incremental_ts)` in every normal incremental model and compare it with the source maximum `stg_ocpp_logs.ingested_timestamp`. Exclude the three sparse consumers from this check because their own outputs may legitimately be empty; `int_status_changes` is their processing clock.
+   - Catch-up is complete when `int_status_changes` has reached the source maximum and one more whole-project pass leaves every model's watermark and results unchanged.
+   - A normal model may then sit below the source maximum only if it has no qualifying input after its watermark: no source logs with the OCPP actions it reads (the action list at the top of its SQL), or no upstream rows with `updated_ts` after it for models that read another model. The seed's last hours (2025-10-15) contain only Heartbeats, so most normal models legitimately end at 2025-10-15 00:00.
+   - If a normal model has qualifying input after its watermark but the watermark does not advance, it has stalled. Stop, report the model, its last watermark, and the first qualifying input row after it.
    - Run `dbt test`, then snapshot each model with `suffix: incremental`.
 4. **Compare**, for each model
-   - `dbt show --inline "select * from {{ target.database }}.{{ target.schema }}.<model>_full except select * from {{ target.database }}.{{ target.schema }}.<model>_incremental"`, and the same in the other direction.
+   - `dbt show --inline "select * exclude (_incremental_ts) from {{ target.database }}.{{ target.schema }}.<model>_full except select * exclude (_incremental_ts) from {{ target.database }}.{{ target.schema }}.<model>_incremental"`, and the same in the other direction.
+   - `_incremental_ts` is excluded because it is the window end: the full refresh stamps every row with the source maximum and the passes stamp window boundaries, so it never matches by design.
    - Also compare `count(*)`: `except` ignores duplicate rows.
    - Always qualify snapshot tables with the database, as the macros do. On DuckDB the schema name alone is ambiguous: `ANALYTICS` matches both the schema and the `analytics` catalog.
    - Both diffs must be empty and the counts equal. Any divergent row is a correctness bug: report it like a failing `dbt test`, with the full row(s) and the first diverging model in DAG order (do not fix it yourself, see "What you do not do").
