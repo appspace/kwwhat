@@ -1,3 +1,6 @@
+-- depends_on: {{ ref('int_status_changes') }}
+
+
 {{
   config(
     materialized='incremental',
@@ -8,10 +11,10 @@
 }}
 
 -- Incremental strategy: open-record reconciliation; merge one charger outage per charger_id + from_ts.
--- Watermark: max(incremental_ts) in this sparse model; catch-up is uncapped through the newest source event.
--- Source messages are read through the claimed upper boundary. The boundary is inclusive so an outage cut off
--- by the prior run can be continued.
--- Reprocessing: an ongoing outage ends at the window end, so the next window's boundary outage joins it
+-- Watermark: the latest two distinct int_status_changes.incremental_ts values define this sparse model's window;
+-- the upper boundary remains capped by incremental_window and the newest source event.
+-- Source messages are read through the inclusive upper boundary so an outage cut off by the prior run can continue.
+-- Reprocessing: an ongoing outage ends at the window end, then the next window's boundary outage joins it
 -- (to_ts = from_timestamp) and extends it via least/greatest. A window with no messages writes nothing.
 -- Late arrivals before the boundary require a backfill or full refresh.
 
@@ -24,7 +27,7 @@
 ] %}
 
 with incremental_date_range as (
-    {{ incremental_date_range(uncapped=true) }}
+    {{ incremental_date_range(dense_watermark_model='int_status_changes') }}
 ),
 
 -- Charge point initiated messages (CALL messages) in this run's window
@@ -145,8 +148,8 @@ new_outages as (
 ),
 
 {% if is_incremental() %}
--- Read buffer of previous outages that might continue into current period
-previous_outages as (
+-- Read open outages that might continue into the current period
+open_outages as (
     select
         charger_id,
         from_ts,
@@ -158,10 +161,12 @@ previous_outages as (
 merged_outages as (
     select
         n.charger_id,
-        least(coalesce(p.from_ts, n.from_ts), n.from_ts) as from_ts,
-        greatest(coalesce(p.to_ts, n.to_ts), n.to_ts) as to_ts
-    from new_outages n
-    left join previous_outages p on n.charger_id = p.charger_id and p.to_ts = n.from_ts
+        least(coalesce(o.from_ts, n.from_ts), n.from_ts) as from_ts,
+        greatest(coalesce(o.to_ts, n.to_ts), n.to_ts) as to_ts
+    from new_outages as n
+    left join open_outages as o
+        on n.charger_id = o.charger_id
+        and o.to_ts = n.from_ts
 ),
 
 all_outages as (

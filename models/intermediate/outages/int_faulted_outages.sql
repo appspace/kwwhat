@@ -8,14 +8,15 @@
 }}
 
 -- Incremental strategy: open-record reconciliation; merge one port outage per charger_id + port_id + from_ts.
--- Watermark: max(incremental_ts) in this sparse model; catch-up is uncapped through the newest source event.
+-- Watermark: the latest two distinct int_status_changes.incremental_ts values define this sparse model's window;
+-- the upper boundary remains capped by incremental_window and the newest source event.
 -- Reprocessing: reads status changes updated in the window (updated_ts) plus every still-open status, so an ongoing
 -- fault is extended or closed; an ongoing fault ends at the last OCPP log in the window until its next status arrives.
 -- Late arrivals are recoverable only when the affected status is updated in a later window or during a backfill.
 
 
 with incremental_date_range as (
-    {{ incremental_date_range(uncapped=true) }}
+    {{ incremental_date_range(dense_watermark_model='int_status_changes') }}
 ),
 
 -- Status changes updated in this window, plus every still-open status: an open fault on one connector must be seen

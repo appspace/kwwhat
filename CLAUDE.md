@@ -255,7 +255,7 @@ Incremental windows advance through `incremental_ts` stored in each model's own 
 
 This relies on the production invariant documented in ADR 0008: every non-outage incremental model receives qualifying data between scheduled runs. If a normal model writes no rows, investigate ingestion or network health and recover with an explicit watermark reset, backfill, or full refresh.
 
-Outage models are sparse by definition. They use uncapped catch-up from their last output watermark through the newest source row, and downstream outage consumers must not cap their range at an outage model's latest output watermark.
+Outage models are sparse by definition. During incremental runs, they use the latest two distinct `incremental_ts` values from dense `int_status_changes` as their range boundaries. Their upper boundary remains capped by the configured `incremental_window` and newest source row. This lets a healthy window advance without adding sentinel outage rows. `fact_downtime_daily` uses the same dense range so a later outage cannot be stranded behind an empty mart window.
 
 ### Incremental model header comments
 

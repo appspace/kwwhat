@@ -1,3 +1,6 @@
+-- depends_on: {{ ref('int_status_changes') }}
+
+
 {{
   config(
     materialized='incremental',
@@ -29,15 +32,16 @@
 
 -- Incremental strategy: delete+insert daily expansion; replace all daily rows for each changed outage_id.
 -- Grain: one row per date_id + outage_id; outage_id remains stable while an ongoing outage is extended.
--- Watermark: max(incremental_ts) in this sparse model; changed outages are read uncapped through newest source data.
+-- Watermark: the latest two distinct int_status_changes.incremental_ts values define this sparse consumer's window;
+-- the upper boundary remains capped by incremental_window and the newest source event.
 -- Reprocessing: deleting by outage_id replaces every calendar day and the latest reason for a changed outage while
 -- leaving unrelated outages untouched. A post-hook removes recent OFFLINE rows that begin during a FAULTED outage.
 -- Changed outages are read by to_ts: a new, extended or closed outage always ends within the window that wrote it.
--- Late updates are captured when an upstream outage changes after this model's local watermark.
+-- Late updates before the dense window require a backfill or full refresh.
 
 
 with incremental_date_range as (
-    {{ incremental_date_range(uncapped=true) }}
+    {{ incremental_date_range(dense_watermark_model='int_status_changes') }}
 ),
 
 ports as (
