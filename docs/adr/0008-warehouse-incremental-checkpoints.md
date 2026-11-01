@@ -6,7 +6,7 @@
 
 ## Context
 
-Incremental models use bounded windows so that production runs process a manageable amount of source data. The original implementation derived each model's next lower boundary from `max(incremental_ts)` in that model's output.
+Incremental models use bounded windows so that production runs process a manageable amount of source data. Each model derives its next lower boundary from `max(_incremental_ts)` in that model's output. The leading underscore identifies the watermark as a technical field, not a business attribute.
 
 An output-derived watermark does not advance when a model writes no qualifying rows. This is expected for outage models because a healthy period can contain no outages. In a functional, reasonably sized EV charging network, every other incremental model is expected to receive and emit qualifying data between scheduled runs. A non-outage model that does not advance therefore indicates a broader ingestion or network failure rather than a normal empty business window.
 
@@ -20,7 +20,7 @@ Retain model-local output watermarks as the incremental progress mechanism for n
 
 This decision relies on the production invariant that every non-outage incremental model advances between scheduled runs. If one does not, treat that as an ingestion or operational failure and recover with a retry, explicit model-watermark reset, backfill, or full refresh as appropriate.
 
-Outage models are the explicit sparse-output exception. They may legitimately write no rows during a healthy window. During incremental runs, both outage models use the latest two distinct `incremental_ts` values from dense `int_status_changes` as their range boundaries. The upper boundary is still capped by the configured `incremental_window` and newest source event. Their downstream sparse consumer, `fact_downtime_daily`, uses the same dense range. The outage models retain their boundary and open-record reconciliation so an outage that spans windows can be extended or closed when new source events arrive.
+Outage models are the explicit sparse-output exception. They may legitimately write no rows during a healthy window. During incremental runs, both outage models use the latest two distinct `_incremental_ts` values from dense `int_status_changes` as their range boundaries. The upper boundary is still capped by the configured `incremental_window` and newest source event. Their downstream sparse consumer, `fact_downtime_daily`, uses the same dense range. The outage models retain their boundary and open-record reconciliation so an outage that spans windows can be extended or closed when new source events arrive.
 
 In particular:
 

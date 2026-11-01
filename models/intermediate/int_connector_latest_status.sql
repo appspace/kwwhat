@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: append-window processing; merge one current snapshot per charger_id + connector_id + port_id.
--- Watermark: max(incremental_ts) in this model; open status rows are read through one bounded window.
+-- Watermark: max(_incremental_ts) in this model; open status rows are read through one bounded window.
 -- Reprocessing: no lookback or target-state join is used; dbt's merge replaces the snapshot for each connector key.
 -- Only int_status_changes rows with next_status is null are eligible, so the output represents current open states.
 
@@ -46,5 +46,5 @@ select
     taxonomy as latest_taxonomy,
     info as latest_info,
     ingested_ts as latest_status_ts,
-    (select to_timestamp from incremental_date_range) as incremental_ts
+    (select to_timestamp from incremental_date_range) as _incremental_ts
 from source_window

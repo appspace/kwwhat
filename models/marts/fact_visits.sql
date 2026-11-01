@@ -9,7 +9,7 @@
 
 -- Incremental strategy: buffered sessionization; merge one visit per
 -- location_id + first charger/port + visit_start_ts.
--- Watermark: max(incremental_ts) in this model; changed attempts are read through one bounded window.
+-- Watermark: max(_incremental_ts) in this model; changed attempts are read through one bounded window.
 -- Reprocessing: attempts updated in the window (updated_ts) are regrouped; target visits ending within the 30-minute lookback
 -- are reread so authenticated visits can extend and unauthenticated visits can merge or gain an inferred id_tag.
 -- Older visits change only when a newly emitted attempt reconnects them through the configured business windows.
@@ -469,5 +469,5 @@ select
     v.last_error_code,
     v.grouping_key,
     {{ dbt.datediff('v.visit_start_ts', 'v.visit_end_ts', 'minute') }} as visit_duration_minutes,
-    (select to_timestamp from incremental_date_range) as incremental_ts
+    (select to_timestamp from incremental_date_range) as _incremental_ts
 from visits as v

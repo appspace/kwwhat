@@ -68,10 +68,10 @@ Run all tests (`dbt test`, data and unit) once after the baseline and once after
    - `dbt seed`, `dbt run --full-refresh`, then `dbt test`
    - Snapshot each model: `dbt run-operation qa_snapshot_model --args '{model_name: <model>, suffix: full}'`
 2. **Empty start**
-   - `dbt run --full-refresh --vars '{"incremental_window": {"unit": "day", "length": 0}}'` creates the incremental tables with no rows. Normal models then advance from `start_processing_date` using their own `max(incremental_ts)`.
+   - `dbt run --full-refresh --vars '{"incremental_window": {"unit": "day", "length": 0}}'` creates the incremental tables with no rows. Normal models then advance from `start_processing_date` using their own `max(_incremental_ts)`.
 3. **One-day passes**
-   - Repeat `dbt run --vars '{"incremental_window": {"unit": "day", "length": 1}}'` over the whole project. Keep `int_status_changes`, `int_faulted_outages`, `int_offline_outages`, and `fact_downtime_daily` in the same invocation. The sparse consumers use the latest two distinct `int_status_changes.incremental_ts` values and must not be allowed to fall behind while the dense model advances separately.
-   - After each pass, compare the source maximum `stg_ocpp_logs.ingested_timestamp` with `max(incremental_ts)` in every normal incremental model. Exclude the three sparse consumers from this completion check because their own outputs may legitimately be empty; `int_status_changes` is their processing clock.
+   - Repeat `dbt run --vars '{"incremental_window": {"unit": "day", "length": 1}}'` over the whole project. Keep `int_status_changes`, `int_faulted_outages`, `int_offline_outages`, and `fact_downtime_daily` in the same invocation. The sparse consumers use the latest two distinct `int_status_changes._incremental_ts` values and must not be allowed to fall behind while the dense model advances separately.
+   - After each pass, compare the source maximum `stg_ocpp_logs.ingested_timestamp` with `max(_incremental_ts)` in every normal incremental model. Exclude the three sparse consumers from this completion check because their own outputs may legitimately be empty; `int_status_changes` is their processing clock.
    - Catch-up is complete when every normal incremental model has reached the source maximum. Run one more whole-project pass: an empty window must succeed without changing results.
    - If a normal model's watermark does not advance, stop and investigate the project's qualifying-data invariant before continuing. Report the stalled model and its last watermark.
    - Run `dbt test`, then snapshot each model with `suffix: incremental`.

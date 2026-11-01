@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: open-record reconciliation; merge one charger outage per charger_id + from_ts.
--- Watermark: the latest two distinct int_status_changes.incremental_ts values define this sparse model's window;
+-- Watermark: the latest two distinct int_status_changes._incremental_ts values define this sparse model's window;
 -- the upper boundary remains capped by incremental_window and the newest source event.
 -- Source messages are read through the inclusive upper boundary so an outage cut off by the prior run can continue.
 -- Reprocessing: an ongoing outage ends at the window end, then the next window's boundary outage joins it
@@ -193,6 +193,6 @@ select
     from_ts,
     to_ts,
     duration_seconds / 60 as duration_minutes,
-    (select to_timestamp from incremental_date_range) as incremental_ts
+    (select to_timestamp from incremental_date_range) as _incremental_ts
 from all_outages
 where duration_seconds > {{ var("heartbeat_interval_seconds") }}

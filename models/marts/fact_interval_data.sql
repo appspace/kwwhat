@@ -9,7 +9,7 @@
 }}
 
 -- Incremental strategy: cumulative merge on interval_data_id, a null-safe surrogate key for the interval grain.
--- Watermark: max(incremental_ts) in this model; new meter rows are read strictly after it through one bounded window.
+-- Watermark: max(_incremental_ts) in this model; new meter rows are read strictly after it through one bounded window.
 -- Reprocessing: each new window suffix adds its aggregate to prior state; completed windows are not replayed.
 -- Late arrivals at or before the model watermark require an upstream replay, backfill, or full refresh.
 
@@ -268,5 +268,5 @@ with incremental_date_range as (
         meter_15min_interval_stop,
         avg_value,
         _count,
-        (select to_timestamp from incremental_date_range) as incremental_ts
+        (select to_timestamp from incremental_date_range) as _incremental_ts
     from final

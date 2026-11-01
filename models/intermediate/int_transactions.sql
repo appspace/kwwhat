@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: open-record reconciliation; merge one row per charger_id + connector_id + first ingested_ts.
--- Watermark: max(incremental_ts) in this model; new logs are read strictly after it through one bounded window.
+-- Watermark: max(_incremental_ts) in this model; new logs are read strictly after it through one bounded window.
 -- Reprocessing: new events are matched by charger_id + transaction_id to an existing transaction that has not stopped;
 -- stable attributes are retained, arrays are deduplicated, and updated_ts advances to the latest incorporated event.
 -- Late arrivals: source rows at or before the model watermark require a backfill or full refresh.
@@ -205,5 +205,5 @@ transactions_with_ids as (
 
 select
     transactions_with_ids.*,
-    (select to_timestamp from incremental_date_range) as incremental_ts
+    (select to_timestamp from incremental_date_range) as _incremental_ts
 from transactions_with_ids

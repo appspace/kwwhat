@@ -192,12 +192,10 @@ models:
         description: "Number of measurements within this 15-minute interval"
         data_tests:
           - not_null
-      - name: incremental_ts
-        description: "Upper boundary of the latest incremental window accumulated into this row; used as this model's next processing watermark."
-        data_tests:
-          - not_null
-
     data_tests:
+      - not_null:
+          arguments:
+            column_name: _incremental_ts
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:

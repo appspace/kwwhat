@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: open-record reconciliation; merge one row per charger_id + connector_id + ingested_ts.
--- Watermark: max(incremental_ts) in this model; new logs are read strictly after it through one bounded window.
+-- Watermark: max(_incremental_ts) in this model; new logs are read strictly after it through one bounded window.
 -- Reprocessing: every previously open status (next_status is null) is unioned with the new batch so lag/lead can
 -- close the old status and establish the new connector state. updated_ts records the latest event that changed a row
 -- (its own ingested_ts, then next_ingested_ts once closed); downstream models read changed rows by it.
@@ -247,7 +247,7 @@ select
         greatest(buffered_updated_ts, coalesce(next_ingested_ts, ingested_ts)),
         coalesce(next_ingested_ts, ingested_ts)
     ) as updated_ts,
-    (select to_timestamp from incremental_date_range) as incremental_ts
+    (select to_timestamp from incremental_date_range) as _incremental_ts
 from status_with_lead
 -- A run with no new logs changes nothing: write nothing rather than rewrite the open statuses unchanged
 where exists (select 1 from ocpp_logs)

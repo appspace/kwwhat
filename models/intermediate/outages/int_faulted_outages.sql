@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: open-record reconciliation; merge one port outage per charger_id + port_id + from_ts.
--- Watermark: the latest two distinct int_status_changes.incremental_ts values define this sparse model's window;
+-- Watermark: the latest two distinct int_status_changes._incremental_ts values define this sparse model's window;
 -- the upper boundary remains capped by incremental_window and the newest source event.
 -- Reprocessing: reads status changes updated in the window (updated_ts) plus every still-open status, so an ongoing
 -- fault is extended or closed; an ongoing fault ends at the last OCPP log in the window until its next status arrives.
@@ -254,6 +254,6 @@ select
     latest_error_code_name,
     latest_error_code,
     latest_taxonomy,
-    (select to_timestamp from incremental_date_range) as incremental_ts
+    (select to_timestamp from incremental_date_range) as _incremental_ts
 from faulted_outages_with_root_cause
 where to_ts > from_ts

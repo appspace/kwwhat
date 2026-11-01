@@ -29,7 +29,7 @@
 
 -- Incremental strategy: delete+insert daily expansion; replace all daily rows for each changed outage_id.
 -- Grain: one row per date_id + outage_id; outage_id remains stable while an ongoing outage is extended.
--- Watermark: the latest two distinct int_status_changes.incremental_ts values define this sparse consumer's window;
+-- Watermark: the latest two distinct int_status_changes._incremental_ts values define this sparse consumer's window;
 -- the upper boundary remains capped by incremental_window and the newest source event.
 -- Reprocessing: deleting by outage_id replaces every calendar day and the latest reason for a changed outage while
 -- leaving unrelated outages untouched. A post-hook removes recent OFFLINE rows that begin during a FAULTED outage.
@@ -234,5 +234,5 @@ select
     from_ts as outage_from_ts,
     to_ts as outage_to_ts,
     duration_minutes,
-    (select to_timestamp from incremental_date_range) as incremental_ts
+    (select to_timestamp from incremental_date_range) as _incremental_ts
 from outage_days_with_ids
