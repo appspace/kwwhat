@@ -1,6 +1,6 @@
 # 0008. Model-local watermarks for incremental processing
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-25
 - Related: `macros/incremental_date_range.sql`, incremental models
 
