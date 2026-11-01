@@ -24,8 +24,9 @@ This project is designed for AI engineers, data practitioners, and CSMS provider
   
 | Metric | Description |
 |---|---|
-| `uptime` | Average fraction of commissioned time a Port was online and not in a Faulted state |
+| `uptime_ratio` | Share of commissioned minutes a Port was online and not in a Faulted state, weighted by duration so it is correct at any grain |
 | `total_visits` | Total number of charging visits |
+| `total_successful_visits` | Count of visits where the driver successfully charged, on the first attempt or after retries |
 | `total_charge_attempts` | Total charge attempts across all visits |
 | `first_attempt_success` | Count of visits where the first attempt succeeded |
 | `troubled_success` | Count of visits that succeeded but required more than one attempt |

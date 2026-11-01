@@ -162,10 +162,6 @@ semantic_models:
         description: "Number of successful visits."
         agg: count
         expr: case when is_successful then visit_id end
-      - name: visit_success_count
-        description: "Boolean count of successful visits for rate calculations."
-        agg: sum_boolean
-        expr: is_successful
       - name: visit_duration_minutes_average
         description: "Average duration of visits in minutes."
         agg: average
@@ -322,7 +318,7 @@ semantic_models:
 
   - name: uptime
     description: "Port-level daily uptime: fraction of commissioned minutes not lost to outages."
-    model: ref('fact_uptime')
+    model: ref('fact_uptime_daily')
     defaults:
       agg_time_dimension: date_id
     entities:
@@ -348,10 +344,26 @@ semantic_models:
       - name: port_id
         type: categorical
     measures:
-      - name: uptime_average
-        description: "Average uptime as the fraction of commissioned time that was up."
-        agg: average
-        expr: uptime
+      - name: commissioned_minutes_total
+        description: "Total minutes ports were commissioned. Denominator for duration-weighted uptime."
+        agg: sum
+        expr: commissioned_minutes
+      - name: uptime_minutes_total
+        description: "Total commissioned minutes ports were not down. Numerator for duration-weighted uptime."
+        agg: sum
+        expr: uptime_minutes
+      - name: downtime_minutes_total
+        description: "Total minutes ports were down (OFFLINE + FAULTED) within their commissioned time. Same total as downtime_minutes_detailed_total in downtime_daily; use that one to slice by reason or error code."
+        agg: sum
+        expr: downtime_minutes
+      - name: offline_downtime_minutes_total
+        description: "Total minutes ports were down because the charger was OFFLINE (no heartbeats)."
+        agg: sum
+        expr: offline_downtime_minutes
+      - name: faulted_downtime_minutes_total
+        description: "Total minutes ports were down because the port was FAULTED."
+        agg: sum
+        expr: faulted_downtime_minutes
 
   - name: downtime_daily
     description: "Minutes each port was down per day, split by downtime_type (FAULTED: the port reported a fault; OFFLINE: no heartbeats from the charger) and reason ('NoHeartbeat' for OFFLINE; for FAULTED, the error name, 'NoError' if none was reported, or 'UnknownError' if the code isn't in error_codes). Use it when uptime drops, to find out why: which ports, locations and days lost the most time, whether chargers were broken or just unreachable, and which errors cost the most minutes. Join error_codes for description. For the headline reliability number use uptime instead."
@@ -385,8 +397,8 @@ semantic_models:
       - name: reason
         type: categorical
     measures:
-      - name: downtime_minutes_total
-        description: "Total downtime minutes."
+      - name: downtime_minutes_detailed_total
+        description: "Total downtime minutes at outage-reason grain. Sliceable by downtime_type, reason and error code; use it to drill into downtime_minutes_total from uptime."
         agg: sum
         expr: duration_minutes
 
@@ -408,6 +420,13 @@ metrics:
     type: simple
     type_params:
       measure: visits_count
+
+  - name: total_successful_visits
+    description: "Count of charging visits where the driver successfully charged, on the first attempt or after retries."
+    label: "Total successful visits"
+    type: simple
+    type_params:
+      measure: successful_visits_count
 
   - name: total_charge_attempts
     description: "Total number of charge attempts across all visits."
@@ -469,16 +488,38 @@ metrics:
       numerator: failed_visits
       denominator: total_visits
 
-  - name: average_uptime
-    description: "Primary reliability metric. Average port uptime as the fraction of commissioned time that was up, not in outage."
-    label: "Average uptime"
+  - name: total_commissioned_minutes
+    description: "Total minutes ports were commissioned (in service) over the period. Denominator of uptime."
+    label: "Total commissioned minutes"
     type: simple
     type_params:
-      measure: uptime_average
+      measure: commissioned_minutes_total
+
+  - name: total_uptime_minutes
+    description: "Total commissioned minutes ports were up, not in outage (total_commissioned_minutes - total_downtime_minutes). Numerator of uptime."
+    label: "Total uptime minutes"
+    type: simple
+    type_params:
+      measure: uptime_minutes_total
+
+  - name: uptime_ratio
+    description: "Primary reliability metric. Duration-weighted port uptime: share of commissioned minutes that were up, not in outage (total_uptime_minutes / total_commissioned_minutes). Correct at any grain and period, because each port-day counts by its commissioned minutes, so a partial first or last day of commission weighs less than a full day. When uptime drops, drill into total_downtime_minutes_detailed to find out why."
+    label: "Uptime ratio"
+    type: ratio
+    type_params:
+      numerator: total_uptime_minutes
+      denominator: total_commissioned_minutes
 
   - name: total_downtime_minutes
-    description: "Drill down metric for uptime. Total minutes of downtime, sliceable by downtime_type (FAULTED/OFFLINE), by reason, and, for FAULTED downtime, by vendor error code."
+    description: "Total minutes ports were down (OFFLINE + FAULTED) within their commissioned time, sliceable by port, charger, location and date. To find out why, drill into total_downtime_minutes_detailed."
     label: "Total downtime minutes"
     type: simple
     type_params:
       measure: downtime_minutes_total
+
+  - name: total_downtime_minutes_detailed
+    description: "Drill down metric for uptime and total_downtime_minutes. Same total minutes of downtime, sliceable by downtime_type (FAULTED/OFFLINE), by reason, and, for FAULTED downtime, by vendor error code."
+    label: "Total downtime minutes (detailed)"
+    type: simple
+    type_params:
+      measure: downtime_minutes_detailed_total
