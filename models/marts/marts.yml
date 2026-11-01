@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: fact_charge_attempts
-    description: "Charge attempt to initiate charging at a port, spanning from plug-in/authorization to the connector's return to idle. One row per charger_id + connector_id + charge_attempt_start_ts."
+    description: "Incremental marts model that combines charge attempts and transactions data using outer join. Provides comprehensive view of charge attempts with associated transaction details where available."
     columns:
       - name: charge_attempt_id
         description: "Surrogate key for the charge attempt, generated from charger_id, connector_id, and charge_attempt_start_ts."
@@ -50,20 +50,20 @@ models:
       - name: confirmation_ingested_ts
         description: "Timestamp when the status change confirmation was received"
       - name: previous_status
-        description: "Status before changing to 'Preparing'"
+        description: "Status before changing to 'Preparing'. Degenerate dimension stored directly on the fact - no separate dimension table exists for status values; usable for filtering and grouping."
       - name: status
-        description: "Current status (should be 'Preparing')"
+        description: "Current status (should be 'Preparing'). Degenerate dimension stored directly on the fact - no separate dimension table exists for status values; usable for filtering and grouping."
         data_tests:
           - accepted_values:
               arguments:
                 values: ['Preparing']
       - name: next_status
-        description: "Next status after 'Preparing' (e.g., 'Charging', 'Available', 'Faulted')"
+        description: "Next status after 'Preparing' (e.g., 'Charging', 'Available', 'Faulted'). Degenerate dimension stored directly on the fact - no separate dimension table exists for status values; usable for filtering and grouping."
       - name: id_tags
-        description: "Array of driver identifiers (id_tag) merged from charge attempt and transaction events. See id_tag for the scalar value."
+        description: "Array of driver identifiers (id_tag) merged from charge attempt and transaction events. See id_tag for the scalar value. Degenerate dimension stored directly on the fact - no separate dimension table exists for it; usable for filtering and grouping."
         data_type: array<string>
       - name: id_tag_statuses
-        description: "Array of authorization statuses merged from charge attempt and transaction events"
+        description: "Array of authorization statuses merged from charge attempt and transaction events. Degenerate dimension stored directly on the fact - no separate dimension table exists for it; usable for filtering and grouping."
         data_type: array<string>
       - name: id_tag
         description: "Driver identifier (id_tag) for this attempt — first element from the id_tags array. Null for unauthorized attempts."
@@ -80,7 +80,7 @@ models:
       - name: transaction_stop_ts
         description: "Timestamp when the transaction stopped"
       - name: transaction_stop_reason
-        description: "Reason for stopping the transaction"
+        description: "Reason for stopping the transaction. Degenerate dimension stored directly on the fact - no separate dimension table exists for stop reasons; usable for filtering and grouping."
       - name: meter_start_wh
         description: "Meter reading at transaction start (Wh)"
       - name: meter_stop_wh
@@ -109,8 +109,8 @@ models:
               arguments:
                 values: [true, false]
                 quote: false
-      - name: incremental_ts
-        description: "Latest incremental processing timestamp from both source models for incremental processing tracking"
+      - name: updated_ts
+        description: "The latest source event reflected in this attempt: the later of the Preparing status change's and the transaction's updated_ts, carried forward across incremental runs. Downstream models (fact_visits, int_driver_aggregates) read changed attempts by it."
         data_tests:
           - not_null
     data_tests:
@@ -127,8 +127,13 @@ models:
             severity: error
 
   - name: fact_interval_data
-    description: "One row per charger_id + connector_id + transaction_id + ingested_ts + measurand + unit + phase + 15-minute interval. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
+    description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
     columns:
+      - name: interval_data_id
+        description: "Null-safe surrogate key for the interval record, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start. Used as the incremental merge key."
+        data_tests:
+          - unique
+          - not_null
       - name: port_key
         description: "Surrogate key for the port the interval was recorded on, generated in place from charger_id + port_id (port_id resolved upstream in int_meter_values via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
@@ -187,12 +192,10 @@ models:
         description: "Number of measurements within this 15-minute interval"
         data_tests:
           - not_null
-      - name: interval_data_id
-        description: "Surrogate key for the interval data record, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start"
-        data_tests:
-          - unique
-          - not_null
     data_tests:
+      - not_null:
+          arguments:
+            column_name: _incremental_ts
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns:
@@ -206,7 +209,7 @@ models:
               - meter_15min_interval_start
 
   - name: fact_downtime_daily
-    description: "One row per date_id + outage_id: each outage (FAULTED or OFFLINE) at Port grain, split across the calendar days it covers. Sum duration_minutes by date, port, downtime_type or reason for daily downtime. An outage whose error code changes partway through is attributed wholly to its latest code - int_faulted_outages keeps one code per outage. Reliability metrics are tracked per Port - the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types; port_id is always populated for both."
+    description: "One row per date_id + charger_id + port_id + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types. Both outage sources are inner-joined to int_ports before reaching this model, so port_id is always populated."
     columns:
       - name: date_id
         description: "Calendar date this row's minutes fall on"
@@ -252,7 +255,7 @@ models:
                 min_value: 0
                 max_value: 1440
       - name: downtime_type
-        description: "Kind of downtime: FAULTED (every connector on the port reported Faulted) or OFFLINE (the charger stopped sending heartbeats)."
+        description: "Kind of downtime: FAULTED (every connector on the port reported Faulted) or OFFLINE (the charger stopped sending heartbeats). Degenerate dimension stored directly on the fact - no separate dimension table exists for downtime types; usable for filtering and grouping."
         data_tests:
           - not_null
           - accepted_values:
@@ -299,7 +302,7 @@ models:
             expression: "(downtime_type = 'OFFLINE') = (reason = 'NoHeartbeat')"
 
   - name: fact_visits
-    description: "One row per driver visit — a single trip to a charging location that may span multiple charge attempts (e.g., a failed plug-in followed by a retry). Authenticated visits (idTag present) group attempts by driver + location within a 30-minute window; unauthenticated visits group by port within a 2-minute window."
+    description: "One row per driver visit — a single trip to a charging location that may span multiple charge attempts (e.g., a failed plug-in followed by a retry). Authenticated visits (idTag present) group attempts by driver + location within a 30-minute window; unauthenticated visits group by port within a 2-minute window. Implementation uses two-step grouping: Step 1 groups attempts by charger_id within 2 minutes, inferring idTag from any attempt in the group that has one. Step 2 groups by location_id + idTag within 30 minutes (authenticated) or by charger_id + port_id within 2 minutes (unauthenticated). Time gaps are measured from charge_attempt_stop_ts of one attempt to charge_attempt_start_ts of the next."
     columns:
       - name: visit_id
         description: "Unique identifier for the visit, generated from location_id, first_charger_id, and visit_start_ts"
@@ -347,10 +350,10 @@ models:
               arguments:
                 min_value: 1
       - name: charger_ids
-        description: "Array of charger IDs used during this visit"
+        description: "Array of charger IDs used during this visit. Kept as an array despite arrays being non-standard in a dimensional fact: a visit can span multiple chargers (e.g. a retry on an adjacent charger), and collapsing to a single value would lose that detail for operational drill-down. Not declared as a dimension or measure in models/semantic/semantic_models.yml, so it is excluded from metric aggregation by construction. Use first_charger_id/last_charger_id for semantic-layer-safe charger attribution."
         data_type: array<string>
       - name: charge_attempt_ids
-        description: "Array of charge attempt IDs included in this visit"
+        description: "Array of charge attempt IDs included in this visit. Kept as an array for the same reason as charger_ids - it enables operational drill-down into every attempt in the visit without a separate bridge table. Not declared as a dimension or measure in models/semantic/semantic_models.yml, so it is excluded from metric aggregation by construction. Use first_charge_attempt_id/last_charge_attempt_id for semantic-layer-safe joins."
         data_type: array<string>
       - name: first_charge_attempt_id
         description: "Charge attempt ID that started the visit"
@@ -401,10 +404,6 @@ models:
           - accepted_values:
               arguments:
                 values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
-      - name: incremental_ts
-        description: "Latest incremental processing timestamp for incremental processing tracking"
-        data_tests:
-          - not_null
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -481,7 +480,7 @@ models:
 
   - name: dim_ports
     description: >
-      One row per Port (charger_id + port_id). Port (EVSE) dimension.
+      Port (EVSE) dimension. One row per Port (charger_id + port_id).
       A Port is an independently operated part of a Charger that can deliver energy to one EV at a time.
       Reliability and utilisation metrics (uptime, downtime, charge attempts) are tracked at Port grain.
       Sanity check: the number of Ports at a location answers "how many vehicles can charge simultaneously?".
@@ -765,7 +764,7 @@ models:
                 quote: false
 
   - name: dim_drivers
-    description: "Driver dimension. Grain: one row per distinct RFID id_tag observed in OCPP charge attempts, plus a single UNKNOWN sentinel row for unauthorized visits. Type 1 (overwrite on each refresh). Behavioral attributes (first/last seen, authorization status) are derived; lifetime metrics belong in the semantic layer, not on this dim."
+    description: "Driver dimension. Grain: one row per distinct RFID id_tag observed in OCPP charge attempts, plus a single UNKNOWN sentinel row for unauthorized visits. Reads from int_driver_aggregates (never scans fact_charge_attempts directly). Type 1 (overwrite on each refresh). Behavioral attributes (first/last seen, authorization status) are derived; lifetime metrics belong in the semantic layer, not on this dim."
     columns:
       - name: driver_key
         description: "Surrogate key for the driver dimension. Deterministic hash of id_tag. The UNKNOWN sentinel uses a stable hash of the literal 'UNKNOWN'."

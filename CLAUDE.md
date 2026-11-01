@@ -249,6 +249,14 @@ Define:
 - unique key
 - invalidation logic
 
+### Model-local incremental progress
+
+Incremental windows advance through `_incremental_ts` stored in each model's own output. The leading underscore marks it as a technical field that must not be exposed as a business dimension or measure. Each normal incremental model reads strictly after `max(_incremental_ts)` and processes at most one configured `incremental_window`, capped at the newest source row.
+
+This relies on the production invariant documented in ADR 0008: every non-outage incremental model receives qualifying data between scheduled runs. If a normal model writes no rows, investigate ingestion or network health and recover with an explicit watermark reset, backfill, or full refresh.
+
+Outage models are sparse by definition. During incremental runs, they use the latest two distinct `_incremental_ts` values from dense `int_status_changes` as their range boundaries. Their upper boundary remains capped by the configured `incremental_window` and newest source row. This lets a healthy window advance without adding sentinel outage rows. `fact_downtime_daily` uses the same dense range so a later outage cannot be stranded behind an empty mart window.
+
 ### Incremental model header comments
 
 Every incremental model must include a short SQL comment header immediately after its `config()` block. The header documents operational behavior that cannot be inferred from `materialized`, `unique_key`, and `incremental_strategy` alone.
@@ -259,20 +267,20 @@ Cover these topics in three to six concise comment lines:
 - **Watermark:** which column and relation determine the next processing boundary, including whether bounds are strict or inclusive
 - **Reprocessing:** which source or target rows are reread, the lookback or buffer applied, and how existing state is reconciled
 - **Late arrivals:** which late updates are handled automatically and when a backfill or full refresh is required
-- **Special behavior:** relevant checkpoint, open-record, post-hook, or empty-window behavior that a maintainer must preserve
+- **Special behavior:** relevant sparse-output, open-record, post-hook, or empty-window behavior that a maintainer must preserve
 
 Use this shape and adapt it to the model rather than copying generic wording:
 
 ```sql
 -- Incremental strategy: merge one row per <grain>.
--- Watermark: max(<watermark_column>) from {{ this }}; source rows are read strictly after it.
+-- Watermark: max(_incremental_ts) in this model; source rows are read strictly after it.
 -- Reprocessing: <lookback/open rows/state reconciliation behavior>.
 -- Late arrivals: <supported horizon and recovery path>.
 ```
 
 The header must describe the current SQL exactly, including known limitations such as a calculated buffer that is not used by the source filter. Update it whenever the incremental filter, unique key, watermark, lookback, merge behavior, or late-arrival handling changes.
 
-Keep model-specific mechanics in the SQL header. Put project-wide decisions about checkpoint storage, replay guarantees, and backfill architecture in an ADR. The header does not replace schema YAML descriptions, data tests, or incremental unit and integration tests.
+Keep model-specific mechanics in the SQL header. Put project-wide decisions about watermark storage, sparse-output exceptions, and backfill architecture in an ADR. The header does not replace schema YAML descriptions, data tests, or incremental unit and integration tests.
 
 
 ### Jinja whitespace trim after a SQL comment
@@ -306,21 +314,6 @@ Every model must include:
   - important flags
 
 Write docs for **humans**, not for dbt.
-
-### Model descriptions
-
-State what the model is about in business terms, then the grain. Leave out
-implementation details (join type, incremental strategy, CTE steps) - those
-live in the SQL, not the yml.
-
-Pattern: `<what one row represents, in plain business terms>. One row per <grain columns>.`
-
-Bad: "Incremental marts model that combines charge attempts and transactions
-data using outer join."
-
-Good: "Charge attempt to initiate charging at a port, spanning from
-plug-in/authorization to the connector's return to idle. One row per
-charger_id + connector_id + charge_attempt_start_ts."
 
 Descriptions live in the layer's shared `<layer>.yml` (e.g. `marts.yml`, `intermediate.yml`) only.
 Never set `description` in a model's `config()` block in the `.sql` file — it duplicates the yml,

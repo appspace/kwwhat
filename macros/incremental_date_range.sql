@@ -1,56 +1,61 @@
 {#
     Generates the body of an incremental_date_range CTE.
-    The caller is responsible for is_incremental() branching and passing the
-    appropriate from_timestamp_caps for each path. Example:
 
-        {%- if is_incremental() -%}
-            {%- set from_ts_caps = ["(select max(incremental_ts) from " ~ this ~ ")"] -%}
-        {%- else -%}
-            {%- set from_ts_caps = ["cast( '" ~ var("start_processing_date") ~ "' as " ~ dbt.type_timestamp() ~ ")"] -%}
-        {%- endif -%}
+    Normal incremental models start strictly after max(_incremental_ts) in their own target and
+    process at most one configured incremental_window, capped at the newest source row. Full
+    refreshes and first runs start at start_processing_date.
 
-        with incremental_date_range as (
-            {{ incremental_date_range(from_timestamp_caps=from_ts_caps, buffer_minutes=30) }}
-        ),
+    Sparse models can pass dense_watermark_relation. During incremental runs they use that relation's
+    latest two distinct _incremental_ts values as the range boundaries, so an empty sparse output
+    does not stall progress. The configured incremental_window and newest source row still cap
+    the upper boundary.
 
     Columns produced:
-        from_timestamp        greatest(from_timestamp_caps); start of processing window
-        buffer_from_timestamp from_timestamp minus buffer_minutes; equals from_timestamp when buffer_minutes=0
-        to_timestamp          least(incremental_window + from_timestamp, to_timestamp_caps)
-
-    Parameters:
-        buffer_minutes (int):       minutes to subtract for buffer_from_timestamp. Default: 0.
-        from_timestamp_caps (list): SQL expressions combined with greatest() to produce from_timestamp.
-        to_timestamp_caps (list):   SQL expressions applied as least() caps on to_timestamp.
+        from_timestamp        start of the processing window
+        buffer_from_timestamp from_timestamp minus buffer_minutes
+        to_timestamp          end of the processing window
 #}
-{% macro incremental_date_range(from_timestamp_caps, buffer_minutes=0, to_timestamp_caps=[]) %}
-    {%- if from_timestamp_caps | length == 1 -%}
-        {%- set from_ts_expr = from_timestamp_caps[0] -%}
-    {%- else -%}
-        {%- set from_ts_expr -%}
-            greatest(
-                {{ from_timestamp_caps | join(",\n                ") }}
-            )
-        {%- endset -%}
-    {%- endif -%}
+{% macro incremental_date_range(buffer_minutes=0, dense_watermark_relation=none) %}
+    {% set start_processing_ts = "cast('" ~ var('start_processing_date') ~ "' as " ~ dbt.type_timestamp() ~ ")" %}
+    {% set source_max_ts = "coalesce((select max(ingested_timestamp) from " ~ ref('stg_ocpp_logs') ~ "), " ~ start_processing_ts ~ ")" %}
 
-    {%- set base_to_ts = timestamp_add(var("incremental_window").unit, var("incremental_window").length, "from_timestamp") -%}
+    {% if is_incremental() and dense_watermark_relation is not none and execute %}
+        {% set dense_to_ts = "coalesce((select max(_incremental_ts) from " ~ dense_watermark_relation ~ "), " ~ start_processing_ts ~ ")" %}
+        {% set from_ts = "coalesce((select max(_incremental_ts) from " ~ dense_watermark_relation ~ " where _incremental_ts < " ~ dense_to_ts ~ "), " ~ start_processing_ts ~ ")" %}
+        {% set use_target_watermark = false %}
+    {% elif this is string %}
+        {# Unit tests replace this with a mocked fixture name, not a relation: start at start_processing_date #}
+        {% set use_target_watermark = false %}
+    {% elif is_incremental() and execute %}
+        {% set target_column_names = adapter.get_columns_in_relation(this)
+            | map(attribute='name') | map('lower') | list %}
+        {% set target_has_watermark = '_incremental_ts' in target_column_names %}
+        {% set use_target_watermark = target_has_watermark %}
+    {% else %}
+        {% set use_target_watermark = false %}
+    {% endif %}
 
-    {%- if to_timestamp_caps | length > 0 -%}
-        {%- set to_ts_expr -%}
-            least(
-                {{ ([base_to_ts] + to_timestamp_caps) | join(",\n                ") }}
-            )
-        {%- endset -%}
-    {%- else -%}
-        {%- set to_ts_expr = base_to_ts -%}
-    {%- endif -%}
+    {% if from_ts is not defined %}
+        {% if use_target_watermark %}
+            {% set from_ts = "coalesce((select max(_incremental_ts) from " ~ this ~ "), " ~ start_processing_ts ~ ")" %}
+        {% else %}
+            {% set from_ts = start_processing_ts %}
+        {% endif %}
+    {% endif %}
+
+    {% set window_end = timestamp_add(
+        var('incremental_window').unit,
+        var('incremental_window').length,
+        from_ts
+    ) %}
+    {% if dense_to_ts is defined %}
+        {% set to_ts = 'least(' ~ window_end ~ ', ' ~ dense_to_ts ~ ', ' ~ source_max_ts ~ ')' %}
+    {% else %}
+        {% set to_ts = 'least(' ~ window_end ~ ', ' ~ source_max_ts ~ ')' %}
+    {% endif %}
 
     select
-        from_timestamp,
-        {{ timestamp_add("minute", -buffer_minutes, "from_timestamp") }} as buffer_from_timestamp,
-        {{ to_ts_expr }} as to_timestamp
-    from (
-        select {{ from_ts_expr }} as from_timestamp
-    )
-{%- endmacro %}
+        {{ from_ts }} as from_timestamp,
+        {{ timestamp_add('minute', -buffer_minutes, from_ts) }} as buffer_from_timestamp,
+        {{ to_ts }} as to_timestamp
+{% endmacro %}
