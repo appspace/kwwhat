@@ -8,8 +8,7 @@
     Sparse models can pass dense_watermark_model. During incremental runs they use that model's
     latest two distinct incremental_ts values as the range boundaries, so an empty sparse output
     does not stall progress. The configured incremental_window and newest source row still cap
-    the upper boundary. Unit tests exercise this path with historical watermark rows in the mocked
-    dense model.
+    the upper boundary.
 
     Columns produced:
         from_timestamp        start of the processing window

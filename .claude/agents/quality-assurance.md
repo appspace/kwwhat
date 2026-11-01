@@ -45,7 +45,7 @@ Run `dbt test --select <model>` and report:
 
 ### Full-refresh vs. incremental parity
 
-For incremental models a full-refresh and an incremental rebuild over the same data must land on identical results. Run this check on request, and proactively before approving a PR that changes a model's `unique_key`, its incremental filter, its buffer/merge CTEs, or the incremental window and watermark macros.
+For incremental models a full-refresh and an incremental rebuild over the same data must land on identical results. Run this check on request, and proactively before approving a PR that changes a model's `unique_key`, its incremental filter, its buffer/merge CTEs, or the `incremental_date_range` macro and its watermark selection logic.
 
 **Run it on the demo DuckDB, not Snowflake.** The demo (`demo/docker-compose.yml`) has a `dbt` service with the DuckDB adapter and the project mounted at `/kwwhat`; its data lives in the `demo_duckdb-data` volume (`raw.duckdb` for sources, `analytics.duckdb` for models). Every `dbt ...` command in the steps below runs inside that container, from the repo root:
 
