@@ -25,34 +25,19 @@ clean-targets:         # directories to be removed by `dbt clean`
   - "dbt_packages"
 
 
-on-run-start:
-  - |
-    -- depends_on: {{ ref('stg_ocpp_logs') }}
-    {{ claim_incremental_checkpoint() }}
-
-
-on-run-end:
-  - "{{ finalize_incremental_checkpoint(results) }}"
-
 
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
 
-# In dbt, the default materialization for a model is a view. This means, when you run 
-# dbt run or dbt build, all of your models will be built as a view in your data platform. 
-# The configuration below will override this setting for models in the example folder to 
-# instead be materialized as tables. Any models you add to the root of the models folder will 
-# continue to be built as views. These settings can be overridden in the individual model files
-# using the `{{ config(...) }}` macro.
-
+# In dbt, the default materialization for a model is a view. This means that models without an
+# explicit materialization are views. The marts configuration below changes that layer to tables.
 models:
   kwwhat:
-    # Applies to all files under models/marts/
+    +on_schema_change: append_new_columns
     marts:
       +materialized: table
 
 # Variables for source references
-# This makes it easier to reference sources in models and keeps source names consistent
 # raw_database/raw_schema are deliberately NOT set here: their per-adapter defaults live in
 # the source config in models/staging/raw/staging.yml (dbt_project.yml `vars` values aren't
 # Jinja-rendered, so a target-aware default can't live here). Setting either var in this
@@ -62,19 +47,11 @@ vars:
   chargers_identifier: "chargers"
   ports_identifier: "ports"
   connectors_identifier: "connectors"
-  # Start of every incremental window when the checkpoint is off (full refresh, dev, CI) and of the first
-  # checkpoint window. Set it at or just before the first source log: windows are not moved to the data.
+  # Lower bound used when an incremental target has no model-local watermark yet.
   start_processing_date: "2025-10-01"
   incremental_window:
     unit: "month"
     length: 3
-  incremental_checkpoint_enabled: false
-  incremental_checkpoint_name: "ocpp_incremental_pipeline"
-  incremental_checkpoint_identifier: "_kwwhat_incremental_checkpoint"
-  # How long a claimed window stays locked against other checkpoint runs. The lease is not renewed during a run,
-  # so set it to roughly your longest full-DAG checkpoint run, times 2 to 3: shorter lets a second run claim the
-  # same window mid-run, longer delays the retry after a crashed run.
-  incremental_checkpoint_lease_minutes: 120
 
 
 

@@ -29,15 +29,15 @@
 
 -- Incremental strategy: delete+insert daily expansion; replace all daily rows for each changed outage_id.
 -- Grain: one row per date_id + outage_id; outage_id remains stable while an ongoing outage is extended.
--- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
+-- Watermark: max(incremental_ts) in this sparse model; changed outages are read uncapped through newest source data.
 -- Reprocessing: deleting by outage_id replaces every calendar day and the latest reason for a changed outage while
 -- leaving unrelated outages untouched. A post-hook removes recent OFFLINE rows that begin during a FAULTED outage.
 -- Changed outages are read by to_ts: a new, extended or closed outage always ends within the window that wrote it.
--- Late updates are captured when an upstream outage changes within a claimed checkpoint window.
+-- Late updates are captured when an upstream outage changes after this model's local watermark.
 
 
 with incremental_date_range as (
-    {{ incremental_date_range() }}
+    {{ incremental_date_range(uncapped=true) }}
 ),
 
 ports as (
@@ -232,5 +232,6 @@ select
     reason,
     from_ts as outage_from_ts,
     to_ts as outage_to_ts,
-    duration_minutes
+    duration_minutes,
+    (select to_timestamp from incremental_date_range) as incremental_ts
 from outage_days_with_ids

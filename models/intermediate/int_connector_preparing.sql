@@ -9,7 +9,7 @@
 
 -- Incremental strategy: buffered open-record reconciliation; merge one Preparing status change per
 -- charger_id + connector_id + ingested_ts.
--- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
+-- Watermark: max(incremental_ts) in this model; the 30-minute lookback starts before that bounded window.
 -- Reprocessing: status changes and related OCPP events use a 30-minute lookback; matching open target rows retain
 -- prior values, deduplicate event arrays, and advance updated_ts when the next status or transaction becomes known.
 -- Late arrivals: status or event rows outside the lookback require a backfill or full refresh.
@@ -303,5 +303,6 @@ select
         when transaction_ids is not null
             then {{ array_size('transaction_ids') }}
         else 0
-    end as _unique_transaction_count
+    end as _unique_transaction_count,
+    (select to_timestamp from incremental_date_range) as incremental_ts
 from preparing_source

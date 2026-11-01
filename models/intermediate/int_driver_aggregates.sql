@@ -7,7 +7,7 @@
 }}
 
 -- Incremental strategy: cumulative aggregates; merge one row per id_tag, including the __UNKNOWN__ sentinel.
--- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
+-- Watermark: max(incremental_ts) in this model; changed attempts are read strictly after it through one bounded window.
 -- Reprocessing: the existing row supplies prior first/latest values, while timestamp comparisons select the correct
 -- authorization status. Earlier business events are supported when their attempt's updated_ts is in the window.
 -- No lookback: attempts are read by updated_ts strictly after the window start.
@@ -91,5 +91,6 @@ select
     first_seen_ts,
     last_seen_ts,
     first_authorization_status,
-    latest_authorization_status
+    latest_authorization_status,
+    (select to_timestamp from incremental_date_range) as incremental_ts
 from final

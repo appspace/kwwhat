@@ -9,7 +9,7 @@
 
 -- Incremental strategy: open-record reconciliation; merge one attempt per
 -- charger_id + connector_id + charge_attempt_start_ts.
--- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
+-- Watermark: max(incremental_ts) in this model; changed upstream rows are read through one bounded window.
 -- Reprocessing: upstream rows are selected by updated_ts; existing attempts with the same transaction, plus recent
 -- incomplete attempts within the authorization threshold, are reread to fill stop, transaction, array, and energy data.
 -- updated_ts is the latest upstream updated_ts merged into an attempt; downstream models read changed attempts by it.
@@ -337,7 +337,8 @@ select
         then true
         else false
     end as is_successful,
-    updated_ts
+    updated_ts,
+    (select to_timestamp from incremental_date_range) as incremental_ts
 from attempts_final
 left join attempt_errors_agg as errors
     on attempts_final.charger_id = errors.error_agg_charger_id

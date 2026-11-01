@@ -8,10 +8,10 @@
 }}
 
 -- Incremental strategy: open-record reconciliation; merge one row per charger_id + connector_id + first ingested_ts.
--- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
+-- Watermark: max(incremental_ts) in this model; new logs are read strictly after it through one bounded window.
 -- Reprocessing: new events are matched by charger_id + transaction_id to an existing transaction that has not stopped;
 -- stable attributes are retained, arrays are deduplicated, and updated_ts advances to the latest incorporated event.
--- Late arrivals: source rows at or before the checkpoint boundary require a backfill or full refresh.
+-- Late arrivals: source rows at or before the model watermark require a backfill or full refresh.
 
 
 {% set transaction_related_actions = [
@@ -203,5 +203,7 @@ transactions_with_ids as (
         on transactions_final.charger_id = chargers.charger_id
 )
 
-select *
+select
+    transactions_with_ids.*,
+    (select to_timestamp from incremental_date_range) as incremental_ts
 from transactions_with_ids

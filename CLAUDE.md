@@ -249,13 +249,13 @@ Define:
 - unique key
 - invalidation logic
 
-### Checkpoint mode runs the full DAG
+### Model-local incremental progress
 
-Incremental windows advance only through the shared warehouse checkpoint (ADR 0008), which is enabled per invocation with `--vars '{incremental_checkpoint_enabled: true}'`. The end-of-run hook marks the window done for the whole project, not just for the selected models, so:
+Incremental windows advance through `incremental_ts` stored in each model's own output. Each normal incremental model reads strictly after `max(incremental_ts)` and processes at most one configured `incremental_window`, capped at the newest source row.
 
-- Only enable checkpoint mode for a full-DAG run, e.g. `dbt build --exclude "test_type:unit" --vars '{incremental_checkpoint_enabled: true}'`. Never combine it with `--select`, or with an `--exclude` that drops models (excluding unit tests is fine): models outside the selection would skip that window for good.
-- Leave it disabled for dev, CI, compile and ad hoc runs. Without it, a run processes the fixed window from `start_processing_date` plus `incremental_window` and never advances, which is safe to repeat.
-- Nothing enforces this in code yet; the claim and finalize hooks do not check the selection.
+This relies on the production invariant documented in ADR 0008: every non-outage incremental model receives qualifying data between scheduled runs. If a normal model writes no rows, investigate ingestion or network health and recover with an explicit watermark reset, backfill, or full refresh.
+
+Outage models are sparse by definition. They use uncapped catch-up from their last output watermark through the newest source row, and downstream outage consumers must not cap their range at an outage model's latest output watermark.
 
 ### Incremental model header comments
 
@@ -267,20 +267,20 @@ Cover these topics in three to six concise comment lines:
 - **Watermark:** which column and relation determine the next processing boundary, including whether bounds are strict or inclusive
 - **Reprocessing:** which source or target rows are reread, the lookback or buffer applied, and how existing state is reconciled
 - **Late arrivals:** which late updates are handled automatically and when a backfill or full refresh is required
-- **Special behavior:** relevant checkpoint, open-record, post-hook, or empty-window behavior that a maintainer must preserve
+- **Special behavior:** relevant sparse-output, open-record, post-hook, or empty-window behavior that a maintainer must preserve
 
 Use this shape and adapt it to the model rather than copying generic wording:
 
 ```sql
 -- Incremental strategy: merge one row per <grain>.
--- Watermark: the shared warehouse checkpoint window; source rows are read strictly after its start.
+-- Watermark: max(incremental_ts) in this model; source rows are read strictly after it.
 -- Reprocessing: <lookback/open rows/state reconciliation behavior>.
 -- Late arrivals: <supported horizon and recovery path>.
 ```
 
 The header must describe the current SQL exactly, including known limitations such as a calculated buffer that is not used by the source filter. Update it whenever the incremental filter, unique key, watermark, lookback, merge behavior, or late-arrival handling changes.
 
-Keep model-specific mechanics in the SQL header. Put project-wide decisions about checkpoint storage, replay guarantees, and backfill architecture in an ADR. The header does not replace schema YAML descriptions, data tests, or incremental unit and integration tests.
+Keep model-specific mechanics in the SQL header. Put project-wide decisions about watermark storage, sparse-output exceptions, and backfill architecture in an ADR. The header does not replace schema YAML descriptions, data tests, or incremental unit and integration tests.
 
 
 ### Jinja whitespace trim after a SQL comment

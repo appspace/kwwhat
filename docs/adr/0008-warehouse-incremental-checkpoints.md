@@ -1,58 +1,46 @@
-# 0008. Warehouse-resident checkpoints for incremental processing
+# 0008. Model-local watermarks for incremental processing
 
 - Status: Proposed
 - Date: 2026-10-25
-- Related: `macros/incremental_checkpoint.sql`, `macros/incremental_date_range.sql`, incremental models
+- Related: `macros/incremental_date_range.sql`, incremental models
 
 ## Context
 
-Incremental models previously used `max(incremental_ts)` from their own output as the next lower boundary. A window with no qualifying rows wrote nothing, so that target-derived boundary could not advance. Later data beyond the empty window was then never reached. Model output is therefore not a reliable store of processing progress.
+Incremental models use bounded windows so that production runs process a manageable amount of source data. The original implementation derived each model's next lower boundary from `max(incremental_ts)` in that model's output.
 
-The project must run on dbt Platform and self-hosted dbt, use disposable runners, and remain compatible with Snowflake and BigQuery. Production and CI also need explicit control over whether an invocation can advance shared pipeline state.
+An output-derived watermark does not advance when a model writes no qualifying rows. This is expected for outage models because a healthy period can contain no outages. In a functional, reasonably sized EV charging network, every other incremental model is expected to receive and emit qualifying data between scheduled runs. A non-outage model that does not advance therefore indicates a broader ingestion or network failure rather than a normal empty business window.
+
+We explored storing pipeline progress in a shared warehouse checkpoint. An `on-run-start` hook claimed one bounded window for the full DAG, and an `on-run-end` hook finalized it only after a successful run. A failed invocation preserved the pending window for an exact retry.
+
+Exact retry required every incremental model to be idempotent. That was straightforward for replacement-style models but difficult for cumulative aggregates such as `int_meter_values` and `fact_interval_data`, where replaying the same source rows adds their counts and weighted averages twice. Making those models replay-safe required reintroducing target-local applied-through watermarks alongside the shared checkpoint. The resulting hybrid had two state systems, two kinds of recovery behavior, and roughly doubled the conceptual and operational complexity of incremental processing.
 
 ## Decision
 
-Store pipeline progress in a warehouse checkpoint relation, separate from business-model output.
+Retain model-local output watermarks as the single incremental progress mechanism. Do not introduce a shared warehouse pipeline checkpoint.
 
-Checkpoint mode is explicitly enabled per invocation. Within one checkpoint-enabled `dbt build` or `dbt run` invocation:
+This decision relies on the production invariant that every non-outage incremental model advances between scheduled runs. If one does not, treat that as an ingestion or operational failure and recover with a retry, explicit model-watermark reset, backfill, or full refresh as appropriate.
 
-1. An `on-run-start` hook claims a bounded window and records the dbt `invocation_id` with a lease.
-2. Every incremental model reads that same pending window.
-3. An `on-run-end` hook finalizes the window only when all selected resources complete without failure or error.
-4. A failed run leaves the window pending. After its lease expires, a later invocation reclaims the same boundaries.
+Outage models are the explicit sparse-output exception. They may legitimately write no rows during a healthy window. Their downstream consumers must not cap their processing range at the latest outage output watermark. The outage models retain their boundary and open-record reconciliation so an outage that spans windows can be extended or closed when new source events arrive.
 
-Incremental models use the claimed checkpoint window as the authoritative upper boundary and as the only state that can advance the pipeline. When checkpoint mode is disabled for a run, build, compile, full refresh, or isolated CI context, `incremental_date_range` returns a deterministic bounded range from `start_processing_date` to `least(start + incremental_window, newest source row)`, the same rule the claim uses, so a window never ends past the data. Models do not pass upstream caps, and the start is never moved to the first source row. That fallback does not advance and must not be used as production pipeline state. Incremental unit tests set their window explicitly through `start_processing_date` because dbt's unit-test harness does not execute lifecycle hooks.
+In particular:
 
-Cumulative aggregate models may narrow the claimed lower boundary with their own `max(_last_window_to_ts)`, producing an effective range from `greatest(claimed_from_ts, model_applied_through_ts)` through the unchanged claimed upper boundary. This target watermark records model-level application, not pipeline progress: it cannot expand the claimed window, advance the shared checkpoint, or affect another model. Atomic model DML means a committed model can skip an already-applied suffix after a later DAG failure, while a model that did not commit still processes the full pending window. The source rows inside an applied range are treated as immutable; corrections or late arrivals at or before the model watermark require a backfill or full refresh.
-
-No model carries the former pipeline processing stamp, `incremental_ts`. It is removed everywhere, along with the upstream caps that read `max(incremental_ts)` from parent models: within one invocation every model receives the same claimed window in DAG order, so those caps protected nothing, and they cut the tail off full refreshes. The cumulative aggregate replay markers are model-local application metadata and do not replace the warehouse checkpoint. Downstream models read changed upstream rows by business timestamps that always fall inside the window that wrote them:
-
-- `updated_ts`, the latest source event reflected in a row (`int_status_changes`, `int_connector_preparing`, `int_transactions`, and `fact_charge_attempts`, which takes the later of its two inputs).
-- `to_ts` for outages: a new, extended or closed outage ends inside the window that wrote it.
-- Open-record reconciliation reads still-open rows directly (`int_faulted_outages` reads every status with no `next_status`), instead of relying on the upstream model writing them again with a new stamp.
-
-An ongoing outage ends at the last OCPP log received in the window, computed by the outage model itself.
-
-Checkpoint rows are isolated by their target relation, `project_name`, `target.name`, and configured checkpoint name. The project name is included in the stored checkpoint key.
+- `int_faulted_outages` continues to read changed statuses plus still-open statuses.
+- `int_offline_outages` continues to read the prior boundary outage and merge it with the next observed period.
+- `fact_downtime_daily` processes changed outage rows using its own incremental range and does not use an outage model's latest output timestamp as an upper cap.
 
 ## Alternatives considered
 
-- **Keep target-derived pipeline watermarks.** Empty windows cannot advance pipeline state, which is the failure being corrected. Model-local aggregate watermarks may only narrow a checkpoint-owned range for retry idempotency.
-- **Insert sentinel rows into every model.** This pollutes business grains and complicates tests and consumers.
-- **Use a platform-only orchestration checkpoint.** This would not support self-hosted dbt or disposable runners consistently.
-- **Run separate claim, build, and finalize commands.** Separate dbt invocations have different `invocation_id` values and require an external claim token. Lifecycle hooks keep ownership and result inspection in one invocation.
-- **Advance checkpoints independently per model.** Partial DAG failures could leave upstream and downstream models on different windows.
+- **Warehouse-resident pipeline checkpoint.** This correctly advances empty windows and coordinates the whole DAG, but failed runs must replay the same window. Cumulative models are not naturally replay-idempotent, so this option required model-local applied-through state in addition to pipeline state. The hybrid was rejected because it doubled state and recovery complexity.
+- **Per-model completion records inside the shared checkpoint.** This could skip models that committed before a later DAG failure, but it adds model lifecycle bookkeeping, partial-run semantics, and another recovery surface.
+- **Sentinel output rows for empty windows.** This would advance model-local watermarks but pollutes business grains and complicates tests and consumers.
+- **Independent warehouse checkpoint rows per model.** This moves the existing model-local state into metadata without reducing the number of watermarks or simplifying partial failures.
 
 ## Consequences
 
-- Empty windows advance after a successful checkpoint-enabled DAG execution.
-- The complete selected incremental pipeline advances in lockstep.
-- Incremental replays must be idempotent because a crash can occur after model writes but before finalization.
-- Populated-window replay for cumulative meter aggregates uses null-safe surrogate merge keys and model-local applied-through watermarks. Production cutover remains blocked by duplicate merge matches in `fact_charge_attempts` and requires revalidating the full populated-window retry path.
-- A full refresh and a checkpoint-driven incremental rebuild read the same rows, so they can be compared directly: no column legitimately differs between them.
-- Overlapping checkpoint-enabled builds are rejected while a lease is active.
-- Full refresh bypasses checkpoint behavior and starts from `start_processing_date`.
-- Disabled checkpoint mode is deterministic and non-advancing; it is suitable for compilation, tests, and isolated validation, not production scheduling.
-- Ad hoc partial selections must not enable the production checkpoint because successful finalization would advance the shared window for resources that were not selected.
-- Checkpoint DDL and DML must remain portable through dispatched macros where adapters differ.
-- Production requires an explicit checkpoint-enabled job command. CI remains checkpoint-disabled unless it receives an isolated initialization and selection strategy.
+- Incremental progress remains local to each model and easy to inspect from model output.
+- Cumulative models do not need replay-window markers or a second applied-through watermark.
+- Production scheduling does not need checkpoint claim, lease, and finalization hooks.
+- A normal empty window in a non-outage model can stall that model. The project accepts this risk because it violates the production traffic assumption and should trigger operational investigation.
+- Outage consumers must remain independent of outage-output watermark caps.
+- Tests must cover an outage-free window followed by a later outage, plus open outages that continue or close across window boundaries.
+- Ad hoc partial runs preserve their existing per-model behavior and cannot advance unrelated models.

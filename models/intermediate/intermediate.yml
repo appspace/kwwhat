@@ -376,12 +376,8 @@ models:
         description: "Total number of measurements for the transaction"
         data_tests:
           - not_null
-      - name: _last_window_from_ts
-        description: "Internal replay marker: lower boundary of the most recent checkpoint window accumulated into this row."
-        data_tests:
-          - not_null
-      - name: _last_window_to_ts
-        description: "Internal replay marker: upper boundary of the most recent checkpoint window accumulated into this row."
+      - name: incremental_ts
+        description: "Upper boundary of the latest incremental window accumulated into this row; used as this model's next processing watermark."
         data_tests:
           - not_null
 

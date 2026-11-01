@@ -8,7 +8,7 @@
 }}
 
 -- Incremental strategy: open-record reconciliation; merge one charger outage per charger_id + from_ts.
--- Watermark: the shared warehouse checkpoint supplies the bounded processing window.
+-- Watermark: max(incremental_ts) in this sparse model; catch-up is uncapped through the newest source event.
 -- Source messages are read through the claimed upper boundary. The boundary is inclusive so an outage cut off
 -- by the prior run can be continued.
 -- Reprocessing: an ongoing outage ends at the window end, so the next window's boundary outage joins it
@@ -24,7 +24,7 @@
 ] %}
 
 with incremental_date_range as (
-    {{ incremental_date_range() }}
+    {{ incremental_date_range(uncapped=true) }}
 ),
 
 -- Charge point initiated messages (CALL messages) in this run's window
@@ -190,6 +190,7 @@ select
     charger_id,
     from_ts,
     to_ts,
-    duration_seconds / 60 as duration_minutes
+    duration_seconds / 60 as duration_minutes,
+    (select to_timestamp from incremental_date_range) as incremental_ts
 from all_outages
 where duration_seconds > {{ var("heartbeat_interval_seconds") }}

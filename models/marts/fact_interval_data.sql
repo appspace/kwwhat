@@ -9,39 +9,13 @@
 }}
 
 -- Incremental strategy: cumulative merge on interval_data_id, a null-safe surrogate key for the interval grain.
--- Watermark: the shared checkpoint claims the window; the target watermark narrows it to the unapplied suffix.
--- Reprocessing: an already-applied window becomes empty; a new suffix adds its aggregate to prior state.
+-- Watermark: max(incremental_ts) in this model; new meter rows are read strictly after it through one bounded window.
+-- Reprocessing: each new window suffix adds its aggregate to prior state; completed windows are not replayed.
 -- Late arrivals at or before the model watermark require an upstream replay, backfill, or full refresh.
 
-with claimed_incremental_date_range as (
+with incremental_date_range as (
     {{ incremental_date_range() }}
 ),
-
-    model_applied_through as (
-    {% if is_incremental() %}
-
-        select
-            max(_last_window_to_ts) as applied_through_ts
-        from {{ this }}
-
-    {% else %}
-
-        select
-            cast(null as {{ dbt.type_timestamp() }}) as applied_through_ts
-
-    {% endif %}
-    ),
-
-    incremental_date_range as (
-        select
-            greatest(
-                r.from_timestamp,
-                coalesce(m.applied_through_ts, r.from_timestamp)
-            ) as from_timestamp,
-            r.to_timestamp
-        from claimed_incremental_date_range as r
-        cross join model_applied_through as m
-    ),
 
     ocpp_logs as (
         select
@@ -294,6 +268,5 @@ with claimed_incremental_date_range as (
         meter_15min_interval_stop,
         avg_value,
         _count,
-        (select from_timestamp from incremental_date_range) as _last_window_from_ts,
-        (select to_timestamp from incremental_date_range) as _last_window_to_ts
+        (select to_timestamp from incremental_date_range) as incremental_ts
     from final
