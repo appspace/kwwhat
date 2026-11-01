@@ -1,4 +1,4 @@
-# 0008. Duration-weighted uptime
+# 0009. Duration-weighted uptime
 
 - Status: Accepted
 - Date: 2026-10-17

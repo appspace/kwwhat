@@ -27,5 +27,4 @@ project-wide convention.
 | [0006](0006-unified-error-code-resolution.md) | Unified error-code resolution for downtime reasons | Accepted |
 | [0007](0007-energy-based-utilisation-denominator.md) | Rated power as the denominator for energy-based utilisation | Accepted |
 | [0008](0008-warehouse-incremental-checkpoints.md) | Model-local watermarks for incremental processing | Accepted |
-
 | [0009](0009-duration-weighted-uptime.md) | Duration-weighted uptime | Accepted |
