@@ -45,7 +45,7 @@ Run `dbt test --select <model>` and report:
 
 ### Full-refresh vs. incremental parity
 
-For incremental models a full-refresh and an incremental rebuild over the same data must land on identical results. Run this check on request, and proactively before approving a PR that changes a model's `unique_key`, its incremental filter, its buffer/merge CTEs, or the incremental window and checkpoint macros.
+For incremental models a full-refresh and an incremental rebuild over the same data must land on identical results. Run this check on request, and proactively before approving a PR that changes a model's `unique_key`, its incremental filter, its buffer/merge CTEs, or the incremental window and watermark macros.
 
 **Run it on the demo DuckDB, not Snowflake.** The demo (`demo/docker-compose.yml`) has a `dbt` service with the DuckDB adapter and the project mounted at `/kwwhat`; its data lives in the `demo_duckdb-data` volume (`raw.duckdb` for sources, `analytics.duckdb` for models). Every `dbt ...` command in the steps below runs inside that container, from the repo root:
 
@@ -68,23 +68,24 @@ Run all tests (`dbt test`, data and unit) once after the baseline and once after
    - `dbt seed`, `dbt run --full-refresh`, then `dbt test`
    - Snapshot each model: `dbt run-operation qa_snapshot_model --args '{model_name: <model>, suffix: full}'`
 2. **Empty start**
-   - `dbt run --full-refresh --vars '{"incremental_window": {"unit": "day", "length": 0}}'` creates the incremental tables with no rows, so all data then arrives through checkpoint windows.
-   - `dbt run-operation initialize_incremental_checkpoint --args '{completed_through_ts: "<start_processing_date> 00:00:00"}'`
+   - `dbt run --full-refresh --vars '{"incremental_window": {"unit": "day", "length": 0}}'` creates the incremental tables with no rows. Normal models then advance from `start_processing_date` using their own `max(incremental_ts)`.
 3. **One-day passes**
-   - Repeat `dbt run --vars '{"incremental_checkpoint_enabled": true, "incremental_window": {"unit": "day", "length": 1}}'` until `completed_through_ts` (`dbt run-operation show_incremental_checkpoint`) equals the source max (`max(ingested_timestamp)` of `stg_ocpp_logs`; compare with a query, the printed value is truncated). Then run one more pass: an empty window must succeed and leave the checkpoint `completed`.
-   - If a pass fails, the checkpoint stays `pending` and later passes are refused. Stop, report the failing model and window, and go to step 5.
-   - `dbt test`, then snapshot each model with `suffix: incremental`.
+   - Repeat `dbt run --vars '{"incremental_window": {"unit": "day", "length": 1}}'` over the whole project. Keep `int_status_changes`, `int_faulted_outages`, `int_offline_outages`, and `fact_downtime_daily` in the same invocation. The sparse consumers use the latest two distinct `int_status_changes.incremental_ts` values and must not be allowed to fall behind while the dense model advances separately.
+   - After each pass, compare the source maximum `stg_ocpp_logs.ingested_timestamp` with `max(incremental_ts)` in every normal incremental model. Exclude the three sparse consumers from this completion check because their own outputs may legitimately be empty; `int_status_changes` is their processing clock.
+   - Catch-up is complete when every normal incremental model has reached the source maximum. Run one more whole-project pass: an empty window must succeed without changing results.
+   - If a normal model's watermark does not advance, stop and investigate the project's qualifying-data invariant before continuing. Report the stalled model and its last watermark.
+   - Run `dbt test`, then snapshot each model with `suffix: incremental`.
 4. **Compare**, for each model
    - `dbt show --inline "select * from {{ target.database }}.{{ target.schema }}.<model>_full except select * from {{ target.database }}.{{ target.schema }}.<model>_incremental"`, and the same in the other direction.
    - Also compare `count(*)`: `except` ignores duplicate rows.
    - Always qualify snapshot tables with the database, as the macros do. On DuckDB the schema name alone is ambiguous: `ANALYTICS` matches both the schema and the `analytics` catalog.
    - Both diffs must be empty and the counts equal. Any divergent row is a correctness bug: report it like a failing `dbt test`, with the full row(s) and the first diverging model in DAG order (do not fix it yourself, see "What you do not do").
 5. **Clean up**
-   - `dbt run-operation reset_incremental_checkpoint`
    - Drop the snapshots of models that matched; leave diverging models' snapshots in place and name them, fully qualified, in the report.
    - Finish with `dbt run --full-refresh` so the demo tables are complete again.
 
 Add a row for this to the coverage table: `Full-refresh vs. incremental parity | row-level diff | ✓/✗ | ✓/✗`.
+
 
 ### Cross-adapter compatibility
 
