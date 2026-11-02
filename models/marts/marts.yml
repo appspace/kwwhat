@@ -12,7 +12,9 @@ models:
       - name: port_key
         description: "Surrogate key for the port the attempt occurred on, generated in place from charger_id + port_id (port_id resolved upstream in int_connector_preparing/int_transactions via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
-          - not_null
+          - not_null:
+              config:
+                severity: warn
           - relationships:
               arguments:
                 to: ref('dim_ports')
@@ -127,7 +129,7 @@ models:
             severity: error
 
   - name: fact_interval_data
-    description: "15-minute interval meter values. Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
+    description: "15-minute aggregates of meter values by measurand used to profile delivery within each transaction (energy, power, current, SoC per interval). Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
     columns:
       - name: interval_data_id
         description: "Null-safe surrogate key for the interval record, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start. Used as the incremental merge key."
@@ -137,7 +139,9 @@ models:
       - name: port_key
         description: "Surrogate key for the port the interval was recorded on, generated in place from charger_id + port_id (port_id resolved upstream in int_meter_values via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
-          - not_null
+          - not_null:
+              config:
+                severity: warn
           - relationships:
               arguments:
                 to: ref('dim_ports')
@@ -209,7 +213,7 @@ models:
               - meter_15min_interval_start
 
   - name: fact_downtime_daily
-    description: "One row per date_id + charger_id + port_id + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types. Both outage sources are inner-joined to int_ports before reaching this model, so port_id is always populated."
+    description: "One row per date_id + charger_id + port_id + reason. Daily aggregation of downtime at Port grain, splitting outages across calendar days. Reliability metrics are tracked per Port — the independently operated unit that serves one EV at a time. Currently covers OFFLINE and FAULTED outage types."
     columns:
       - name: date_id
         description: "Calendar date this row's minutes fall on"
