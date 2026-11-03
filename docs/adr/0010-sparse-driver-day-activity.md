@@ -14,16 +14,18 @@ metrics without fixing those metric definitions in a SQL mart.
 
 ## Decision
 
-Add `fact_driver_activity_daily`, a factless table with one row per known driver per
-calendar date on which at least one charge attempt started, across the entire network.
-Both successful and unsuccessful attempts establish presence. Exclude null id_tags and
-the reserved `UNKNOWN` / `__UNKNOWN__` markers. An id_tag identifies an observed credential,
-not necessarily a unique person. Inactive driver-days are absent.
+Add `fact_driver_activity_daily`, a factless table with one row per known credential per
+calendar date on which at least one charge attempt stopped, across the entire network.
+Successful and unsuccessful stopped attempts establish presence; null stops do not.
+Exclude null id_tags and reserved UNKNOWN / __UNKNOWN__ markers. Identity is an observed
+credential, not a resolved person. Inactive driver-days are absent.
 
-Cast the canonical `charge_attempt_start_ts` directly to DATE, preserving its existing
-timestamp basis without introducing a timezone conversion. Generate `driver_key` from
-id_tag exactly as in `dim_drivers` (ADR 0003), and `driver_activity_id` from id_tag + date_id.
-Store only those keys, date_id, and the technical `_incremental_ts` watermark.
+Cast canonical `charge_attempt_stop_ts` directly to DATE without timezone conversion.
+Generate driver_key from id_tag as in dim_drivers (ADR 0003), and driver_activity_id from
+id_tag + date_id. Store only those keys, date_id, and technical _incremental_ts.
+This stop-time basis revises the original start-date proposal per ADR 0014 and requires
+rebuilding existing start-based history alongside driver aggregates.
+
 
 Use the existing model-local bounded incremental window (ADR 0008). Read changed attempts
 by updated_ts, deduplicate their driver/date pairs, and merge by driver_activity_id.
