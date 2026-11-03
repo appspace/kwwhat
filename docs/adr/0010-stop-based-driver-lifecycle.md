@@ -1,4 +1,4 @@
-# 0013. Stop-based driver lifecycle activity
+# 0010. Stop-based driver lifecycle activity
 
 - Status: Proposed
 - Date: 2026-11-03
