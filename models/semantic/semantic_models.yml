@@ -415,6 +415,33 @@ semantic_models:
       - name: location_id
         type: categorical
 
+  - name: driver_activity
+    description: >
+      Sparse network-wide driver activity. One row per identified driver and active date,
+      from any charge attempt regardless of success. Count distinct drivers across each
+      requested window; daily distinct counts must not be summed. UNKNOWN is excluded upstream.
+    model: ref('fact_driver_activity_daily')
+    defaults:
+      agg_time_dimension: date_id
+    entities:
+      - name: driver_activity_record
+        type: primary
+        expr: driver_activity_id
+      - name: driver
+        type: foreign
+        expr: driver_key
+    dimensions:
+      - name: date_id
+        type: time
+        type_params:
+          time_granularity: day
+    measures:
+      - name: active_drivers_distinct
+        description: "Distinct identified driver credentials with activity. Non-additive across dates."
+        agg: count_distinct
+        expr: driver_key
+
+
 metrics:
   - name: total_visits
     description: "Total number of visits."
@@ -525,3 +552,154 @@ metrics:
     type: simple
     type_params:
       measure: downtime_minutes_detailed_total
+
+
+  - name: new_drivers
+    description: >
+      Identified drivers first observed on metric_time, using dim_drivers.first_seen_ts.
+      For daily overlapping-window accounting this is the new entrant count for both
+      7-day and 30-day windows, not all acquisitions within those trailing windows.
+    label: "New drivers"
+    type: simple
+    filter: "{{ Dimension('driver__id_tag') }} not in ('UNKNOWN', '__UNKNOWN__')"
+    type_params:
+      measure:
+        name: known_drivers_count
+        fill_nulls_with: 0
+        join_to_timespine: true
+
+  - name: active_drivers_7d
+    description: "Distinct identified drivers active on D-6 through D inclusive. Query metric_time__day; use completed, fully ingested as-of dates. Coarser queries select the last daily snapshot."
+    label: "7-day active drivers"
+    type: cumulative
+    type_params:
+      measure:
+        name: active_drivers_distinct
+        fill_nulls_with: 0
+        join_to_timespine: true
+      cumulative_type_params:
+        window: 7 days
+        period_agg: last
+
+  - name: active_drivers_30d
+    description: "Distinct identified drivers active on D-29 through D inclusive. Fixed 30 days, not a calendar month. Query metric_time__day; use completed, fully ingested as-of dates. Coarser queries select the last daily snapshot."
+    label: "30-day active drivers"
+    type: cumulative
+    type_params:
+      measure:
+        name: active_drivers_distinct
+        fill_nulls_with: 0
+        join_to_timespine: true
+      cumulative_type_params:
+        window: 30 days
+        period_agg: last
+
+  - name: driver_activity_union_8d
+    description: "Accounting helper: distinct drivers on D-7 through D, the union of today's and yesterday's trailing 7-day active sets. Not a headline engagement metric."
+    label: "Driver activity union (8 days, helper)"
+    type: cumulative
+    type_params:
+      measure:
+        name: active_drivers_distinct
+        fill_nulls_with: 0
+        join_to_timespine: true
+      cumulative_type_params:
+        window: 8 days
+        period_agg: last
+
+  - name: driver_activity_union_31d
+    description: "Accounting helper: distinct drivers on D-30 through D, the union of today's and yesterday's trailing 30-day active sets. Not a headline engagement metric."
+    label: "Driver activity union (31 days, helper)"
+    type: cumulative
+    type_params:
+      measure:
+        name: active_drivers_distinct
+        fill_nulls_with: 0
+        join_to_timespine: true
+      cumulative_type_params:
+        window: 31 days
+        period_agg: last
+
+  - name: retained_drivers_7d
+    description: "Drivers in both D-6..D and D-7..D-1 active sets. Does not require charging on D. Daily as-of accounting only; do not sum over dates."
+    label: "Retained drivers (7-day window)"
+    type: derived
+    type_params:
+      expr: current_active + previous_active - union_active
+      metrics:
+        - name: active_drivers_7d
+          alias: current_active
+        - name: active_drivers_7d
+          alias: previous_active
+          offset_window: 1 day
+        - name: driver_activity_union_8d
+          alias: union_active
+
+  - name: retained_drivers_30d
+    description: "Drivers in both D-29..D and D-30..D-1 active sets. Does not require charging on D. Daily as-of accounting only; do not sum over dates."
+    label: "Retained drivers (30-day window)"
+    type: derived
+    type_params:
+      expr: current_active + previous_active - union_active
+      metrics:
+        - name: active_drivers_30d
+          alias: current_active
+        - name: active_drivers_30d
+          alias: previous_active
+          offset_window: 1 day
+        - name: driver_activity_union_31d
+          alias: union_active
+
+  - name: resurrected_drivers_7d
+    description: "Drivers entering the trailing 7-day active set on D who were first seen before D and absent from yesterday's set. Daily as-of accounting only; requires aligned first-seen and activity history."
+    label: "Resurrected drivers (7-day window)"
+    type: derived
+    type_params:
+      expr: current_active - retained - new_entrants
+      metrics:
+        - name: active_drivers_7d
+          alias: current_active
+        - name: retained_drivers_7d
+          alias: retained
+        - name: new_drivers
+          alias: new_entrants
+
+  - name: resurrected_drivers_30d
+    description: "Drivers entering the trailing 30-day active set on D who were first seen before D and absent from yesterday's set. Daily as-of accounting only; requires aligned first-seen and activity history."
+    label: "Resurrected drivers (30-day window)"
+    type: derived
+    type_params:
+      expr: current_active - retained - new_entrants
+      metrics:
+        - name: active_drivers_30d
+          alias: current_active
+        - name: retained_drivers_30d
+          alias: retained
+        - name: new_drivers
+          alias: new_entrants
+
+  - name: churned_drivers_7d
+    description: "Drivers in yesterday's trailing 7-day active set but not today's. Their last activity was D-7. Window expiry, not evidence of permanent churn. Daily as-of accounting only."
+    label: "Churned drivers (7-day window)"
+    type: derived
+    type_params:
+      expr: previous_active - retained
+      metrics:
+        - name: active_drivers_7d
+          alias: previous_active
+          offset_window: 1 day
+        - name: retained_drivers_7d
+          alias: retained
+
+  - name: churned_drivers_30d
+    description: "Drivers in yesterday's trailing 30-day active set but not today's. Their last activity was D-30. Window expiry, not evidence of permanent churn. Daily as-of accounting only."
+    label: "Churned drivers (30-day window)"
+    type: derived
+    type_params:
+      expr: previous_active - retained
+      metrics:
+        - name: active_drivers_30d
+          alias: previous_active
+          offset_window: 1 day
+        - name: retained_drivers_30d
+          alias: retained
