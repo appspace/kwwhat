@@ -798,3 +798,104 @@ metrics:
           offset_window: 1 day
         - name: retained_drivers_30d
           alias: retained
+
+
+  - name: drivers_observed_to_date
+    description: >
+      Supporting lifecycle population: identified driver credentials first observed on or
+      before D, using dim_drivers.first_seen_ts. Excludes future acquisitions and reserved
+      unknown markers. All-time accumulation, not the current dimension row count.
+      Query metric_time__day with complete, aligned first-seen and activity history.
+    label: "Drivers observed to date (helper)"
+    type: cumulative
+    filter: "{{ Dimension('driver__id_tag') }} not in ('UNKNOWN', '__UNKNOWN__')"
+    type_params:
+      measure:
+        name: known_drivers_count
+        fill_nulls_with: 0
+        join_to_timespine: true
+      cumulative_type_params:
+        period_agg: last
+
+  - name: mad
+    description: >
+      Monthly active drivers: distinct identified credentials with any charge attempt
+      on D-29 through D inclusive. A fixed 30-day window, not a calendar month.
+      MAD equals MAD New + MAD retained + MAD resurrected. Query metric_time__day;
+      use completed, fully ingested dates with sufficient prehistory.
+    label: "MAD"
+    type: derived
+    type_params:
+      expr: active
+      metrics:
+        - name: active_drivers_30d
+          alias: active
+
+  - name: mad_new
+    description: >
+      Identified drivers first observed on D. Daily entrant count, not acquisitions
+      across the whole trailing month. Active lifecycle category; mutually exclusive
+      with MAD retained and MAD resurrected. Query metric_time__day.
+    label: "MAD New"
+    type: derived
+    type_params:
+      expr: new_entrants
+      metrics:
+        - name: new_drivers
+          alias: new_entrants
+
+  - name: mad_retained
+    description: >
+      Identified drivers active in both D-29..D and D-30..D-1. Includes drivers first
+      observed earlier in the trailing month; activity on D is not required.
+      Active lifecycle category. Query metric_time__day; do not sum across dates.
+    label: "MAD retained"
+    type: derived
+    type_params:
+      expr: retained
+      metrics:
+        - name: retained_drivers_30d
+          alias: retained
+
+  - name: mad_resurrected
+    description: >
+      Identified drivers active in D-29..D, absent from D-30..D-1, and first observed
+      before D. Active lifecycle category. A return on D after last activity on D-30
+      is retained, not resurrected. Query metric_time__day.
+    label: "MAD resurrected"
+    type: derived
+    type_params:
+      expr: resurrected
+      metrics:
+        - name: resurrected_drivers_30d
+          alias: resurrected
+
+  - name: mad_churned
+    description: >
+      Identified drivers active in D-30..D-1 but absent from D-29..D. Their last activity
+      was D-30. Inactive lifecycle category, outside MAD; window expiry does not imply
+      permanent churn. Drivers become stale the next day unless they return.
+      Query metric_time__day.
+    label: "MAD churned"
+    type: derived
+    type_params:
+      expr: churned
+      metrics:
+        - name: churned_drivers_30d
+          alias: churned
+
+  - name: mad_stale
+    description: >
+      Identified drivers first observed by D but inactive in both D-29..D and D-30..D-1.
+      Last activity was before D-30. Inactive lifecycle category, outside MAD.
+      The five lifecycle categories partition drivers_observed_to_date on each day.
+      Query metric_time__day with complete, aligned history; do not sum across dates.
+    label: "MAD stale"
+    type: derived
+    type_params:
+      expr: known_to_date - union_active
+      metrics:
+        - name: drivers_observed_to_date
+          alias: known_to_date
+        - name: driver_activity_union_31d
+          alias: union_active
