@@ -281,7 +281,7 @@ semantic_models:
         expr: case when transaction_id is not null then cast(is_successful as integer) else null end
 
   - name: drivers
-    description: "Driver dimension. One row per RFID id_tag observed in OCPP charge attempts, plus an UNKNOWN sentinel for unauthorized visits."
+    description: "Driver dimension. One row per RFID id_tag with an observed stopped charge attempt, plus an UNKNOWN sentinel for unauthorized visits. First/last seen and authorization attributes use attempt-stop ordering; open-only credentials are absent until a stop is observed."
     model: ref('dim_drivers')
     defaults:
       agg_time_dimension: first_seen_ts
@@ -300,10 +300,12 @@ semantic_models:
         type: categorical
       - name: first_seen_ts
         type: time
+        description: "Earliest observed non-null attempt stop, limited by available source history; default acquisition time."
         type_params:
           time_granularity: day
       - name: last_seen_ts
         type: time
+        description: "Latest observed non-null attempt stop."
         type_params:
           time_granularity: day
     measures:
