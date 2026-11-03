@@ -77,89 +77,135 @@ historical/current-state attributions.
 
 ## Driver activity and growth accounting
 
-An identified driver is active when they make any charge attempt, including unsuccessful
-attempts. The unit is an observed credential (`id_tag`), not a resolved human identity.
-Activity and acquisition metrics exclude unauthenticated drivers.
+A driver is active when at least one identified charge attempt **stops** in the reporting
+window, successful or unsuccessful. Use non-null `charge_attempt_stop_ts`; open attempts
+do not establish lifecycle activity. Identity is the observed `id_tag` credential, not a
+resolved human. Null and reserved unknown credentials are excluded from driver metrics.
+`dim_drivers.first_seen_ts` / `last_seen_ts` are earliest/latest observed attempt stops;
+authorization attributes follow stop ordering. Daily activity uses the stop's date.
 
 | Metric | Meaning on as-of date D |
 | --- | --- |
-| `active_drivers_7d` | Distinct drivers active on D-6 through D inclusive |
-| `active_drivers_30d` | Distinct drivers active on D-29 through D; fixed 30 days, not a calendar month |
-| `new_drivers` | Drivers first observed on D, shared by both window sizes |
+| `active_drivers_7d` | Distinct drivers with a stop on D-6 through D inclusive |
+| `active_drivers_30d` | Distinct drivers with a stop on D-29 through D; fixed 30 days, not a calendar month |
+| `new_drivers` | Drivers whose first-ever observed stop is on D, shared by both window sizes |
 | `retained_drivers_7d` / `retained_drivers_30d` | Drivers in both today's and yesterday's corresponding rolling active sets |
-| `resurrected_drivers_7d` / `resurrected_drivers_30d` | Drivers entering today's rolling set after absence from yesterday's set, excluding first-ever drivers |
-| `churned_drivers_7d` / `churned_drivers_30d` | Drivers in yesterday's rolling set who have aged out of today's set |
+| `resurrected_drivers_7d` / `resurrected_drivers_30d` | Drivers entering today's set after absence from yesterday's, excluding first-ever drivers |
+| `churned_drivers_7d` / `churned_drivers_30d` | Drivers in yesterday's set who have aged out of today's |
 
-Retained does not require charging again on D. Churned describes window expiry, not permanent
-customer loss. `new_drivers` counts acquisitions on D, not all acquisitions within a trailing
-window. First-ever means first observed in the project's available history.
+Retained does not require another stop on D. Churned is window expiry, not permanent loss.
+New counts first stops on D, not all acquisitions within the trailing window. First-ever
+means first observed in available history. First/last seen cannot reconstruct historical
+active sets; current authorization attributes are Type 1, not historical snapshots.
+Network-wide activity has no location/Port grain, so local new/retention metrics are not
+defined by these published metrics.
 
-The `driver_activity_union_8d` and `driver_activity_union_31d` helper metrics count the union
-of today's and yesterday's active sets. They support exact set arithmetic without another
-stored state table and are not headline engagement metrics. The daily identities are:
+The `driver_activity_union_8d` and `driver_activity_union_31d` helpers count the union of
+today's and yesterday's rolling sets. They are accounting helpers, not headline KPIs:
 
 - active = new + retained + resurrected
 - change in active = new + resurrected - churned
 
-Query growth accounting with `metric_time__day` and an explicit date range. Use completed,
-fully ingested dates with enough prehistory for the 8-day or 31-day union; initial history
-boundaries are warm-up. Metric values are not automatically capped to source completeness.
-Filter metric time instead of activity date to preserve the lookback. Do not sum daily
-active or retained counts. Coarser active queries select the last daily snapshot; these
-definitions do not support coarser growth-accounting queries.
+Query `metric_time__day` with an explicit date range and completed, fully ingested dates.
+Preserve enough prehistory for the 8/31-day union; initial boundaries are warm-up. Filter
+metric time, not activity date, to preserve lookback. Do not sum daily distinct active or
+retained counts. Coarser active queries select the last daily snapshot; growth-accounting
+identities are daily only. Metric values are not automatically capped to source coverage.
 
-`drivers` uses first-seen time for acquisitions; its last-seen attribute cannot reconstruct
-historical active sets. Current authorization attributes are Type 1 and do not represent
-historical authorization state. Network activity has no location/Port grain, so local
-new-driver and local-retention metrics are not defined.
+The stop-time migration changes historical dates and requires rebuilding
+`int_driver_aggregates` and `fact_driver_activity_daily`, then refreshing `dim_drivers`,
+with aligned source/update coverage. An ordinary merge retains old start minima and
+obsolete start-date driver-days. Check bounded processing windows and catch up before
+exposing results. See [ADR 0014](../../docs/adr/0014-stop-based-driver-lifecycle.md).
 
 ### MAD lifecycle stack
 
-`mad` means monthly active drivers over a **fixed trailing 30 days**, not a calendar
-month. For each reporting day D, compare D-29..D with D-30..D-1:
+MAD uses a **fixed trailing 30 days**, not a calendar month. On D, compare D-29..D with
+D-30..D-1, using stopped attempts:
 
 | Metric | Daily classification |
 | --- | --- |
-| `mad_new` | First observed on D |
-| `mad_retained` | Active in both windows, whether or not they charged on D |
-| `mad_resurrected` | Active in the current window only, first observed before D |
-| `mad_churned` | Active in the previous window only; last activity on D-30 |
-| `mad_stale` | Observed by D, active in neither window; last activity before D-30 |
+| `mad_new` | First-ever observed stop on D |
+| `mad_retained` | Active in both windows, whether or not another attempt stops on D |
+| `mad_resurrected` | Active in the current window only, first stop before D |
+| `mad_churned` | Active in the previous window only; last stop on D-30 |
+| `mad_stale` | First stop by D, active in neither window; last stop before D-30 |
 
-The five categories are mutually exclusive and exhaustive over **identified drivers first
-observed by D**. Drivers first observed after D are excluded from that day's population.
-`drivers_observed_to_date` is an all-time cumulative acquisition helper, not today's total
-number of rows in `dim_drivers`.
+The five categories partition identified credentials first observed by D; future first
+stops are excluded. `drivers_observed_to_date` is an all-time cumulative acquisition
+helper, not today's dimension row count.
 
 - `mad = mad_new + mad_retained + mad_resurrected`
 - `drivers_observed_to_date = mad_new + mad_retained + mad_resurrected + mad_churned + mad_stale`
 - `mad_stale = drivers_observed_to_date - driver_activity_union_31d`
 
-For a daily stacked lifecycle chart, use the five categories as positive series, with
-New, retained, and resurrected together as the active portion. Churned and stale are
-inactive; the complete stack represents all drivers observed by D, not MAD alone.
-Use just the three active categories for a stack whose height is MAD. Do not add `mad`
-as a sixth lifecycle series because that double-counts the active categories.
+For a daily lifecycle stack, plot the five positive categories. New/retained/resurrected
+are active; churned/stale are inactive. Use just the three active categories for a MAD
+stack. Do not add MAD as a sixth category, which double-counts the active population.
 
-New is first observed **on D**, not during the last 30 days. A driver first seen five days
-ago is retained because the two overlapping windows both contain that first attempt.
-A return on D after activity on D-30 is also retained; a return after last activity before
-D-30 is resurrected. Churned is a one-day window-expiry transition; without a return,
-that driver is stale the following day.
+New means first stop **on D**, not within the trailing month. A driver first stopping
+five days ago is retained since both overlapping windows include that stop. A return
+on D following a stop on D-30 is retained; a return after the last stop before D-30 is
+resurrected. Churned is a one-day expiry; without a return the driver is stale next day.
 
-These metrics reuse the existing 30-day accounting definitions and store no inactive
-driver-days. Query `metric_time__day`, preserve the lookback by filtering metric time,
-and use completed, fully ingested dates with aligned first-seen/activity history and
-sufficient prehistory. Five-way accounting is not defined at coarser time grains, and
-stale/retained/active daily snapshots must not be summed over dates. Source history and
-watermark limitations remain those documented above and in ADRs 0010 and 0011.
-See [ADR 0012](../../docs/adr/0012-mad-lifecycle-partition.md).
+No inactive driver-days are stored. Daily snapshots are non-additive. Use aligned
+first-stop/activity history and sufficient prehistory; inherited watermark and source
+retraction limitations still apply. See [ADR 0012](../../docs/adr/0012-mad-lifecycle-partition.md)
+for window arithmetic and ADR 0014 for the revised event-time basis.
+
+### Selected-period driver cohorts for Chat BI investigations
+
+For questions such as "did new drivers explain the visit-success dip in the last two
+hours?", use the [Chat BI skill](../../demo/chat-bi/skills/driver-period-cohorts/SKILL.md)
+and [DuckDB sample SQL](../../demo/chat-bi/skills/driver-period-cohorts/references/period_driver_cohorts.sql).
+This is query-time analysis, not a new published metric or a static semantic dimension
+that automatically receives a query-selected reporting start.
+
+For [S, E), identified drivers are active with at least one attempt stop in that window:
+
+| Selected-period cohort | Definition |
+| --- | --- |
+| New | First-ever observed attempt stop in [S, E) |
+| Retained | First stop before S, with a stop in [S minus 30 days, S) |
+| Resurrected | First stop before S, with no stop in that preceding window |
+
+A first attempt starting before S and stopping inside is New. Freeze one membership per
+credential for the whole period, including repeated attempts/visits. With complete,
+aligned history, active = new + retained + resurrected. Churned/stale are inactive;
+unknown credentials are excluded from driver counts and shown separately for visits.
+
+Use timestamped attempts and migrated stop-based `dim_drivers.first_seen_ts`. Daily
+activity cannot resolve intraday boundaries; current last seen cannot reconstruct
+pre-period history. Keep history network-wide when current traffic is location-filtered.
+Flag inconsistent history and confirm the coordinated stop-time rebuild, rather than
+mixing old start-based dimension values with stop-based queries. The 14-day seed alone
+cannot establish complete 30-day or lifetime history.
+
+Selected-period New means first stop anywhere in [S, E), while daily MAD New means first
+stop on D. Selected-period retained/resurrected use the pre-S lookback; daily metrics
+retain their existing overlapping-window formulas. Both now use stop-based activity.
+
+Processing has a **35-minute SLA**. If met, the expected processed cutoff is captured
+clock minus 35 minutes. Literal last two hours remains [clock minus 120 minutes, clock),
+with recent results provisional. Latest fully processed two hours means
+[clock minus 155 minutes, clock minus 35 minutes). Never silently shift requested bounds.
+The SLA addresses processing lag, not visit finalization.
+
+For visit analysis, join the one-row-per-driver cohort without fanout and preserve
+mart success definitions. Visits use visit_end_ts, not attempt-stop attribution. Keep
+unmatched identified visits visible separately from unidentified visits. Do not treat
+ongoing visits as failed; non-null end/stop timestamps do not prove buffered visits are
+finalized. Use visit shares and matched historical cohort success rates to explain mix,
+not driver shares or causal claims. See the skill and
+[ADR 0013](../../docs/adr/0013-query-time-driver-period-cohorts.md).
 
 
 ## Grouping and join guidance
 
 - Use `metric_time` for each metric's default time basis; it maps to the column listed above.
-  Combining visits and activity on a date compares visit endings with attempt-start activity.
+  Driver activity/acquisitions use stops; attempt-level measures retain start attribution,
+  and visit metrics retain visit-end attribution. These populations need not match.
+
 - Use `location__location_id` for metrics with the conformed location entity. Visits use the
   visit location; attempts, uptime, and downtime use their stored/resolved location keys.
 - A visit's `port` entity and `charge_attempt` entity refer to its **last** Port and attempt,

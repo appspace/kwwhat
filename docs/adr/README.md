@@ -31,6 +31,9 @@ project-wide convention.
 | [0010](0010-sparse-driver-day-activity.md) | Sparse driver-day activity | Proposed |
 | [0011](0011-overlapping-driver-growth-accounting.md) | Overlapping-window driver growth accounting | Proposed |
 | [0012](0012-mad-lifecycle-partition.md) | Daily MAD lifecycle partition over overlapping 30-day windows | Proposed |
+| [0013](0013-stop-based-driver-lifecycle.md) | Stop-based driver lifecycle activity | Proposed |
+
+
 
 
 

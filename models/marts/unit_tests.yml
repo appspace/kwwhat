@@ -1714,7 +1714,7 @@ unit_tests:
 
 
   - name: test_driver_activity_daily_deduplicates_known_driver_days
-    description: "Multiple attempts collapse within a driver-day, while different drivers and dates remain separate regardless of success. Unidentified activity is excluded."
+    description: "Multiple stops collapse within a driver-day regardless of success; cross-midnight attempts use the stop date and open/unidentified attempts are absent."
     model: fact_driver_activity_daily
     overrides:
       macros:
@@ -1727,13 +1727,14 @@ unit_tests:
           - {ingested_timestamp: '2025-10-03 12:00:00'}
       - input: ref('fact_charge_attempts')
         rows:
-          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-10-02 00:00:00', updated_ts: '2025-10-02 01:00:00', is_successful: false}
-          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-10-02 23:59:59', updated_ts: '2025-10-03 00:00:00', is_successful: true}
-          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-10-03 00:00:00', updated_ts: '2025-10-03 01:00:00', is_successful: false}
-          - {id_tag: 'TAG-002', charge_attempt_start_ts: '2025-10-02 12:00:00', updated_ts: '2025-10-02 13:00:00', is_successful: false}
-          - {id_tag: null, charge_attempt_start_ts: '2025-10-02 12:00:00', updated_ts: '2025-10-02 13:00:00'}
-          - {id_tag: '__UNKNOWN__', charge_attempt_start_ts: '2025-10-02 12:00:00', updated_ts: '2025-10-02 13:00:00'}
-          - {id_tag: 'UNKNOWN', charge_attempt_start_ts: '2025-10-02 12:00:00', updated_ts: '2025-10-02 13:00:00'}
+          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-10-01 23:59:00', charge_attempt_stop_ts: '2025-10-02 00:00:00', updated_ts: '2025-10-02 01:00:00', is_successful: false}
+          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-10-02 01:00:00', charge_attempt_stop_ts: '2025-10-02 02:00:00', updated_ts: '2025-10-02 03:00:00', is_successful: true}
+          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-10-02 23:59:59', charge_attempt_stop_ts: '2025-10-03 00:00:00', updated_ts: '2025-10-03 01:00:00', is_successful: false}
+          - {id_tag: 'TAG-002', charge_attempt_start_ts: '2025-10-01 12:00:00', charge_attempt_stop_ts: '2025-10-02 12:00:00', updated_ts: '2025-10-02 13:00:00', is_successful: false}
+          - {id_tag: null, charge_attempt_stop_ts: '2025-10-02 12:00:00', updated_ts: '2025-10-02 13:00:00'}
+          - {id_tag: '__UNKNOWN__', charge_attempt_stop_ts: '2025-10-02 12:00:00', updated_ts: '2025-10-02 13:00:00'}
+          - {id_tag: 'UNKNOWN', charge_attempt_stop_ts: '2025-10-02 12:00:00', updated_ts: '2025-10-02 13:00:00'}
+          - {id_tag: 'OPEN', charge_attempt_start_ts: '2025-10-01 12:00:00', charge_attempt_stop_ts: null, updated_ts: '2025-10-02 13:00:00'}
     expect:
       rows:
         - {date_id: '2025-10-02', _incremental_ts: '2025-10-03 12:00:00'}
@@ -1741,7 +1742,7 @@ unit_tests:
         - {date_id: '2025-10-03', _incremental_ts: '2025-10-03 12:00:00'}
 
   - name: test_driver_activity_daily_incremental_late_activity_and_boundaries
-    description: "Incremental selection uses updated_ts, not activity date, with a strict lower and inclusive upper bound. Existing driver-days are emitted for merge without accumulating counts."
+    description: "Stop arrival creates presence on the stop date; updated_ts has strict lower/inclusive upper bounds, and an old start does not exclude a late stop."
     model: fact_driver_activity_daily
     overrides:
       macros:
@@ -1756,18 +1757,19 @@ unit_tests:
           - {ingested_timestamp: '2025-10-03 12:00:00'}
       - input: ref('fact_charge_attempts')
         rows:
-          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-10-01 10:00:00', updated_ts: '2025-10-03 01:00:00'}
-          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-10-01 11:00:00', updated_ts: '2025-10-03 02:00:00'}
-          - {id_tag: 'TAG-002', charge_attempt_start_ts: '2025-10-02 10:00:00', updated_ts: '2025-10-03 00:00:00'}
-          - {id_tag: 'TAG-003', charge_attempt_start_ts: '2025-10-03 10:00:00', updated_ts: '2025-10-03 12:00:00'}
-          - {id_tag: 'TAG-004', charge_attempt_start_ts: '2025-10-03 11:00:00', updated_ts: '2025-10-03 12:00:01'}
+          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-10-01 10:00:00', charge_attempt_stop_ts: '2025-10-02 01:00:00', updated_ts: '2025-10-03 01:00:00'}
+          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-10-01 11:00:00', charge_attempt_stop_ts: '2025-10-02 02:00:00', updated_ts: '2025-10-03 02:00:00'}
+          - {id_tag: 'TAG-002', charge_attempt_start_ts: '2025-10-02 10:00:00', charge_attempt_stop_ts: '2025-10-02 11:00:00', updated_ts: '2025-10-03 00:00:00'}
+          - {id_tag: 'TAG-003', charge_attempt_start_ts: '2025-10-02 10:00:00', charge_attempt_stop_ts: '2025-10-03 10:00:00', updated_ts: '2025-10-03 12:00:00'}
+          - {id_tag: 'TAG-004', charge_attempt_stop_ts: '2025-10-03 11:00:00', updated_ts: '2025-10-03 12:00:01'}
+          - {id_tag: 'OPEN', charge_attempt_start_ts: '2025-10-03 01:00:00', charge_attempt_stop_ts: null, updated_ts: '2025-10-03 02:00:00'}
     expect:
       rows:
-        - {date_id: '2025-10-01', _incremental_ts: '2025-10-03 12:00:00'}
+        - {date_id: '2025-10-02', _incremental_ts: '2025-10-03 12:00:00'}
         - {date_id: '2025-10-03', _incremental_ts: '2025-10-03 12:00:00'}
 
   - name: test_driver_activity_daily_unidentified_only_window_is_empty
-    description: "An incremental window containing only unidentified attempts emits no activity or checkpoint sentinel rows."
+    description: "An incremental window containing only unidentified or open attempts emits no activity or checkpoint sentinel rows."
     model: fact_driver_activity_daily
     overrides:
       macros:
@@ -1782,12 +1784,13 @@ unit_tests:
           - {ingested_timestamp: '2025-10-02 12:00:00'}
       - input: ref('fact_charge_attempts')
         rows:
-          - {id_tag: null, charge_attempt_start_ts: '2025-10-02 10:00:00', updated_ts: '2025-10-02 11:00:00'}
+          - {id_tag: null, charge_attempt_stop_ts: '2025-10-02 10:00:00', updated_ts: '2025-10-02 11:00:00'}
+          - {id_tag: 'OPEN', charge_attempt_start_ts: '2025-10-02 10:00:00', charge_attempt_stop_ts: null, updated_ts: '2025-10-02 11:00:00'}
     expect:
       rows: []
 
   - name: test_driver_activity_daily_respects_bounded_processing_window
-    description: "The configured window caps processing even when source ingestion is further ahead. Late activity inside the update window is retained."
+    description: "The configured update window bounds processing while an older stopped attempt contributes its stop date."
     model: fact_driver_activity_daily
     overrides:
       macros:
@@ -1801,8 +1804,8 @@ unit_tests:
           - {ingested_timestamp: '2025-10-05 00:00:00'}
       - input: ref('fact_charge_attempts')
         rows:
-          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-09-30 10:00:00', updated_ts: '2025-10-02 00:00:00'}
-          - {id_tag: 'TAG-002', charge_attempt_start_ts: '2025-10-02 10:00:00', updated_ts: '2025-10-02 11:00:00'}
+          - {id_tag: 'TAG-001', charge_attempt_start_ts: '2025-09-29 10:00:00', charge_attempt_stop_ts: '2025-09-30 10:00:00', updated_ts: '2025-10-02 00:00:00'}
+          - {id_tag: 'TAG-002', charge_attempt_stop_ts: '2025-10-02 10:00:00', updated_ts: '2025-10-02 11:00:00'}
     expect:
       rows:
         - {date_id: '2025-09-30', _incremental_ts: '2025-10-02 00:00:00'}
