@@ -1,12 +1,11 @@
 # Semantic models and metrics
 
-Use the dbt Semantic Layer for governed charging reliability, driver visit outcomes, and
-historical driver activity. Definitions live in `semantic_models.yml` and reference marts
+Use the dbt Semantic Layer for governed charging reliability and driver growth accounting. 
+Definitions live in `semantic_models.yml` and reference marts
 only. The file uses the supported legacy YAML format with separate semantic models,
-measures, and metrics. A measure is a building block; only a declared metric is directly
-queryable as a metric.
+measures, and metrics.
 
-Start with [the project definitions](../../README.md#definitions) for the Charger, Port,
+Start with the project definitions for the Charger, Port,
 Connector, charge attempt, and visit terminology. Reliability is measured at Port grain;
 a visit can span several ports, while driver activity is network-wide.
 
@@ -74,13 +73,13 @@ Use `total_downtime_minutes_detailed` to explain downtime, not as an additional 
 quantity to add to `total_downtime_minutes`. The two totals should reconcile for aligned
 scope and processing coverage. OFFLINE means no heartbeat; FAULTED means the Port reported
 a fault. An outage's resolved error code and a Connector's latest error are different
-historical/current-state attributions. See [ADR 0009](../../docs/adr/0009-duration-weighted-uptime.md).
+historical/current-state attributions.
 
 ## Driver activity and growth accounting
 
 An identified driver is active when they make any charge attempt, including unsuccessful
 attempts. The unit is an observed credential (`id_tag`), not a resolved human identity.
-Null and reserved UNKNOWN identifiers are excluded from activity and acquisition metrics.
+Activity and acquisition metrics exclude unauthenticated drivers.
 
 | Metric | Meaning on as-of date D |
 | --- | --- |
@@ -114,9 +113,6 @@ historical active sets. Current authorization attributes are Type 1 and do not r
 historical authorization state. Network activity has no location/Port grain, so local
 new-driver and local-retention metrics are not defined.
 
-See [ADR 0010](../../docs/adr/0010-sparse-driver-day-activity.md) and
-[ADR 0011](../../docs/adr/0011-overlapping-driver-growth-accounting.md).
-
 ## Grouping and join guidance
 
 - Use `metric_time` for each metric's default time basis; it maps to the column listed above.
@@ -125,11 +121,8 @@ See [ADR 0010](../../docs/adr/0010-sparse-driver-day-activity.md) and
   visit location; attempts, uptime, and downtime use their stored/resolved location keys.
 - A visit's `port` entity and `charge_attempt` entity refer to its **last** Port and attempt,
   not every Port or attempt involved in the visit. First/last Charger dimensions are explicit.
-- Ports and Connectors carry `charger_id`, not `location_id`. Their current location is reached
-  through the Charger entity. Removed `port__location_id` and `connector__location_id`
-  definitions referenced nonexistent columns. For visit metrics, use
-  `port__charger__location_id` for the last Port's current Charger location, or
-  `location__location_id` for the visit's stored location attribution.
+- Ports and Connectors carry `charger_id`. Their current location is reached
+  through the Charger entity.
 
 - Hardware dimensions describe current state. `connector__latest_status` is not historical
   status at an outage or visit timestamp, and Charger location changes are not SCD history.
@@ -138,38 +131,3 @@ See [ADR 0010](../../docs/adr/0010-sparse-driver-day-activity.md) and
   identifies the code scheme, not the Charger manufacturer.
 - Connector metadata is exposed for current operational context; there is no historical
   Connector foreign entity on the attempt, visit, or activity semantic models.
-
-## Validation and publishing
-
-Run `dbt parse`, followed by `dbt sl validate` against the intended warehouse environment.
-Validation checks semantic SQL and referenced columns; it does not prove ingestion completeness.
-The regression tests check first-seen/activity alignment, configured growth expressions against
-synthetic driver sets, and agreement between the attempt success dimension and the mart flag.
-Formula tests complement MetricFlow planner and runtime checks.
-
-Consume rolling metrics through the dbt Semantic Layer. The OSI export currently warns that
-it cannot represent cumulative window semantics, so it is not an equivalent rolling-metric
-contract. Snowflake native semantic views use a separate specification and deployment;
-this checkout does not include `snowflake/semantic_view.yml` or `snowflake/README.md`.
-
-## Integrations
-
-**Steep:** Connect the dbt Semantic Layer to query these metrics in
-[Steep](https://steep.app/). See the [dbt integration guide](https://help.steep.app/integrations/dbt-cloud).
-
-<img width="1376" height="658" alt="Steep metric exploration" src="https://github.com/user-attachments/assets/d1870b3a-06c3-4f49-9c59-921420413cda" />
-
-**Google Sheets:** Use the [dbt Semantic Layer add-on](https://docs.getdbt.com/docs/cloud-integrations/semantic-layer/gsheets)
-to query governed metrics and dimensions from a spreadsheet.
-
-<img width="1004" height="620" alt="Google Sheets Semantic Layer integration" src="https://github.com/user-attachments/assets/4bb65624-09d8-46c9-97d0-6a1f14cc1578" />
-
-**Snowflake Cortex Analyst:** A separately deployed Snowflake semantic view can provide native
-context. It is not created by this dbt semantic YAML and metric parity should not be assumed.
-See the [Snowflake semantic views overview](https://docs.snowflake.com/en/user-guide/views-semantic/overview).
-
-<img width="1296" height="760" alt="Snowflake Intelligence example" src="https://github.com/user-attachments/assets/b9735ef5-524c-442a-98c4-d68528c57732" />
-
-**MCP and in-house agents:** The [dbt MCP server](https://docs.getdbt.com/docs/dbt-ai/about-mcp)
-exposes dbt models, metrics, and lineage to compatible clients. Prefer governed metrics for
-analytical answers; operational SQL access is not a substitute for a declared metric.
