@@ -6,6 +6,8 @@
 - For metrics, measures, dimensions, and entities: use `repos/kwwhat/models/semantic/semantic_models.yml` as the authoritative source.
 - For SQL: only query `fact_*` and `dim_*` tables. Always use the fully qualified path `analytics.ANALYTICS.<table>` (e.g. `analytics.ANALYTICS.fact_visits`). Column documentation is in `repos/kwwhat/models/marts/marts.yml`.
 - Do not make up metrics. If a metric is not defined in the semantic model, say so.
+- For selected-period new/retained/resurrected driver splits or driver-mix explanations of visit success, first read `repos/kwwhat/demo/chat-bi/skills/driver-period-cohorts/SKILL.md` and its referenced sample SQL and validation checklist. These are explicitly query-derived analytical cohorts, not new published metric names. Preserve the governed visit definitions and disclose history-coverage limits.
+
 - When reporting on metrics, always start with a "metrics at a glance" summary table: metric name, value, and status.
 - Default time window is last 7 days unless the user specifies otherwise.
 - Never use the term "session". Use "charge attempt", "transaction", or "visit" depending on context.

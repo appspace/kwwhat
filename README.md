@@ -50,14 +50,18 @@ This project is designed for AI engineers, data practitioners, and CSMS provider
 
 
 Metrics are defined in the dbt Semantic Layer. Visit metrics use visit end time; driver
-activity uses charge-attempt start dates. A driver means an observed `id_tag` credential,
-not a resolved person. Activity includes unsuccessful attempts and excludes anonymous IDs.
+activity uses non-null charge-attempt stop timestamps and their calendar dates.
+Driver first/last seen and acquisition dates use the same stop-time definition. Open
+attempts do not establish lifecycle activity. A driver is an observed `id_tag` credential,
+not a resolved person; unsuccessful stopped attempts count and anonymous IDs are excluded.
 Driver growth accounting is daily and compares overlapping windows shifted by one day.
 Use completed, fully ingested dates with sufficient prehistory; do not sum daily distinct
-active or retained counts.
+active or retained counts. The start-to-stop migration requires a coordinated history
+rebuild, described in [ADR 0014](docs/adr/0014-stop-based-driver-lifecycle.md).
 
 See the [semantic model and metric guide](models/semantic/README.md) for all model grains,
 default time dimensions, join guidance, rolling-window helpers, and integration details.
+
 
 ---
 
