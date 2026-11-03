@@ -57,3 +57,47 @@ Snowflake — The Snowflake semantic view (`snowflake/README.md`) is for Cortex 
 
 
 MCP server and in-house text-to-SQL — Enable the [dbt MCP server](https://docs.getdbt.com/docs/dbt-ai/about-mcp) to expose dbt models, metrics, and lineage to MCP clients (e.g. Cursor, Claude Desktop). Use it to implement in-house text-to-SQL or agents that query the Semantic Layer with governed metric definitions instead of raw tables. Check these [5 steps to deploy an analytics agent on dbt MCP to your whole company](https://thenewaiorder.substack.com/p/5-steps-to-deploy-an-analytics-agent) to learn from the founder of [nao](https://github.com/getnao/nao), an open-source project for deploying AI agents on file system context plus any MCP.
+
+
+## Driver activity and growth accounting
+
+`driver_activity` reads the sparse `fact_driver_activity_daily` table. An identified driver
+is active when they make any charge attempt, including unsuccessful attempts. The unit is
+an observed driver credential (id_tag), not a resolved person. Unknown activity is excluded.
+
+| Metric | Meaning on as-of date D |
+| ------ | ---------------------- |
+| active_drivers_7d | Distinct drivers active on D-6 through D |
+| active_drivers_30d | Distinct drivers active on D-29 through D; fixed 30 days, not a calendar month |
+| new_drivers | Drivers whose first observed activity was on D, shared by both window sizes |
+| retained_drivers_7d / retained_drivers_30d | Drivers in both today's and yesterday's corresponding rolling active sets |
+| resurrected_drivers_7d / resurrected_drivers_30d | Drivers entering today's rolling set after being absent from yesterday's set, excluding first-ever drivers |
+| churned_drivers_7d / churned_drivers_30d | Drivers in yesterday's rolling set who have aged out of today's set |
+
+Retained does not require charging again on D. Churned describes window expiry, not permanent
+customer loss. The 8-day and 31-day `driver_activity_union_*` helper metrics provide the union
+needed for exact set arithmetic without another stored state table.
+
+Query growth accounting with `metric_time__day` and an explicit date range. Use completed,
+fully ingested dates only, with enough prehistory for the 8-day or 31-day union. Metric values
+are not automatically capped to source completeness. At initial history boundaries, prior
+activity is unknown, so treat those dates as warm-up. Filter metric_time rather than activity
+date to preserve the lookback. Do not sum daily active or retained counts. Coarser active
+queries return the last daily snapshot; coarser growth-accounting queries are not supported
+by these definitions.
+
+The daily identities are active = new + retained + resurrected, and change in active = new +
+resurrected - churned. First-seen data comes from `dim_drivers`; a data test checks its alignment
+with sparse activity. Definitions and limitations are in
+[ADR 0011](../../docs/adr/0011-overlapping-driver-growth-accounting.md).
+
+
+Validation includes `assert_driver_activity_first_seen_consistent` for warehouse history
+alignment and `assert_overlapping_driver_growth_formulas` for synthetic driver-set boundary
+cases against the configured derived expressions. The latter checks formula arithmetic,
+not the full MetricFlow query planner; warehouse semantic validation and query checks are
+also required.
+
+Consume these metrics through the dbt Semantic Layer. The OSI export currently warns that
+it cannot represent cumulative window semantics; exporting these definitions does not
+preserve the rolling-count contract.
