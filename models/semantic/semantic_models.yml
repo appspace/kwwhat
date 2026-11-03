@@ -1,8 +1,11 @@
 version: 2
 
+# Legacy dbt Semantic Layer spec. Preserve public metric names and mart-owned outcome flags.
 semantic_models:
   - name: chargers
-    description: "Charger dimension. Use to slice metrics by charger lifecycle attributes such as is_commissioned and location."
+    description: >
+      One row per Charger. Current Type 1 commissioning and location attributes, not
+      historical lifecycle state at a metric timestamp. Charger identity uses charger_id.
     model: ref('dim_chargers')
     entities:
       - name: charger
@@ -11,45 +14,70 @@ semantic_models:
     dimensions:
       - name: is_commissioned
         type: categorical
-        description: "True if the charger has not been decommissioned."
+        description: "Current flag: decommissioned_ts is null. Not an as-of commissioning history."
       - name: location_id
         type: categorical
+        description: "Current Charger location; use a fact's location entity for its stored location attribution."
 
   - name: ports
-    description: "Port dimension. Use to slice uptime and downtime metrics by port."
+    description: >
+      One row per Charger + Port (EVSE), keyed by port_key. A Port can charge one vehicle
+      at a time and is the reliability grain. Current location is available through the
+      charger entity; dim_ports has no location_id column.
     model: ref('dim_ports')
     entities:
       - name: port
         type: primary
         expr: port_key
+      - name: charger
+        type: foreign
+        expr: charger_id
     dimensions:
       - name: charger_id
         type: categorical
-      - name: location_id
+        description: "Charger containing this Port; the Port identifier is only unique within that Charger."
+      - name: port_id
         type: categorical
+        description: "Natural Port identifier within its Charger, not a globally unique Port key."
 
   - name: connectors
-    description: "Connector dimension. Use to slice metrics by connector type or current status."
+    description: >
+      One row per Charger + Port + Connector, keyed by connector_key. Current connector
+      type, status, and resolved latest error; not event-time status history. Current
+      location is available through the charger entity. Historical facts do not expose
+      a connector foreign entity, so this is not an automatic connector-type slice of visits.
     model: ref('dim_connectors')
     entities:
       - name: connector
         type: primary
         expr: connector_key
+      - name: charger
+        type: foreign
+        expr: charger_id
       - name: error_code
         type: foreign
         expr: latest_error_code_key
     dimensions:
       - name: connector_type
         type: categorical
+        description: "Plug standard, such as CCS, NACS, CHAdeMO, Type1, or Type2."
       - name: latest_status
         type: categorical
+        description: "Most recently reported OCPP status; null if no status has been received. Not historical status."
       - name: charger_id
         type: categorical
-      - name: location_id
+      - name: port_id
         type: categorical
+        description: "Port containing this Connector, scoped to charger_id."
+      - name: connector_id
+        type: categorical
+        description: "Connector identifier within the Charger/Port; use connector_key for global identity."
 
   - name: error_codes
-    description: "Error codes chargers report when a port faults. Use to answer why downtime happened or why a connector is currently faulted, to slice downtime by error name, and to look up what a specific error means."
+    description: >
+      Generic reference at taxonomy + error_code + error_code_name grain. Resolves the
+      error entity for outage reasons and latest connector errors. Taxonomy identifies
+      the code scheme, not the manufacturer; protocol and vendor names can overlap.
     model: ref('dim_error_codes')
     entities:
       - name: error_code
@@ -58,22 +86,36 @@ semantic_models:
     dimensions:
       - name: taxonomy
         type: categorical
+        description: "Code scheme: ocpp1.6 or a vendor taxonomy such as https://chargex.inl.gov."
       - name: error_code_name
         type: categorical
+        description: "Human-readable error name; names alone do not uniquely identify errors across taxonomies."
+      - name: vendor_error_code
+        type: categorical
+        expr: error_code
+        description: "Short code within a vendor taxonomy, such as CX003; null for OCPP 1.6 dictionary rows."
       - name: description
         type: categorical
+        description: "Reference explanation of the error condition, not a raw diagnostic message."
 
   - name: chargex_mrec_attributes
-    description: "ChargeX MREC-specific classification outrigger. Use to slice ChargeX fault codes by likely responsible party (EV user, CSO, EVSE, EV) or functional category (safety, security, maintenance, financial, authorization)."
+    description: >
+      One row per ChargeX MREC code, sharing its unique error_code_key with error_codes.
+      Supplies likely responsibility and functional-category flags for ChargeX codes only.
+      Null joined flags for non-ChargeX errors mean unclassified, not false.
     model: ref('dim_chargex_mrec_attributes')
     primary_entity: error_code
     entities:
       - name: error_code
-        type: foreign
+        type: unique
         expr: error_code_key
     dimensions:
+      - name: fault_code
+        type: categorical
+        description: "ChargeX MREC code, such as CX003; unique within this ChargeX-only reference."
       - name: ocpp_1_6_error_code
         type: categorical
+        description: "Equivalent standard OCPP 1.6 error name where defined; null when no equivalent exists."
       - name: responsible_ev_user
         type: categorical
       - name: responsible_cso
@@ -93,8 +135,13 @@ semantic_models:
       - name: is_authorization
         type: categorical
 
+
   - name: visits
-    description: "Visit-level semantic model for driver visit outcomes, attempt counts, duration, and energy transferred."
+    description: >
+      One row per driver stop at a location, including unidentified visits. A visit may
+      span multiple attempts and Ports. Metrics use visit_end_ts and the last attempt's
+      success flag. The charge_attempt and port entities refer to the last attempt and
+      last Port only; do not interpret them as all hardware used during the visit.
     model: ref('fact_visits')
     defaults:
       agg_time_dimension: visit_end_ts
@@ -117,86 +164,94 @@ semantic_models:
     dimensions:
       - name: visit_end_ts
         type: time
+        description: "Last attempt's stop timestamp; the default attribution time for visit metrics."
         type_params:
           time_granularity: day
       - name: visit_start_ts
         type: time
+        description: "First attempt's start timestamp, not the default metric time."
         type_params:
           time_granularity: day
       - name: first_charger_id
         type: categorical
+        description: "Charger where the visit started; a visit may use additional Chargers."
       - name: last_charger_id
         type: categorical
+        description: "Charger where the visit's last attempt occurred."
       - name: is_first_attempt_success
         type: categorical
-        description: "True when the visit was successful with only one attempt."
+        description: "True for successful visits with exactly one attempt; not the first-attempt outcome of multi-attempt visits."
         expr: case when is_successful and charge_attempt_count = 1 then true else false end
       - name: is_troubled_success
         type: categorical
-        description: "True when the visit succeeded but required more than one attempt."
+        description: "True for successful visits with more than one attempt."
         expr: case when is_successful and charge_attempt_count > 1 then true else false end
       - name: is_successful
         type: categorical
-        description: "True when the visit ended in a successful charge."
+        description: "Authoritative mart flag: the last charge attempt in the visit was successful."
       - name: is_failed
         type: categorical
-        description: "True when the visit did not end in a successful charge."
+        description: "True when the visit's last attempt was unsuccessful."
         expr: case when is_successful then false else true end
       - name: last_error_code
         type: categorical
-        description: "The error_code of the most recent StatusNotification error observed across all attempts in the visit - not necessarily from the visit's last attempt. Null when no attempt in the visit had an error."
+        description: "Most recent StatusNotification error across all attempts in the visit, not necessarily from the last attempt. Null if none occurred."
     measures:
       - name: visits_count
-        description: "Total number of visits."
+        description: "All visits, including unidentified visits, attributed to visit end time."
         agg: count
         expr: visit_id
       - name: energy_per_visit_kwh_average
-        description: "Average energy transferred per visit in kWh."
+        description: "Average total energy transferred per visit in kWh; an unpublished measure, not a named metric."
         agg: average
         expr: total_energy_transferred_kwh
       - name: charge_attempts_count
-        description: "Total number of charge attempts across all visits."
+        description: "Sum of attempts belonging to visits, attributed to visit end time; not attempt starts by day."
         agg: sum
         expr: charge_attempt_count
       - name: successful_visits_count
-        description: "Number of successful visits."
+        description: "Visits whose last attempt succeeded."
         agg: count
         expr: case when is_successful then visit_id end
       - name: visit_duration_minutes_average
-        description: "Average duration of visits in minutes."
+        description: "Average elapsed visit duration in minutes, including time between attempts."
         agg: average
         expr: visit_duration_minutes
       - name: troubled_success_visits_count
-        description: "Number of visits that had multiple attempts but ultimately succeeded (troubled success)."
+        description: "Successful visits with more than one attempt."
         agg: count
         expr: case when is_successful and charge_attempt_count > 1 then visit_id end
       - name: troubled_success_count
-        description: "Boolean count of troubled-success visits for rate calculations."
+        description: "Boolean count of successful multi-attempt visits; input to troubled_success."
         agg: sum_boolean
         expr: case when is_successful and charge_attempt_count > 1 then true else false end
       - name: charge_attempt_success_count
-        description: "Boolean count of successful visits for rate calculations."
+        description: "Legacy measure name: counts successful visits, not individual successful charge attempts."
         agg: sum_boolean
         expr: is_successful
       - name: first_attempt_success_visits_count
-        description: "Number of visits where the first attempt was successful."
+        description: "Successful visits with exactly one attempt."
         agg: count
         expr: case when is_successful and charge_attempt_count = 1 then visit_id end
       - name: first_attempt_success_count
-        description: "Boolean count of first-attempt-success visits for rate calculations."
+        description: "Boolean count of successful single-attempt visits; input to first_attempt_success."
         agg: sum_boolean
         expr: case when is_successful and charge_attempt_count = 1 then true else false end
       - name: troubled_first_attempt_visits_count
-        description: "Number of visits that succeeded overall but required multiple attempts."
+        description: "Legacy measure name: successful visits with multiple attempts, not a distinct first-attempt outcome."
         agg: count
         expr: case when is_successful and charge_attempt_count > 1 then visit_id end
       - name: failed_visits_count
-        description: "Number of visits that failed (did not end in successful charge)."
+        description: "Visits whose last attempt was unsuccessful."
         agg: count
         expr: case when is_successful then null else visit_id end
 
   - name: charge_attempts
-    description: "Semantic model for analyzing individual charge attempts and success metrics."
+    description: >
+      One row per charge attempt, including attempts without a transaction or known driver.
+      Measures use charge_attempt_start_ts and the mart-owned success flag, which respects
+      the configured energy threshold. Attempt measures are not independently published
+      metrics here; total_charge_attempts is intentionally sourced from visits.
     model: ref('fact_charge_attempts')
     defaults:
       agg_time_dimension: charge_attempt_start_ts
@@ -216,72 +271,83 @@ semantic_models:
     dimensions:
       - name: charge_attempt_start_ts
         type: time
+        description: "Canonical attempt start; default metric time for attempt-level measures."
         type_params:
           time_granularity: day
       - name: charge_attempt_stop_ts
         type: time
+        description: "Attempt stop timestamp; may be null for still-open attempts."
         type_params:
           time_granularity: day
       - name: is_successful
         type: categorical
-        description: "True when there is a transaction, the attempt does not end faulted, the stop reason is valid, and energy transferred exceeds 0.1 kWh."
-        expr: case when transaction_id is not null and (next_status is null or next_status != 'Faulted') and transaction_stop_reason in ('Local', 'Remote', 'EVDisconnected') and energy_transferred_kwh is not null and energy_transferred_kwh > 0.1 then true else false end
+        description: >
+          Authoritative fact_charge_attempts flag, not a second success calculation.
+          Requires a transaction, a non-Faulted ending status, a supported stop reason,
+          and energy above success_energy_threshold_kwh (default 0.1 kWh).
       - name: next_status
         type: categorical
+        description: "OCPP status following the attempt's Preparing interval, not the Connector's current status."
       - name: transaction_stop_reason
         type: categorical
+        description: "StopTransaction reason associated with the attempt; null without a reported stop reason."
       - name: charger_id
         type: categorical
       - name: connector_id
         type: categorical
+        description: "Connector business identifier on the attempt, not a conformed Connector entity join."
       - name: status
         type: categorical
+        description: "Preparing status associated with the attempt, not current hardware status."
       - name: has_error
         type: categorical
-        description: "True if at least one StatusNotification error (any error_code other than the NoError sentinel) was observed during the attempt."
+        description: "At least one non-NoError StatusNotification occurred within the attempt window."
       - name: last_error_code
         type: categorical
-        description: "The error_code of the most recent StatusNotification error observed during the attempt. Null when has_error is false."
+        description: "Most recent qualifying OCPP StatusNotification error during the attempt; null when has_error is false."
     measures:
       - name: attempts_count
-        description: "Total number of charge attempts."
+        description: "All charge attempts, attributed to attempt start time; differs from visit-based charge_attempts_count."
         agg: count
         expr: charge_attempt_id
       - name: successful_attempts_count
-        description: "Number of successful charge attempts."
+        description: "Attempts with the authoritative mart success flag set."
         agg: count
         expr: case when is_successful then charge_attempt_id end
       - name: attempt_success_rate
-        description: "Boolean count of successful attempts for rate calculations."
+        description: "Legacy measure name: a successful-attempt count, not a ratio or a published rate metric."
         agg: sum_boolean
         expr: is_successful
       - name: energy_transferred_kwh_sum
-        description: "Total energy transferred across all charge attempts in kWh."
+        description: "Energy transferred across attempts in kWh, attributed to attempt start, not interval delivery time."
         agg: sum
         expr: energy_transferred_kwh
       - name: average_energy_per_attempt_kwh
-        description: "Average energy transferred per charge attempt in kWh."
+        description: "Average non-null energy per attempt in kWh; includes unsuccessful attempts."
         agg: average
         expr: energy_transferred_kwh
       - name: average_energy_per_successful_attempt
-        description: "Average energy transferred per successful charge attempt in kWh."
+        description: "Average non-null energy per successful attempt in kWh."
         agg: average
         expr: case when is_successful then energy_transferred_kwh end
       - name: failed_attempts_count
-        description: "Number of failed charge attempts."
+        description: "Attempts whose mart success flag is false."
         agg: count
         expr: case when is_successful then null else charge_attempt_id end
       - name: attempts_with_transaction_count
-        description: "Number of attempts that had an associated transaction."
+        description: "Attempts with an associated transaction, regardless of success."
         agg: count
         expr: case when transaction_id is not null then charge_attempt_id end
       - name: transaction_success_rate
-        description: "Average success rate among attempts that had transactions."
+        description: "Average success flag among attempts with transactions; not a directly published metric."
         agg: average
         expr: case when transaction_id is not null then cast(is_successful as integer) else null end
 
   - name: drivers
-    description: "Driver dimension. One row per RFID id_tag observed in OCPP charge attempts, plus an UNKNOWN sentinel for unauthorized visits."
+    description: >
+      One row per observed id_tag credential plus an UNKNOWN sentinel, not resolved people.
+      Current Type 1 first/last-seen and authorization attributes. Default metric time is
+      first_seen_ts for acquisition counts; use driver_activity for historical active sets.
     model: ref('dim_drivers')
     defaults:
       agg_time_dimension: first_seen_ts
@@ -292,32 +358,42 @@ semantic_models:
     dimensions:
       - name: id_tag
         type: categorical
+        description: "Observed credential identifier, or UNKNOWN for the unidentified-driver sentinel."
       - name: is_known_driver
         type: categorical
+        description: "True for an observed driver credential; false for the UNKNOWN sentinel."
       - name: first_authorization_status
         type: categorical
+        description: "Authorization status on the earliest observed attempt; not necessarily Accepted."
       - name: latest_authorization_status
         type: categorical
+        description: "Latest observed authorization status, not historical status at a queried date."
       - name: first_seen_ts
         type: time
+        description: "Earliest observed attempt start, limited by available source history; default acquisition time."
         type_params:
           time_granularity: day
       - name: last_seen_ts
         type: time
+        description: "Latest observed attempt start. First/last seen alone cannot reconstruct historical activity."
         type_params:
           time_granularity: day
     measures:
       - name: drivers_count
-        description: "Total number of distinct drivers, including the UNKNOWN sentinel."
+        description: "Dimension rows including the UNKNOWN sentinel, grouped by first-seen time; not a human or active-driver count."
         agg: count
         expr: driver_key
       - name: known_drivers_count
-        description: "Number of drivers with a real id_tag, excluding the UNKNOWN sentinel."
+        description: "Known credential rows grouped by first-seen time; new_drivers also excludes reserved unknown markers."
         agg: sum_boolean
         expr: is_known_driver
 
+
   - name: uptime
-    description: "Port-level daily uptime: fraction of commissioned minutes not lost to outages."
+    description: >
+      One row per commissioned Port and calendar day. Additive commissioned, uptime,
+      and downtime minutes supply duration-weighted uptime_ratio at any roll-up grain.
+      Do not average per-Port daily ratios. Use downtime_daily for outage-reason detail.
     model: ref('fact_uptime_daily')
     defaults:
       agg_time_dimension: date_id
@@ -337,36 +413,44 @@ semantic_models:
     dimensions:
       - name: date_id
         type: time
+        description: "Calendar date receiving the commissioned and outage minutes."
         type_params:
           time_granularity: day
       - name: charger_id
         type: categorical
       - name: port_id
         type: categorical
+        description: "Natural Port identifier within charger_id."
     measures:
       - name: commissioned_minutes_total
-        description: "Total minutes ports were commissioned. Denominator for duration-weighted uptime."
+        description: "Commissioned Port minutes, including partial first/last days. Denominator for duration-weighted uptime."
         agg: sum
         expr: commissioned_minutes
       - name: uptime_minutes_total
-        description: "Total commissioned minutes ports were not down. Numerator for duration-weighted uptime."
+        description: "Commissioned Port minutes not lost to outages. Numerator for duration-weighted uptime."
         agg: sum
         expr: uptime_minutes
       - name: downtime_minutes_total
-        description: "Total minutes ports were down (OFFLINE + FAULTED) within their commissioned time. Same total as downtime_minutes_detailed_total in downtime_daily; use that one to slice by reason or error code."
+        description: "OFFLINE + FAULTED Port-day minutes. Use the detailed counterpart to slice by reason; never add the two totals together."
         agg: sum
         expr: downtime_minutes
       - name: offline_downtime_minutes_total
-        description: "Total minutes ports were down because the charger was OFFLINE (no heartbeats)."
+        description: "Port downtime minutes caused by missing Charger heartbeats; a measure, not an independently published metric."
         agg: sum
         expr: offline_downtime_minutes
       - name: faulted_downtime_minutes_total
-        description: "Total minutes ports were down because the port was FAULTED."
+        description: "Port downtime minutes caused by reported faults; a measure, not an independently published metric."
         agg: sum
         expr: faulted_downtime_minutes
 
   - name: downtime_daily
-    description: "Minutes each port was down per day, split by downtime_type (FAULTED: the port reported a fault; OFFLINE: no heartbeats from the charger) and reason ('NoHeartbeat' for OFFLINE; for FAULTED, the error name, 'NoError' if none was reported, or 'UnknownError' if the code isn't in error_codes). Use it when uptime drops, to find out why: which ports, locations and days lost the most time, whether chargers were broken or just unreachable, and which errors cost the most minutes. Join error_codes for description. For the headline reliability number use uptime instead."
+    description: >
+      One row per date_id + outage_id, retaining the affected Port, outage type, reason,
+      and latest resolved error key. OFFLINE means missing heartbeats; FAULTED means a
+      reported Port fault. Reasons include NoHeartbeat, resolved fault names, NoError,
+      and UnknownError. Diagnose lost minutes here; use uptime for headline reliability.
+      Error classification describes the outage's latest resolved code, not event-by-event
+      error history. Reconcile totals with uptime at aligned processing coverage and scope.
     model: ref('fact_downtime_daily')
     defaults:
       agg_time_dimension: date_id
@@ -386,6 +470,7 @@ semantic_models:
     dimensions:
       - name: date_id
         type: time
+        description: "Calendar date receiving this outage's minutes; one outage can span several dates."
         type_params:
           time_granularity: day
       - name: charger_id
@@ -394,16 +479,18 @@ semantic_models:
         type: categorical
       - name: downtime_type
         type: categorical
+        description: "OFFLINE for missing heartbeats or FAULTED for a reported Port fault."
       - name: reason
         type: categorical
+        description: "Resolved outage reason; use the error_code entity for taxonomy and reference explanation."
     measures:
       - name: downtime_minutes_detailed_total
-        description: "Total downtime minutes at outage-reason grain. Sliceable by downtime_type, reason and error code; use it to drill into downtime_minutes_total from uptime."
+        description: "Outage-day minutes for diagnosis by type, reason, and error classification. A detailed counterpart of uptime's downtime total."
         agg: sum
         expr: duration_minutes
 
   - name: locations
-    description: "Location dimension. One row per distinct location observed in port data."
+    description: "One row per conformed charging location, keyed by location_key. Current Type 1 reference attributes."
     model: ref('dim_locations')
     entities:
       - name: location
@@ -412,12 +499,15 @@ semantic_models:
     dimensions:
       - name: location_id
         type: categorical
+        description: "Natural location identifier shared by visit, attempt, uptime, and downtime location entities."
 
   - name: driver_activity
     description: >
-      Sparse network-wide driver activity. One row per identified driver and active date,
-      from any charge attempt regardless of success. Count distinct drivers across each
-      requested window; daily distinct counts must not be summed. UNKNOWN is excluded upstream.
+      Sparse network-wide activity at identified credential + active calendar date grain.
+      Any charge attempt establishes presence, regardless of success. Null, UNKNOWN, and
+      __UNKNOWN__ identifiers are excluded upstream. Count distinct drivers across the
+      entire rolling window; daily counts must not be summed. No location/Port entity is
+      defined. Use completed, fully ingested as-of dates and sufficient lookback history.
     model: ref('fact_driver_activity_daily')
     defaults:
       agg_time_dimension: date_id
@@ -431,39 +521,39 @@ semantic_models:
     dimensions:
       - name: date_id
         type: time
+        description: "Calendar date cast from canonical charge_attempt_start_ts, without an additional timezone conversion."
         type_params:
           time_granularity: day
     measures:
       - name: active_drivers_distinct
-        description: "Distinct identified driver credentials with activity. Non-additive across dates."
+        description: "Distinct observed credentials with any activity across the requested window, not resolved humans. Non-additive across dates."
         agg: count_distinct
         expr: driver_key
 
-
 metrics:
   - name: total_visits
-    description: "Total number of visits."
+    description: "All visits, including unidentified visits, attributed to visit end time."
     label: "Visits count"
     type: simple
     type_params:
       measure: visits_count
 
   - name: total_successful_visits
-    description: "Count of charging visits where the driver successfully charged, on the first attempt or after retries."
+    description: "Visits whose last charge attempt succeeded, on a single attempt or after retries. Attributed to visit end time."
     label: "Total successful visits"
     type: simple
     type_params:
       measure: successful_visits_count
 
   - name: total_charge_attempts
-    description: "Total number of charge attempts across all visits."
+    description: "Sum of attempts belonging to visits, attributed to visit_end_ts. Not an independent count of all attempts by charge_attempt_start_ts."
     label: "Total charge attempts"
     type: simple
     type_params:
       measure: charge_attempts_count
 
   - name: average_attempts_per_visit
-    description: "Average number of charge attempts per visit."
+    description: "Attempts belonging to visits divided by visit count, attributed to visit end time. Measures retry effort, not attempt success."
     label: "Average attempts per visit"
     type: ratio
     type_params:
@@ -471,28 +561,28 @@ metrics:
       denominator: total_visits
 
   - name: first_attempt_success
-    description: "Count of visits where the first attempt succeeded."
+    description: "Successful visits with exactly one attempt. Does not inspect the first-attempt outcome of multi-attempt visits."
     label: "First attempt success count"
     type: simple
     type_params:
       measure: first_attempt_success_count
 
   - name: troubled_success
-    description: "Count of visits that were troubled successes."
+    description: "Successful visits with multiple attempts; success is determined by the last attempt."
     label: "Troubled success count"
     type: simple
     type_params:
       measure: troubled_success_count
 
   - name: failed_visits
-    description: "Count of visits that failed."
+    description: "Visits whose last charge attempt was unsuccessful, regardless of earlier attempts."
     label: "Failed visits count"
     type: simple
     type_params:
       measure: failed_visits_count
 
   - name: first_attempt_success_rate
-    description: "Primary reliability metric. Proportion of visits where the first attempt succeeded."
+    description: "Successful single-attempt visits divided by all visits, including unidentified visits. Visit-end time attribution."
     label: "First attempt success rate"
     type: ratio
     type_params:
@@ -500,7 +590,7 @@ metrics:
       denominator: total_visits
 
   - name: troubled_success_rate
-    description: "Primary reliability metric. Proportion of visits that were troubled successes."
+    description: "Successful multi-attempt visits divided by all visits, including unidentified visits. Visit-end time attribution."
     label: "Troubled success rate"
     type: ratio
     type_params:
@@ -508,7 +598,7 @@ metrics:
       denominator: total_visits
 
   - name: failed_rate
-    description: "Primary reliability metric. Proportion of visits that failed."
+    description: "Visits whose last attempt was unsuccessful divided by all visits, including unidentified visits. Visit-end time attribution."
     label: "Failed rate"
     type: ratio
     type_params:
@@ -516,21 +606,25 @@ metrics:
       denominator: total_visits
 
   - name: total_commissioned_minutes
-    description: "Total minutes ports were commissioned (in service) over the period. Denominator of uptime."
+    description: "Commissioned Port minutes, including partial first/last days, summed over the period. Uptime denominator."
     label: "Total commissioned minutes"
     type: simple
     type_params:
       measure: commissioned_minutes_total
 
   - name: total_uptime_minutes
-    description: "Total commissioned minutes ports were up, not in outage (total_commissioned_minutes - total_downtime_minutes). Numerator of uptime."
+    description: "Commissioned Port minutes not lost to outages: total_commissioned_minutes minus total_downtime_minutes. Uptime numerator."
     label: "Total uptime minutes"
     type: simple
     type_params:
       measure: uptime_minutes_total
 
   - name: uptime_ratio
-    description: "Primary reliability metric. Duration-weighted port uptime: share of commissioned minutes that were up, not in outage (total_uptime_minutes / total_commissioned_minutes). Correct at any grain and period, because each port-day counts by its commissioned minutes, so a partial first or last day of commission weighs less than a full day. When uptime drops, drill into total_downtime_minutes_detailed to find out why."
+    description: >
+      Duration-weighted Port reliability: total_uptime_minutes / total_commissioned_minutes.
+      Roll up minute totals across Ports and dates, never average daily ratios. Partial
+      commissioning days contribute only their commissioned minutes. No ratio is defined
+      for a zero commissioned-time denominator. Diagnose losses with total_downtime_minutes_detailed.
     label: "Uptime ratio"
     type: ratio
     type_params:
@@ -538,14 +632,17 @@ metrics:
       denominator: total_commissioned_minutes
 
   - name: total_downtime_minutes
-    description: "Total minutes ports were down (OFFLINE + FAULTED) within their commissioned time, sliceable by port, charger, location and date. To find out why, drill into total_downtime_minutes_detailed."
+    description: "OFFLINE + FAULTED Port-day minutes from uptime, by Port, Charger, location, and date. Use the detailed metric for reason/error slices; do not add the two totals together."
     label: "Total downtime minutes"
     type: simple
     type_params:
       measure: downtime_minutes_total
 
   - name: total_downtime_minutes_detailed
-    description: "Drill down metric for uptime and total_downtime_minutes. Same total minutes of downtime, sliceable by downtime_type (FAULTED/OFFLINE), by reason, and, for FAULTED downtime, by vendor error code."
+    description: >
+      Outage-day downtime minutes, sliceable by downtime_type, reason, and resolved
+      protocol/vendor error classification. Detailed counterpart of total_downtime_minutes,
+      not an additional quantity. Reconcile with aligned scope and processing coverage.
     label: "Total downtime minutes (detailed)"
     type: simple
     type_params:
