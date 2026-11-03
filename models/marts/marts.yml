@@ -953,3 +953,43 @@ models:
       - dbt_utils.expression_is_true:
           arguments:
             expression: "offline_downtime_minutes + faulted_downtime_minutes = downtime_minutes"
+
+
+  - name: fact_driver_activity_daily
+    description: >
+      Sparse, factless activity table. Grain: one known driver per calendar date with at least
+      one charge attempt, whether successful or unsuccessful, across the entire network.
+      Inactive driver-days and unidentified attempts are absent. Dates are cast directly from
+      the canonical charge_attempt_start_ts, with no additional timezone conversion.
+      Distinct driver counts across dates are non-additive; summing daily counts counts
+      driver-days, not distinct drivers. This is an activity building block, not a definition
+      of rolling active-driver or growth-accounting metrics.
+      Changed attempts are merged by deterministic driver/date key using updated_ts and the
+      model-local bounded processing window. Late arrivals may add older activity dates.
+      Deletions, reassignment to another driver/date, or updates behind the watermark require
+      an explicit backfill or rebuild; a merge does not retract old presence rows.
+      A window without identified activity cannot advance the output watermark (ADR 0008).
+    columns:
+      - name: driver_activity_id
+        description: "Primary key: deterministic hash of id_tag and date_id. One presence record per known driver and activity date."
+        data_tests:
+          - not_null
+          - unique
+      - name: driver_key
+        description: "Driver dimension foreign key, computed as dbt_utils.generate_surrogate_key(['id_tag']), identical to dim_drivers for known drivers. Null id_tags and reserved UNKNOWN/__UNKNOWN__ markers are excluded."
+        data_tests:
+          - not_null
+      - name: date_id
+        description: "Activity calendar date, cast from charge_attempt_start_ts using the canonical timestamp basis. Multiple attempts on the same date count as a single presence."
+        data_tests:
+          - not_null
+      - name: _incremental_ts
+        description: "Technical processing watermark: upper bound of the updated_ts window that last emitted this driver-day. Not an activity timestamp or semantic dimension."
+        data_tests:
+          - not_null
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - driver_key
+              - date_id
