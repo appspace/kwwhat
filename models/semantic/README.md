@@ -87,17 +87,4 @@ queries return the last daily snapshot; coarser growth-accounting queries are no
 by these definitions.
 
 The daily identities are active = new + retained + resurrected, and change in active = new +
-resurrected - churned. First-seen data comes from `dim_drivers`; a data test checks its alignment
-with sparse activity. Definitions and limitations are in
-[ADR 0011](../../docs/adr/0011-overlapping-driver-growth-accounting.md).
-
-
-Validation includes `assert_driver_activity_first_seen_consistent` for warehouse history
-alignment and `assert_overlapping_driver_growth_formulas` for synthetic driver-set boundary
-cases against the configured derived expressions. The latter checks formula arithmetic,
-not the full MetricFlow query planner; warehouse semantic validation and query checks are
-also required.
-
-Consume these metrics through the dbt Semantic Layer. The OSI export currently warns that
-it cannot represent cumulative window semantics; exporting these definitions does not
-preserve the rolling-count contract.
+resurrected - churned. 
