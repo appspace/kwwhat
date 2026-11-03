@@ -44,6 +44,10 @@ This project is designed for AI engineers, data practitioners, and CSMS provider
 | `retained_drivers_7d`, `retained_drivers_30d` | Drivers in both today's and yesterday's overlapping rolling active sets |
 | `resurrected_drivers_7d`, `resurrected_drivers_30d` | Returning drivers entering today's rolling set after absence from yesterday's set |
 | `churned_drivers_7d`, `churned_drivers_30d` | Drivers aging out of today's rolling set, not permanent customer loss |
+| `mad` | Monthly active drivers over a fixed trailing 30 days; daily snapshot, not a calendar-month count |
+| `mad_new`, `mad_retained`, `mad_resurrected` | Mutually exclusive active categories that sum to MAD |
+| `mad_churned`, `mad_stale` | Inactive categories; all five MAD lifecycle categories partition drivers first observed by each reporting date |
+
 
 Metrics are defined in the dbt Semantic Layer. Visit metrics use visit end time; driver
 activity uses charge-attempt start dates. A driver means an observed `id_tag` credential,

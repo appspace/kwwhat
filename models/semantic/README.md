@@ -113,6 +113,49 @@ historical active sets. Current authorization attributes are Type 1 and do not r
 historical authorization state. Network activity has no location/Port grain, so local
 new-driver and local-retention metrics are not defined.
 
+### MAD lifecycle stack
+
+`mad` means monthly active drivers over a **fixed trailing 30 days**, not a calendar
+month. For each reporting day D, compare D-29..D with D-30..D-1:
+
+| Metric | Daily classification |
+| --- | --- |
+| `mad_new` | First observed on D |
+| `mad_retained` | Active in both windows, whether or not they charged on D |
+| `mad_resurrected` | Active in the current window only, first observed before D |
+| `mad_churned` | Active in the previous window only; last activity on D-30 |
+| `mad_stale` | Observed by D, active in neither window; last activity before D-30 |
+
+The five categories are mutually exclusive and exhaustive over **identified drivers first
+observed by D**. Drivers first observed after D are excluded from that day's population.
+`drivers_observed_to_date` is an all-time cumulative acquisition helper, not today's total
+number of rows in `dim_drivers`.
+
+- `mad = mad_new + mad_retained + mad_resurrected`
+- `drivers_observed_to_date = mad_new + mad_retained + mad_resurrected + mad_churned + mad_stale`
+- `mad_stale = drivers_observed_to_date - driver_activity_union_31d`
+
+For a daily stacked lifecycle chart, use the five categories as positive series, with
+New, retained, and resurrected together as the active portion. Churned and stale are
+inactive; the complete stack represents all drivers observed by D, not MAD alone.
+Use just the three active categories for a stack whose height is MAD. Do not add `mad`
+as a sixth lifecycle series because that double-counts the active categories.
+
+New is first observed **on D**, not during the last 30 days. A driver first seen five days
+ago is retained because the two overlapping windows both contain that first attempt.
+A return on D after activity on D-30 is also retained; a return after last activity before
+D-30 is resurrected. Churned is a one-day window-expiry transition; without a return,
+that driver is stale the following day.
+
+These metrics reuse the existing 30-day accounting definitions and store no inactive
+driver-days. Query `metric_time__day`, preserve the lookback by filtering metric time,
+and use completed, fully ingested dates with aligned first-seen/activity history and
+sufficient prehistory. Five-way accounting is not defined at coarser time grains, and
+stale/retained/active daily snapshots must not be summed over dates. Source history and
+watermark limitations remain those documented above and in ADRs 0010 and 0011.
+See [ADR 0012](../../docs/adr/0012-mad-lifecycle-partition.md).
+
+
 ## Grouping and join guidance
 
 - Use `metric_time` for each metric's default time basis; it maps to the column listed above.
