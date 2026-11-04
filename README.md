@@ -18,25 +18,53 @@ This project is designed for AI engineers, data practitioners, and CSMS provider
 ## What’s included
 
 - Source modeling for raw OCPP logs (StatusNotification, Heartbeat, Start/StopTransaction)
-- Charge attempt and visit models
-- Interval data for other reporting use cases that require energy delivery by 15-min time slices
-- Core metrics:
-  
+- Charge attempt and visit models for operational drill-down and driver outcomes
+- Port-day uptime, outage-reason detail, and current hardware/error-code dimensions
+- Sparse identified-driver activity history, without storing inactive driver-days
+- Supporting 15-minute energy intervals and location-capacity marts; these are not yet published as dbt Semantic Layer models
+
+### Core metrics
+
 | Metric | Description |
-|---|---|
-| `uptime_ratio` | Share of commissioned minutes a Port was online and not in a Faulted state, weighted by duration so it is correct at any grain |
-| `total_visits` | Total number of charging visits |
-| `total_successful_visits` | Count of visits where the driver successfully charged, on the first attempt or after retries |
-| `total_charge_attempts` | Total charge attempts across all visits |
-| `first_attempt_success` | Count of visits where the first attempt succeeded |
-| `troubled_success` | Count of visits that succeeded but required more than one attempt |
-| `failed_visits` | Count of visits that did not end in a successful charge |
-| `first_attempt_success_rate` | Proportion of visits where the first attempt succeeded |
-| `troubled_success_rate` | Proportion of visits that were troubled success |
-| `failed_rate` | Proportion of visits that failed |
-| `average_attempts_per_visit` | Total charge attempts divided by total visits |
+| --- | --- |
+| `uptime_ratio` | Commissioned Port minutes not lost to outages, weighted by duration |
+| `total_commissioned_minutes`, `total_uptime_minutes` | Additive minute totals behind uptime |
+| `total_downtime_minutes` | OFFLINE + FAULTED Port-day minutes |
+| `total_downtime_minutes_detailed` | The same downtime total at outage detail, for diagnosis by type, reason, and error code |
+| `total_visits` | All charging visits, including unidentified visits |
+| `total_successful_visits` | Visits whose last charge attempt succeeded |
+| `total_charge_attempts` | Sum of attempts belonging to visits, attributed to visit end time |
+| `first_attempt_success` | Successful visits with exactly one attempt |
+| `troubled_success` | Successful visits with multiple attempts |
+| `failed_visits` | Visits whose last attempt was unsuccessful |
+| `first_attempt_success_rate`, `troubled_success_rate`, `failed_rate` | Each outcome category divided by total visits |
+| `average_attempts_per_visit` | Total attempts belonging to visits divided by total visits |
+| `active_drivers_7d`, `active_drivers_30d` | Distinct identified drivers across trailing 7-day and fixed 30-day windows |
+| `new_drivers` | Identified driver credentials first observed on the reporting date |
+| `retained_drivers_7d`, `retained_drivers_30d` | Drivers in both today's and yesterday's overlapping rolling active sets |
+| `resurrected_drivers_7d`, `resurrected_drivers_30d` | Returning drivers entering today's rolling set after absence from yesterday's set |
+| `churned_drivers_7d`, `churned_drivers_30d` | Drivers aging out of today's rolling set, not permanent customer loss |
+| `mad` | Monthly active drivers over a fixed trailing 30 days; daily snapshot, not a calendar-month count |
+| `mad_new`, `mad_retained`, `mad_resurrected` | Mutually exclusive active categories that sum to MAD |
+| `mad_churned`, `mad_stale` | Inactive categories; all five MAD lifecycle categories partition drivers first observed by each reporting date |
+
+
+Metrics are defined in the dbt Semantic Layer. Visit metrics use visit end time; driver
+activity uses non-null charge-attempt stop timestamps and their calendar dates.
+Driver first/last seen and acquisition dates use the same stop-time definition. Open
+attempts do not establish lifecycle activity. A driver is an observed `id_tag` credential,
+not a resolved person; unsuccessful stopped attempts count and anonymous IDs are excluded.
+Driver growth accounting is daily and compares overlapping windows shifted by one day.
+Use completed, fully ingested dates with sufficient prehistory; do not sum daily distinct
+active or retained counts. The start-to-stop migration requires a coordinated history
+rebuild, described in [ADR 0014](docs/adr/0014-stop-based-driver-lifecycle.md).
+
+See the [semantic model and metric guide](models/semantic/README.md) for all model grains,
+default time dimensions, join guidance, rolling-window helpers, and integration details.
+
 
 ---
+
 
 ## Try it yourself
 
@@ -86,11 +114,15 @@ Together, these shift the question from "did this transaction complete?" to "did
 **Visit** is successful when the last charge attempt is successful.
 
 **Charge attempt** is successful when:
-  - there is a transaction (energy transfer)
-  - next connector status is not ‘Faulted'
-  - transaction stop reason is 'Local’ or ‘Remote’ or ‘EVDisconnected'
-  - energy transferred is above 0.1 kWh
-  
+  - there is an associated transaction
+  - the next status is not `Faulted`, or no next status is reported
+  - transaction stop reason is `Local`, `Remote`, or `EVDisconnected`
+  - energy transferred exceeds `success_energy_threshold_kwh` (default `0.1` kWh)
+
+The mart's `is_successful` flag is authoritative. The semantic layer uses that flag so
+configured thresholds and visit outcomes remain aligned.
+
+
  Success criteria are partially borrowed from https://github.com/chargex-consortium/OCPP-2.0.1-Interim-KPI-Calculator and/or are a modification of visit success when at least one charge attempt is successful here [Customer-Focused Key Performance Indicators (KPIs) for Electric Vehicle Charging](https://inl.gov/content/uploads/2024/05/chargex-Customer-Focused-KPIs-for-EV-Charging-6-24-24.pdf)
 
 ---
@@ -98,11 +130,13 @@ Together, these shift the question from "did this transaction complete?" to "did
 ## Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/kwwhat.git
+git clone https://github.com/appspace/kwwhat.git
 cd kwwhat
-````
+```
 
-Then update your `profiles.yml` to point to your raw data location (e.g., DuckDB, BigQuery, Snowflake, Redshift, etc.).
+Configure `profiles.yml` for your warehouse, such as Snowflake or BigQuery. For the
+self-contained local experience, follow the [Chat BI demo setup](demo/README.md).
+
 
 ---
 
