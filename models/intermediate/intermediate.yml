@@ -279,7 +279,7 @@ models:
               - ingested_ts
 
   - name: int_driver_aggregates
-    description: "Incremental per-driver history. First/last seen are the earliest/latest fact_visits.visit_end_ts; authorization attributes follow fact_charge_attempts stop ordering. Each run merges drivers with a visit written in the window into stored state. first_visit_id and last_visit_id let a rewritten visit replace its own stored end, so an extended first visit moves first seen later. Visits with no end and open attempts are excluded. Visits with no id_tag accumulate under __UNKNOWN__."
+    description: "Incremental per-driver history. First/last seen are the earliest/latest fact_visits.visit_end_ts. Each run merges drivers with a visit written in the window into stored state. first_visit_id and last_visit_id let a rewritten visit replace its own stored end, so an extended first visit moves first seen later. Visits with no end are excluded. Visits with no id_tag accumulate under __UNKNOWN__."
     columns:
       - name: id_tag
         description: "Driver credential natural key; __UNKNOWN__ represents visits with no id_tag."
@@ -302,22 +302,6 @@ models:
         description: "Latest observed visit_end_ts for this credential."
         data_tests:
           - not_null
-      - name: first_attempt_stop_ts
-        description: "Earliest observed charge_attempt_stop_ts for this credential, used to order first_authorization_status. Null for __UNKNOWN__."
-      - name: last_attempt_stop_ts
-        description: "Latest observed charge_attempt_stop_ts for this credential, used to order latest_authorization_status. Null for __UNKNOWN__."
-      - name: first_authorization_status
-        description: "Authorization status associated with the earliest stopped attempt, ordered by stop time; not necessarily Accepted. Equal stop-time ties retain the existing min_by behavior."
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: ['Accepted', 'Blocked', 'Expired', 'Invalid', 'ConcurrentTx']
-      - name: latest_authorization_status
-        description: "Authorization status associated with the latest stopped attempt, ordered by stop time. Equal stop-time ties retain the existing max_by behavior."
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: ['Accepted', 'Blocked', 'Expired', 'Invalid', 'ConcurrentTx']
     data_tests:
       - dbt_utils.expression_is_true:
           arguments:

@@ -281,7 +281,7 @@ semantic_models:
         expr: case when transaction_id is not null then cast(is_successful as integer) else null end
 
   - name: drivers
-    description: "Driver dimension. One row per RFID id_tag with an observed visit end, plus an UNKNOWN sentinel for unauthorized visits. First/last seen use visit ends and authorization attributes use attempt-stop ordering; credentials are absent until they have a visit with an end."
+    description: "Driver dimension. One row per RFID id_tag with an observed visit end, plus an UNKNOWN sentinel for unauthorized visits. First/last seen use visit ends; credentials are absent until they have a visit with an end."
     model: ref('dim_drivers')
     defaults:
       agg_time_dimension: first_seen_ts
@@ -293,10 +293,6 @@ semantic_models:
       - name: id_tag
         type: categorical
       - name: is_known_driver
-        type: categorical
-      - name: first_authorization_status
-        type: categorical
-      - name: latest_authorization_status
         type: categorical
       - name: first_seen_ts
         type: time
