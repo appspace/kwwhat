@@ -279,29 +279,29 @@ models:
               - ingested_ts
 
   - name: int_driver_aggregates
-    description: "Incremental per-driver aggregation over fact_charge_attempts. Maintains running first/last timestamps and authorization statuses per id_tag. Also tracks unauthorized attempts ('__UNKNOWN__' id_tag) under the sentinel row in dim_drivers downstream."
+    description: "Incremental per-driver history over stopped fact_charge_attempts. First/last seen are the earliest/latest non-null charge_attempt_stop_ts; authorization attributes follow the same stop ordering. Open attempts are excluded. Null credentials accumulate under __UNKNOWN__. A stop-time migration requires rebuilding existing start-based history; stop retractions or inward corrections to an extreme also require reconciliation."
     columns:
       - name: id_tag
-        description: "Driver identifier (id_tag) observed in OCPP messages. Natural key; null rows (unauthorized attempts) are excluded."
+        description: "Driver credential natural key; __UNKNOWN__ represents stopped attempts with a null credential."
         data_tests:
           - not_null
           - unique
       - name: first_seen_ts
-        description: "Earliest charge_attempt_start_ts for this driver. Updated via least() on each incremental merge to handle late-arriving events."
+        description: "Earliest observed charge_attempt_stop_ts for this credential. Earlier late-arriving stops can revise it; limited by available source history."
         data_tests:
           - not_null
       - name: last_seen_ts
-        description: "Most recent charge_attempt_start_ts for this driver. Updated via greatest() on each incremental merge."
+        description: "Latest observed charge_attempt_stop_ts for this credential; never an open-attempt start."
         data_tests:
           - not_null
       - name: first_authorization_status
-        description: "Authorization status at the driver's earliest charge attempt. Follows first_seen_ts: updated when a new batch contains an earlier event."
+        description: "Authorization status associated with the earliest stopped attempt, ordered by stop time; not necessarily Accepted. Equal stop-time ties retain the existing min_by behavior."
         data_tests:
           - accepted_values:
               arguments:
                 values: ['Accepted', 'Blocked', 'Expired', 'Invalid', 'ConcurrentTx']
       - name: latest_authorization_status
-        description: "Authorization status at the driver's most recent charge attempt. Follows last_seen_ts: updated when a new batch contains a later event."
+        description: "Authorization status associated with the latest stopped attempt, ordered by stop time. Equal stop-time ties retain the existing max_by behavior."
         data_tests:
           - accepted_values:
               arguments:
@@ -312,6 +312,7 @@ models:
             expression: "last_seen_ts >= first_seen_ts"
           config:
             severity: error
+
 
 
   - name: int_meter_values
@@ -476,3 +477,29 @@ models:
               - charger_id
               - port_id
               - connector_id
+
+  - name: int_charger_commissioned_daily
+    description: "Time each charger was in commission on each calendar day, between its commissioned and decommissioned timestamps (up to now if still in commission). Partial on the first and last day of the commission range. Used as the denominator for uptime. One row per charger_id + date_id."
+    columns:
+      - name: charger_id
+        description: "Charger identifier"
+        data_tests:
+          - not_null
+      - name: date_id
+        description: "Calendar day (date), from the dim_dates time spine"
+        data_tests:
+          - not_null
+      - name: commissioned_minutes
+        description: "Minutes the charger was commissioned on this day (partial on the first and last day of the commission range)"
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 1440
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charger_id
+              - date_id
