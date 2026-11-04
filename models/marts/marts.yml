@@ -768,7 +768,7 @@ models:
                 quote: false
 
   - name: dim_drivers
-    description: "Driver dimension. Grain: one RFID id_tag with an observed stopped charge attempt, plus one UNKNOWN sentinel. Reads int_driver_aggregates. Type 1 overwrite; first/last seen and authorization ordering use attempt stops. Open-only credentials are absent until a stop is observed. Lifetime metric definitions belong in the Semantic Layer."
+    description: "Driver dimension. Grain: one RFID id_tag with an observed visit end, plus one UNKNOWN sentinel. Reads int_driver_aggregates. Type 1 overwrite; first/last seen use visit ends and authorization ordering uses attempt stops. Credentials are absent until they have a visit with an end. Lifetime metric definitions belong in the Semantic Layer."
     columns:
       - name: driver_key
         description: "Surrogate key: deterministic hash of id_tag; UNKNOWN uses the stable hash of the literal UNKNOWN."
@@ -789,11 +789,11 @@ models:
                 values: [true, false]
                 quote: false
       - name: first_seen_ts
-        description: "Earliest observed non-null charge_attempt_stop_ts for this credential, limited by source history. UNKNOWN uses the earliest unidentified stop, or 1900-01-01 if absent. Not an attempt-start timestamp."
+        description: "Earliest observed visit_end_ts for this credential, limited by source history. UNKNOWN uses the earliest visit with no id_tag, or 1900-01-01 if absent. Not an attempt timestamp."
         tests:
           - not_null
       - name: last_seen_ts
-        description: "Latest observed non-null charge_attempt_stop_ts. UNKNOWN uses the latest unidentified stop, or 1900-01-01 if absent. Not suitable for reconstructing historical activity windows."
+        description: "Latest observed visit_end_ts. UNKNOWN uses the latest visit with no id_tag, or 1900-01-01 if absent. Not suitable for reconstructing historical activity windows."
         tests:
           - not_null
       - name: first_authorization_status
