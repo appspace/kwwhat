@@ -28,4 +28,5 @@ project-wide convention.
 | [0007](0007-energy-based-utilisation-denominator.md) | Rated power as the denominator for energy-based utilisation | Accepted |
 | [0008](0008-warehouse-incremental-checkpoints.md) | Model-local watermarks for incremental processing | Accepted |
 | [0009](0009-duration-weighted-uptime.md) | Duration-weighted uptime | Accepted |
-| [0010](0010-stop-based-driver-lifecycle.md) | Stop-based driver lifecycle activity | Proposed |
+| [0010](0010-stop-based-driver-lifecycle.md) | Stop-based driver lifecycle activity | Superseded by [0011](0011-visit-based-driver-first-last-seen.md) for first and last seen |
+| [0011](0011-visit-based-driver-first-last-seen.md) | Visit-based driver first and last seen | Proposed |

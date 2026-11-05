@@ -14,9 +14,7 @@ known_drivers as (
         id_tag,
         true as is_known_driver,
         first_seen_ts,
-        last_seen_ts,
-        first_authorization_status,
-        latest_authorization_status
+        last_seen_ts
     from all_driver_aggs
     where id_tag != '__UNKNOWN__'
 ),
@@ -33,9 +31,7 @@ unknown_driver as (
         coalesce(
             max(case when id_tag = '__UNKNOWN__' then last_seen_ts end),
             cast('1900-01-01' as {{ dbt.type_timestamp() }})
-        ) as last_seen_ts,
-        cast(null as {{ dbt.type_string() }}) as first_authorization_status,
-        cast(null as {{ dbt.type_string() }}) as latest_authorization_status
+        ) as last_seen_ts
     from all_driver_aggs
 ),
 
@@ -45,9 +41,7 @@ final as (
         id_tag,
         is_known_driver,
         first_seen_ts,
-        last_seen_ts,
-        first_authorization_status,
-        latest_authorization_status
+        last_seen_ts
     from known_drivers
     union all
     select
@@ -55,9 +49,7 @@ final as (
         id_tag,
         is_known_driver,
         first_seen_ts,
-        last_seen_ts,
-        first_authorization_status,
-        latest_authorization_status
+        last_seen_ts
     from unknown_driver
 )
 

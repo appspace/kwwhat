@@ -2,32 +2,9 @@ version: 2
 
 unit_tests:
 
-  # Driver lifecycle timestamps and authorization ordering follow attempt stops.
-  - name: test_int_driver_aggregates_late_arriving_event_updates_first_seen
-    description: "An earlier late-arriving stop updates first seen and its associated authorization status."
-
-    model: int_driver_aggregates
-    overrides:
-      macros:
-        is_incremental: true
-      vars:
-        start_processing_date: '2025-10-02 12:00:00'
-    given:
-      - input: ref('stg_ocpp_logs')
-        rows:
-          - {ingested_timestamp: '2025-10-02 13:00:00'}
-      - input: this
-        rows:
-          - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 11:00:00', last_seen_ts: '2025-10-02 12:00:00', first_authorization_status: 'Accepted', latest_authorization_status: 'Blocked'}
-      - input: ref('fact_charge_attempts')
-        rows:
-          - {id_tag: 'TAG-001', id_tag_status: 'Invalid', charge_attempt_start_ts: '2025-10-02 09:00:00', charge_attempt_stop_ts: '2025-10-02 10:00:00', updated_ts: '2025-10-02 13:00:00'}
-    expect:
-      rows:
-        - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 10:00:00', last_seen_ts: '2025-10-02 12:00:00', first_authorization_status: 'Invalid', latest_authorization_status: 'Blocked'}
-
-  - name: test_int_driver_aggregates_new_latest_event_updates_last_seen
-    description: "A later stop updates last seen and its authorization, including an attempt that started before the stored latest stop."
+  # Driver first/last seen follow visit ends.
+  - name: test_int_driver_aggregates_new_visit_keeps_stored_first_seen
+    description: "A later visit updates last seen and the last visit only. First seen comes from stored state, because only the window is read."
     model: int_driver_aggregates
     overrides:
       macros:
@@ -40,16 +17,60 @@ unit_tests:
           - {ingested_timestamp: '2025-10-02 15:00:00'}
       - input: this
         rows:
-          - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 11:00:00', last_seen_ts: '2025-10-02 12:00:00', first_authorization_status: 'Accepted', latest_authorization_status: 'Accepted'}
-      - input: ref('fact_charge_attempts')
+          - {id_tag: 'TAG-001', first_visit_id: 'V1', last_visit_id: 'V1', first_seen_ts: '2025-10-02 08:00:00', last_seen_ts: '2025-10-02 08:00:00'}
+      - input: ref('fact_visits')
         rows:
-          - {id_tag: 'TAG-001', id_tag_status: 'Blocked', charge_attempt_start_ts: '2025-10-02 10:00:00', charge_attempt_stop_ts: '2025-10-02 14:00:00', updated_ts: '2025-10-02 15:00:00'}
+          - {visit_id: 'V2', id_tag: 'TAG-001', visit_end_ts: '2025-10-02 14:00:00', _incremental_ts: '2025-10-02 15:00:00'}
     expect:
       rows:
-        - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 11:00:00', last_seen_ts: '2025-10-02 14:00:00', first_authorization_status: 'Accepted', latest_authorization_status: 'Blocked'}
+        - {id_tag: 'TAG-001', first_visit_id: 'V1', last_visit_id: 'V2', first_seen_ts: '2025-10-02 08:00:00', last_seen_ts: '2025-10-02 14:00:00'}
 
-  - name: test_int_driver_aggregates_unknown_sentinel_accumulates_incremental
-    description: "Stopped unidentified attempts accumulate under the sentinel using stop time."
+  - name: test_int_driver_aggregates_extended_first_visit_moves_first_seen_later
+    description: "When the stored first visit is extended, first seen moves to its new end even though that is later than the stored value."
+    model: int_driver_aggregates
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-02 12:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: '2025-10-02 15:00:00'}
+      - input: this
+        rows:
+          - {id_tag: 'TAG-001', first_visit_id: 'V1', last_visit_id: 'V1', first_seen_ts: '2025-10-02 10:00:00', last_seen_ts: '2025-10-02 10:00:00'}
+      - input: ref('fact_visits')
+        rows:
+          - {visit_id: 'V1', id_tag: 'TAG-001', visit_end_ts: '2025-10-02 10:20:00', _incremental_ts: '2025-10-02 15:00:00'}
+    expect:
+      rows:
+        - {id_tag: 'TAG-001', first_visit_id: 'V1', last_visit_id: 'V1', first_seen_ts: '2025-10-02 10:20:00', last_seen_ts: '2025-10-02 10:20:00'}
+
+  - name: test_int_driver_aggregates_earlier_late_visit_updates_first_seen
+    description: "A late visit ending before the stored first seen becomes the first visit."
+    model: int_driver_aggregates
+    overrides:
+      macros:
+        is_incremental: true
+      vars:
+        start_processing_date: '2025-10-02 12:00:00'
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: '2025-10-02 15:00:00'}
+      - input: this
+        rows:
+          - {id_tag: 'TAG-001', first_visit_id: 'V2', last_visit_id: 'V2', first_seen_ts: '2025-10-02 11:00:00', last_seen_ts: '2025-10-02 12:00:00'}
+      - input: ref('fact_visits')
+        rows:
+          - {visit_id: 'V1', id_tag: 'TAG-001', visit_end_ts: '2025-10-02 10:00:00', _incremental_ts: '2025-10-02 13:00:00'}
+    expect:
+      rows:
+        - {id_tag: 'TAG-001', first_visit_id: 'V1', last_visit_id: 'V2', first_seen_ts: '2025-10-02 10:00:00', last_seen_ts: '2025-10-02 12:00:00'}
+
+  - name: test_int_driver_aggregates_unknown_sentinel_uses_anonymous_visits
+    description: "Visits with no id_tag accumulate under the sentinel."
     model: int_driver_aggregates
     overrides:
       macros:
@@ -62,16 +83,16 @@ unit_tests:
           - {ingested_timestamp: '2025-10-02 13:00:00'}
       - input: this
         rows:
-          - {id_tag: '__UNKNOWN__', first_seen_ts: '2025-10-02 08:00:00', last_seen_ts: '2025-10-02 09:00:00', first_authorization_status: null, latest_authorization_status: null}
-      - input: ref('fact_charge_attempts')
+          - {id_tag: '__UNKNOWN__', first_visit_id: 'V1', last_visit_id: 'V1', first_seen_ts: '2025-10-02 07:00:00', last_seen_ts: '2025-10-02 07:00:00'}
+      - input: ref('fact_visits')
         rows:
-          - {id_tag: null, id_tag_status: null, charge_attempt_start_ts: '2025-10-02 06:00:00', charge_attempt_stop_ts: '2025-10-02 07:00:00', updated_ts: '2025-10-02 13:00:00'}
+          - {visit_id: 'V2', id_tag: null, visit_end_ts: '2025-10-02 12:00:00', _incremental_ts: '2025-10-02 13:00:00'}
     expect:
       rows:
-        - {id_tag: '__UNKNOWN__', first_seen_ts: '2025-10-02 07:00:00', last_seen_ts: '2025-10-02 09:00:00', first_authorization_status: null, latest_authorization_status: null}
+        - {id_tag: '__UNKNOWN__', first_visit_id: 'V1', last_visit_id: 'V2', first_seen_ts: '2025-10-02 07:00:00', last_seen_ts: '2025-10-02 12:00:00'}
 
-  - name: test_driver_aggregates_stop_order_and_open_attempts
-    description: "First/latest authorization follow stop ordering, not start ordering; open known and anonymous attempts are absent."
+  - name: test_driver_aggregates_excludes_visits_with_no_end
+    description: "Visits with no end do not establish a driver."
     model: int_driver_aggregates
     overrides:
       macros:
@@ -82,18 +103,16 @@ unit_tests:
       - input: ref('stg_ocpp_logs')
         rows:
           - {ingested_timestamp: '2025-10-03 12:00:00'}
-      - input: ref('fact_charge_attempts')
+      - input: ref('fact_visits')
         rows:
-          - {id_tag: 'TAG-001', id_tag_status: 'Blocked', charge_attempt_start_ts: '2025-10-01 23:00:00', charge_attempt_stop_ts: '2025-10-03 10:00:00', updated_ts: '2025-10-03 11:00:00'}
-          - {id_tag: 'TAG-001', id_tag_status: 'Accepted', charge_attempt_start_ts: '2025-10-02 09:00:00', charge_attempt_stop_ts: '2025-10-02 10:00:00', updated_ts: '2025-10-02 11:00:00', is_successful: false}
-          - {id_tag: 'OPEN', id_tag_status: 'Invalid', charge_attempt_start_ts: '2025-10-02 08:00:00', charge_attempt_stop_ts: null, updated_ts: '2025-10-02 09:00:00'}
-          - {id_tag: null, charge_attempt_start_ts: '2025-10-02 08:00:00', charge_attempt_stop_ts: null, updated_ts: '2025-10-02 09:00:00'}
+          - {visit_id: 'V1', id_tag: 'TAG-001', visit_end_ts: '2025-10-03 10:00:00', _incremental_ts: '2025-10-03 11:00:00'}
+          - {visit_id: 'V2', id_tag: 'OPEN', visit_end_ts: null, _incremental_ts: '2025-10-03 11:00:00'}
     expect:
       rows:
-        - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 10:00:00', last_seen_ts: '2025-10-03 10:00:00', first_authorization_status: 'Accepted', latest_authorization_status: 'Blocked'}
+        - {id_tag: 'TAG-001', first_visit_id: 'V1', last_visit_id: 'V1', first_seen_ts: '2025-10-03 10:00:00', last_seen_ts: '2025-10-03 10:00:00'}
 
-  - name: test_driver_aggregates_open_update_emits_no_row
-    description: "An open-attempt update neither replaces an existing driver's attributes nor advances its watermark."
+  - name: test_driver_aggregates_unchanged_visits_emit_no_row
+    description: "A driver with no visit written in the window keeps their stored row."
     model: int_driver_aggregates
     overrides:
       macros:
@@ -106,10 +125,10 @@ unit_tests:
           - {ingested_timestamp: '2025-10-02 15:00:00'}
       - input: this
         rows:
-          - {id_tag: 'TAG-001', first_seen_ts: '2025-10-02 10:00:00', last_seen_ts: '2025-10-02 11:00:00', first_authorization_status: 'Accepted', latest_authorization_status: 'Accepted'}
-      - input: ref('fact_charge_attempts')
+          - {id_tag: 'TAG-001', first_visit_id: 'V1', last_visit_id: 'V1', first_seen_ts: '2025-10-02 10:00:00', last_seen_ts: '2025-10-02 11:00:00'}
+      - input: ref('fact_visits')
         rows:
-          - {id_tag: 'TAG-001', id_tag_status: 'Blocked', charge_attempt_start_ts: '2025-10-02 13:00:00', charge_attempt_stop_ts: null, updated_ts: '2025-10-02 14:00:00'}
+          - {visit_id: 'V1', id_tag: 'TAG-001', visit_end_ts: '2025-10-02 11:00:00', _incremental_ts: '2025-10-02 12:00:00'}
     expect:
       rows: []
 
