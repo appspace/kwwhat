@@ -17,3 +17,7 @@ demo/.env
 .DS_Store
 
 demo/chat-bi/tests/outputs/
+
+# Study arm built by nao_chat_fork/plans/727/study/build-arm.sh
+demo/chat-bi/arm/
+demo/chat-bi/arm.sha256
