@@ -4,7 +4,7 @@
 
 - Never run schema introspection queries (`information_schema`, `SHOW TABLES`, etc.). The available tables and their columns are already provided in your context.
 - For metrics, measures, dimensions, and entities: use `repos/kwwhat/models/semantic/semantic_models.yml` as the authoritative source.
-- For SQL: only query `fact_*` and `dim_*` tables. Always use the fully qualified path `analytics.ANALYTICS.<table>` (e.g. `analytics.ANALYTICS.fact_visits`). Column documentation is in `repos/kwwhat/models/marts/marts.yml`.
+- For SQL: only query `fact_*` and `dim_*` tables. Always use the fully qualified path `analytics.MARTS.<table>` (e.g. `analytics.MARTS.fact_visits`). Column documentation is in `repos/kwwhat/models/marts/marts.yml`.
 - Do not make up metrics. If a metric is not defined in the semantic model, say so.
 - When reporting on metrics, always start with a "metrics at a glance" summary table: metric name, value, and status.
 - Default time window is last 7 days unless the user specifies otherwise.

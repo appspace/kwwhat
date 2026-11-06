@@ -4,6 +4,6 @@ sql: |
   SELECT
     reason,
     SUM(duration_minutes) AS total_downtime_minutes
-  FROM analytics.ANALYTICS.fact_downtime_daily
+  FROM analytics.MARTS.fact_downtime_daily
   GROUP BY reason
   ORDER BY total_downtime_minutes DESC

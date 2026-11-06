@@ -10,6 +10,6 @@ kwwhat:
         - path: /data/raw.duckdb
           alias: RAW
           read_only: true
-      # Write transformed models into the ANALYTICS schema
-      schema: ANALYTICS
+      # Write transformed models into the MARTS schema
+      schema: MARTS
       threads: 4

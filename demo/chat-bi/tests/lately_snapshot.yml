@@ -4,9 +4,9 @@ sql: |
   SELECT
     (
       SELECT ROUND(SUM(uptime_minutes) / SUM(commissioned_minutes) * 100, 2)
-      FROM analytics.ANALYTICS.fact_uptime_daily
+      FROM analytics.MARTS.fact_uptime_daily
     ) AS avg_uptime_pct,
     (
       SELECT ROUND((1 - AVG(CASE WHEN is_successful THEN 1.0 ELSE 0.0 END)) * 100, 2)
-      FROM analytics.ANALYTICS.fact_charge_attempts
+      FROM analytics.MARTS.fact_charge_attempts
     ) AS failed_attempt_rate_pct

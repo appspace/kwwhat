@@ -4,10 +4,10 @@ databases:
   - name: duckdb_analytics
     type: duckdb
     path: /data/analytics.duckdb
-    schema_name: ANALYTICS
+    schema_name: MARTS
     include:
-      - ANALYTICS.fact_*
-      - ANALYTICS.dim_*
+      - MARTS.fact_*
+      - MARTS.dim_*
     accessors:
       - columns
       - description
