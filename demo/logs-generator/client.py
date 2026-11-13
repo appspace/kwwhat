@@ -9,6 +9,8 @@ from typing import Any
 import websockets
 
 from common import (
+    Fault,
+    charger_identity,
     configure_logging,
     format_utc_z,
     normalize_response_payload,
@@ -33,12 +35,13 @@ class ChargePoint(cp):
         self.meter_wh: dict[int, int] = defaultdict(lambda: random.randint(2_300_000, 2_305_000))
 
     async def send_boot_notification(self):
+        identity = charger_identity(self.charge_point_id)
         request_payload = {
             "chargingStation": {
-                "vendorName": "ACME",
-                "model": "UltraFast-200",
-                "serialNumber": f"UF200-{random.randint(1, 9999):04d}",
-                "firmwareVersion": "2.0.1",
+                "vendorName": identity.vendor,
+                "model": identity.model,
+                "serialNumber": identity.serial_number,
+                "firmwareVersion": identity.firmware_version,
             },
             "reason": "PowerUp",
         }
@@ -68,9 +71,9 @@ class ChargePoint(cp):
         connector_id: int,
         status: str,
         ts: datetime,
-        error_code: str = "NoError",
+        fault: Fault | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        # OCPP 2.0.1 StatusNotification has no error code, so error_code is ignored.
+        # OCPP 2.0.1 StatusNotification has no error fields, so fault is ignored.
         connector_status_map = {
             "Available": enums.ConnectorStatusEnumType.available,
             "Preparing": enums.ConnectorStatusEnumType.occupied,
