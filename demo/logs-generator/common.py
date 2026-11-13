@@ -493,6 +493,12 @@ def _parse_start(value: str) -> datetime:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run OCPP charge point client traffic.")
     parser.add_argument(
+        "--ocpp-version",
+        choices=["1.6", "2.0.1"],
+        default="1.6",
+        help="OCPP protocol version to speak (default: 1.6).",
+    )
+    parser.add_argument(
         "--charge-point-id",
         default="CH-002",
         help="Charge point id used in URL and output logs (default: CH-002).",

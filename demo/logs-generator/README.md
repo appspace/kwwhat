@@ -2,14 +2,15 @@
 
 Simple OCPP server/client simulator for generating synthetic charger logs.
 
-Two protocol versions are available:
+One server and one client speak both OCPP 1.6 and OCPP 2.0.1. The client picks the version with `--ocpp-version`, and the server follows whatever the client asks for in the websocket handshake.
 
-| Version | Server | Client |
-|---|---|---|
-| OCPP 2.0.1 | `server.py` | `client.py` |
-| OCPP 1.6 | `server1_6.py` | `client1_6.py` |
-
-Both servers listen on port 9000, so run only one server at a time. `common.py` holds the code shared by both clients (simulation, CLI, CSV writer).
+| File | Role |
+|---|---|
+| `server.py` | Central system on port 9000, serves both versions |
+| `client.py` | Charge point simulator, `--ocpp-version 1.6` (default) or `2.0.1` |
+| `common.py` | Code shared by both versions (simulation, CLI, CSV writer) |
+| `central_system_v16.py`, `central_system_v201.py` | Server side message handlers per version |
+| `charge_point_v16.py`, `charge_point_v201.py` | Client side messages per version |
 
 ## Installation
 
@@ -19,30 +20,22 @@ pip install -r requirements.txt
 
 ## Run server
 
-OCPP 2.0.1:
-
 ```bash
 python server.py
 ```
 
-OCPP 1.6:
-
-```bash
-python server1_6.py
-```
-
 ## Run client
 
-OCPP 2.0.1:
+OCPP 1.6 (default):
 
 ```bash
 python client.py --charge-point-id CH-001 --days 7 --start 2025-11-01T00:00:00Z --seed 42 --output ocpp_client_generated_logs.csv
 ```
 
-OCPP 1.6:
+OCPP 2.0.1:
 
 ```bash
-python client1_6.py --charge-point-id CH-001 --days 7 --start 2025-11-01T00:00:00Z --seed 42 --output ocpp_client_generated_logs.csv
+python client.py --ocpp-version 2.0.1 --charge-point-id CH-001 --days 7 --start 2025-11-01T00:00:00Z --seed 42 --output ocpp_client_generated_logs.csv
 ```
 
 ## What a run simulates
@@ -68,6 +61,7 @@ Use `--seed` together with `--start` for reproducible output. The OCPP 2.0.1 tra
 
 | Option | Default | Description |
 |---|---|---|
+| `--ocpp-version` | `1.6` | OCPP version to speak, `1.6` or `2.0.1`. |
 | `--charge-point-id` | `CH-002` | Charge point id, used in the websocket URL and in the output `id` column. |
 | `--connectors-file` | `../seeds/connectors.csv` | Connectors CSV, see below. |
 | `--output` | `ocpp_client_generated_logs.csv` | Output CSV path. |

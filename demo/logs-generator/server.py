@@ -1,64 +1,44 @@
 # server.py
 import asyncio
 
-from datetime import datetime, timezone
 import websockets
 
-from ocpp.routing import on
-from ocpp.v201 import ChargePoint as cp
-from ocpp.v201 import call_result
-from ocpp.v201.enums import Action, RegistrationStatusEnumType
+import central_system_v16
+import central_system_v201
 
-
-class MyChargePoint(cp):
-    @on(Action.boot_notification)
-    async def on_boot_notification(self, **kwargs):
-        return call_result.BootNotification(
-            current_time=datetime.now(tz=timezone.utc).isoformat(),
-            interval=10,
-            status=RegistrationStatusEnumType.accepted,
-        )
-
-    @on(Action.heartbeat)
-    async def on_heartbeat(self, **kwargs):
-        return call_result.Heartbeat(
-            current_time=datetime.now(tz=timezone.utc).isoformat()
-        )
-
-    @on(Action.meter_values)
-    async def on_meter_values(self, **kwargs):
-        return call_result.MeterValues()
-
-    @on(Action.status_notification)
-    async def on_status_notification(self, **kwargs):
-        return call_result.StatusNotification()
-
-    @on(Action.transaction_event)
-    async def on_transaction_event(self, **kwargs):
-        return call_result.TransactionEvent()
+# One central system serving both protocol versions. The client picks the version in the
+# websocket handshake by offering "ocpp1.6" or "ocpp2.0.1" as its subprotocol. Clients that
+# offer neither are rejected by websockets before on_connect runs.
+CHARGE_POINT_CLASSES = {
+    "ocpp1.6": central_system_v16.MyChargePoint,
+    "ocpp2.0.1": central_system_v201.MyChargePoint,
+}
 
 
 async def on_connect(connection: websockets.ServerConnection):
     """
-    For every new connection, create a new ChargePoint instance,
-    and start listening for messages.
+    For every new connection, create a ChargePoint instance for the negotiated
+    OCPP version, and start listening for messages.
     """
+    charge_point_class = CHARGE_POINT_CLASSES[connection.subprotocol]
     charge_point_id = connection.request.path.split("/")[-1]
-    charge_point = MyChargePoint(charge_point_id, connection)
+    charge_point = charge_point_class(charge_point_id, connection)
     try:
         await charge_point.start()
     except websockets.exceptions.ConnectionClosedOK:
         # Normal shutdown when client closes after sending a finite test run.
         pass
 
+
 async def main():
     server = await websockets.serve(
         on_connect,
-        '0.0.0.0',
+        "0.0.0.0",
         9000,
-        subprotocols=["ocpp2.0.1"],
+        subprotocols=list(CHARGE_POINT_CLASSES),
     )
     await server.wait_closed()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(main())

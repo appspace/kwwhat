@@ -1,9 +1,7 @@
-# server.py
-import asyncio
+# central_system_v16.py
 import itertools
 
 from datetime import datetime, timezone
-import websockets
 
 from ocpp.routing import on
 from ocpp.v16 import ChargePoint as cp
@@ -48,30 +46,3 @@ class MyChargePoint(cp):
     @on(Action.stop_transaction)
     async def on_stop_transaction(self, **kwargs):
         return call_result.StopTransaction(id_tag_info={"status": "Accepted"})
-
-
-async def on_connect(connection: websockets.ServerConnection):
-    """
-    For every new connection, create a new ChargePoint instance,
-    and start listening for messages.
-    """
-    charge_point_id = connection.request.path.split("/")[-1]
-    charge_point = MyChargePoint(charge_point_id, connection)
-
-    try:
-        await charge_point.start()
-    except websockets.exceptions.ConnectionClosedOK:
-        # Normal shutdown when client closes after sending a finite test run.
-        pass
-
-async def main():
-    server = await websockets.serve(
-        on_connect,
-        '0.0.0.0',
-        9000,
-        subprotocols=["ocpp1.6"],
-    )
-    await server.wait_closed()
-
-if __name__ == '__main__':
-    asyncio.run(main())
