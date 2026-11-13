@@ -53,6 +53,24 @@ One client run simulates one charger over `--days` of simulated time. The websoc
 
 All ports and the heartbeat run concurrently against the simulated clock, and requests reach the server in timestamp order. That is why the OCPP 1.6 transaction ids assigned by the server increase with time, as they would on a real central system.
 
+## Lifecycle
+
+The client reads `commissioned_ts` and `decommissioned_ts` of the charger from `--chargers-file` (default `../seeds/chargers.csv`) and only generates traffic inside that period, so the logs agree with the reference data dbt reads.
+
+- The period is cut to the commissioned period. A run that starts before `commissioned_ts` starts at the commissioning time with a BootNotification.
+- Nothing is sent after `decommissioned_ts` (a 1 second margin keeps the response rows inside too). A session that could not finish before the decommissioning is not started, so no transaction is ever left open.
+- If the requested period has no overlap with the commissioned period, no connection is made and the output file has only the header. This is what a default run (last `--days` days, up to now) does for a charger decommissioned in the past.
+- A blank `decommissioned_ts` means the charger is still in commission. A charger missing from the file has no limits.
+- `--ignore-lifecycle` turns all of this off.
+
+The demo seeds contain three chargers so that both situations can be generated:
+
+| Charger | Lifecycle | Use |
+|---|---|---|
+| CH-001 | commissioned 2025-10-01, decommissioned 2025-10-15 | Replay the decommissioning scenario: `--start 2025-10-01T00:00:00Z --days 30` |
+| CH-002 | commissioned 2025-09-15, still in commission | Live charger |
+| CH-003 | commissioned 2025-10-01, still in commission | Live charger, same layout as CH-002, has no logs in the demo logs seed |
+
 The output is a CSV with columns `timestamp,id,action,msg`, sorted by timestamp. Every exchange is one request row and one response row, and the response row is stamped `--response-delay-ms` plus jitter after the request. Message ids are sequential per message type (`hb-00001`, `notif-00001`). The `currentTime` in server responses is rewritten to the simulated time.
 
 Use `--seed` together with `--start` for reproducible output. The OCPP 2.0.1 transaction ids are random UUID fragments, so those differ between runs.
@@ -64,6 +82,8 @@ Use `--seed` together with `--start` for reproducible output. The OCPP 2.0.1 tra
 | `--ocpp-version` | `1.6` | OCPP version to speak, `1.6` or `2.0.1`. |
 | `--charge-point-id` | `CH-002` | Charge point id, used in the websocket URL and in the output `id` column. |
 | `--connectors-file` | `../seeds/connectors.csv` | Connectors CSV, see below. |
+| `--chargers-file` | `../seeds/chargers.csv` | Chargers CSV with commissioned and decommissioned dates, see Lifecycle below. |
+| `--ignore-lifecycle` | off | Do not limit traffic to the charger's commissioned and decommissioned dates. |
 | `--output` | `ocpp_client_generated_logs.csv` | Output CSV path. |
 | `--start` | now minus `--days` | Simulated start time, ISO 8601. UTC if no zone is given. |
 | `--days` | `1` | Days of charger activity to simulate. |

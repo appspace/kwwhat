@@ -24,8 +24,11 @@ from typing import Any
 import websockets
 
 DEFAULT_CONNECTORS_FILE = Path(__file__).resolve().parent.parent / "seeds" / "connectors.csv"
+DEFAULT_CHARGERS_FILE = Path(__file__).resolve().parent.parent / "seeds" / "chargers.csv"
 DEFAULT_VENDOR_CODES_FILE = Path(__file__).resolve().parents[2] / "seeds" / "chargex_mrec_codes.csv"
 DEFAULT_MAX_POWER_KW = 50.0
+# Nothing is sent this close to a decommissioning, so response rows never land after it.
+DECOMMISSION_MARGIN = timedelta(seconds=1)
 # Faults reported with a plain OCPP 1.6 errorCode only, no vendor code.
 PLAIN_FAULT_ERROR_CODES = [
     "ConnectorLockFailure",
@@ -52,6 +55,11 @@ HOURLY_ARRIVAL_WEIGHTS = [
     0.10, 0.05, 0.05, 0.05, 0.10, 0.20, 0.50, 0.90, 1.20, 1.00, 0.90, 1.00,
     1.30, 1.20, 1.00, 1.00, 1.20, 1.60, 1.80, 1.50, 1.00, 0.60, 0.30, 0.15,
 ]
+
+
+def parse_timestamp(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def configure_logging() -> None:
@@ -185,6 +193,26 @@ def read_connectors(connectors_path: Path, charge_point_id: str) -> list[Connect
     return sorted(connectors, key=lambda c: (c.port_id, c.connector_id)) or fallback
 
 
+def read_lifecycle(chargers_path: Path, charge_point_id: str) -> tuple[datetime | None, datetime | None]:
+    """Read (commissioned_ts, decommissioned_ts) of one charger from a chargers.csv style file.
+
+    Blank values and a missing file or charger give None, meaning no limit on that side.
+    """
+    if not chargers_path.exists():
+        return None, None
+    with chargers_path.open("r", encoding="utf-8", newline="") as file:
+        for row in csv.DictReader(file):
+            if row.get("charge_point_id") != charge_point_id:
+                continue
+            commissioned_raw = (row.get("commissioned_ts") or "").strip()
+            decommissioned_raw = (row.get("decommissioned_ts") or "").strip()
+            return (
+                parse_timestamp(commissioned_raw) if commissioned_raw else None,
+                parse_timestamp(decommissioned_raw) if decommissioned_raw else None,
+            )
+    return None, None
+
+
 class SessionLogWriter:
     """Collects exchanges in memory and writes them as one time-ordered CSV on close.
 
@@ -257,7 +285,7 @@ class SessionLogWriter:
 @dataclass(frozen=True)
 class SimulationConfig:
     start: datetime
-    days: float
+    end: datetime
     sessions_per_port_per_day: float
     failed_attempt_probability: float
     fault_probability: float
@@ -266,10 +294,11 @@ class SimulationConfig:
     vendor_faults: tuple[Fault, ...] = ()
     vendor_fault_weights: tuple[int, ...] = ()
     vendor_error_code_probability: float = 0.0
+    hard_end: datetime | None = None
 
-    @property
-    def end(self) -> datetime:
-        return self.start + timedelta(days=self.days)
+    def fits(self, free_at: datetime) -> bool:
+        """False if the port would still be busy after the charger was decommissioned."""
+        return self.hard_end is None or free_at <= self.hard_end
 
     def pick_fault(self) -> Fault:
         if self.vendor_faults and random.random() < self.vendor_error_code_probability:
@@ -362,12 +391,47 @@ def _next_arrival(after: datetime, cfg: SimulationConfig) -> datetime:
             return ts
 
 
-async def _run_failed_attempt(recorder: Recorder, connector: Connector, ts: datetime) -> datetime:
+async def _run_failed_attempt(
+    recorder: Recorder, connector: Connector, ts: datetime, free_at: datetime
+) -> datetime:
     """Driver plugs in, nothing starts, driver gives up. No transaction."""
     await recorder.status(connector, "Preparing", ts)
-    free_at = ts + timedelta(seconds=random.randint(20, 120))
     await recorder.status(connector, "Available", free_at)
     return free_at
+
+
+@dataclass(frozen=True)
+class ChargePlan:
+    """Every random choice of one charging session, made before anything is sent."""
+
+    started_at: datetime
+    ended_at: datetime
+    free_at: datetime
+    energy_wh_per_s: float
+    fault: Fault | None
+
+
+def _plan_charge_session(cfg: SimulationConfig, connector: Connector, ts: datetime) -> ChargePlan:
+    started_at = ts + timedelta(seconds=random.randint(5, 25))
+    duration_s = 60 * min(180.0, max(5.0, random.lognormvariate(math.log(35), 0.6)))
+    faulted = random.random() < cfg.fault_probability
+    if faulted:
+        duration_s *= random.uniform(0.2, 0.8)
+    ended_at = started_at + timedelta(seconds=duration_s)
+    energy_wh_per_s = connector.max_power_kw * random.uniform(0.4, 0.9) * 1000 / 3600
+    if faulted:
+        fault = cfg.pick_fault()
+        free_at = ended_at + timedelta(seconds=1) + timedelta(minutes=random.uniform(10, 240))
+    else:
+        fault = None
+        free_at = ended_at + timedelta(seconds=random.randint(10, 60))
+    return ChargePlan(
+        started_at=started_at,
+        ended_at=ended_at,
+        free_at=free_at,
+        energy_wh_per_s=energy_wh_per_s,
+        fault=fault,
+    )
 
 
 async def _run_charge_session(
@@ -376,28 +440,21 @@ async def _run_charge_session(
     connector: Connector,
     id_tag: str,
     ts: datetime,
+    plan: ChargePlan,
 ) -> datetime:
     """One driver session. Returns the time the port is free again."""
     charge_point = recorder.charge_point
     await recorder.status(connector, "Preparing", ts)
-    started_at = ts + timedelta(seconds=random.randint(5, 25))
     await recorder.exchange(
-        charge_point.start_action_name, "tx", started_at,
-        charge_point.send_start_transaction(connector.port_id, connector.connector_id, id_tag, started_at),
+        charge_point.start_action_name, "tx", plan.started_at,
+        charge_point.send_start_transaction(connector.port_id, connector.connector_id, id_tag, plan.started_at),
     )
-    await recorder.status(connector, "Charging", started_at + timedelta(seconds=1))
+    await recorder.status(connector, "Charging", plan.started_at + timedelta(seconds=1))
 
-    duration_s = 60 * min(180.0, max(5.0, random.lognormvariate(math.log(35), 0.6)))
-    faulted = random.random() < cfg.fault_probability
-    if faulted:
-        duration_s *= random.uniform(0.2, 0.8)
-    ended_at = started_at + timedelta(seconds=duration_s)
-    energy_wh_per_s = connector.max_power_kw * random.uniform(0.4, 0.9) * 1000 / 3600
-
-    meter_at = started_at + timedelta(seconds=cfg.meter_interval_s)
-    last_sample_at = started_at
-    while meter_at < ended_at:
-        delta_wh = energy_wh_per_s * (meter_at - last_sample_at).total_seconds() * random.uniform(0.95, 1.05)
+    meter_at = plan.started_at + timedelta(seconds=cfg.meter_interval_s)
+    last_sample_at = plan.started_at
+    while meter_at < plan.ended_at:
+        delta_wh = plan.energy_wh_per_s * (meter_at - last_sample_at).total_seconds() * random.uniform(0.95, 1.05)
         await recorder.exchange(
             "MeterValues", "meter", meter_at,
             charge_point.send_meter_values(connector.port_id, connector.connector_id, delta_wh, meter_at),
@@ -405,24 +462,21 @@ async def _run_charge_session(
         last_sample_at = meter_at
         meter_at += timedelta(seconds=cfg.meter_interval_s)
 
-    remaining_wh = energy_wh_per_s * (ended_at - last_sample_at).total_seconds()
+    remaining_wh = plan.energy_wh_per_s * (plan.ended_at - last_sample_at).total_seconds()
     await recorder.exchange(
-        charge_point.stop_action_name, "stop", ended_at,
+        charge_point.stop_action_name, "stop", plan.ended_at,
         charge_point.send_stop_transaction(
-            connector.port_id, connector.connector_id, ended_at,
-            "Other" if faulted else "EVDisconnected", remaining_wh,
+            connector.port_id, connector.connector_id, plan.ended_at,
+            "Other" if plan.fault else "EVDisconnected", remaining_wh,
         ),
     )
 
-    if faulted:
-        faulted_at = ended_at + timedelta(seconds=1)
-        await recorder.status(connector, "Faulted", faulted_at, cfg.pick_fault())
-        free_at = faulted_at + timedelta(minutes=random.uniform(10, 240))
+    if plan.fault:
+        await recorder.status(connector, "Faulted", plan.ended_at + timedelta(seconds=1), plan.fault)
     else:
-        await recorder.status(connector, "Finishing", ended_at + timedelta(seconds=1))
-        free_at = ended_at + timedelta(seconds=random.randint(10, 60))
-    await recorder.status(connector, "Available", free_at)
-    return free_at
+        await recorder.status(connector, "Finishing", plan.ended_at + timedelta(seconds=1))
+    await recorder.status(connector, "Available", plan.free_at)
+    return plan.free_at
 
 
 async def _run_port(
@@ -441,9 +495,14 @@ async def _run_port(
             return
         connector = random.choice(connectors)
         if random.random() < cfg.failed_attempt_probability:
-            ts = await _run_failed_attempt(recorder, connector, ts)
+            free_at = ts + timedelta(seconds=random.randint(20, 120))
+            if cfg.fits(free_at):
+                ts = await _run_failed_attempt(recorder, connector, ts, free_at)
         else:
-            ts = await _run_charge_session(recorder, cfg, connector, random.choice(id_tags), ts)
+            id_tag = random.choice(id_tags)
+            plan = _plan_charge_session(cfg, connector, ts)
+            if cfg.fits(plan.free_at):
+                ts = await _run_charge_session(recorder, cfg, connector, id_tag, ts, plan)
 
 
 async def _run_startup(recorder: Recorder, cfg: SimulationConfig, connectors: list[Connector]) -> None:
@@ -485,11 +544,6 @@ async def run_simulation(
     )
 
 
-def _parse_start(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run OCPP charge point client traffic.")
     parser.add_argument(
@@ -511,6 +565,18 @@ def parse_args() -> argparse.Namespace:
         "(default: ../seeds/connectors.csv).",
     )
     parser.add_argument(
+        "--chargers-file",
+        type=Path,
+        default=DEFAULT_CHARGERS_FILE,
+        help="Chargers CSV (charge_point_id, commissioned_ts, decommissioned_ts) "
+        "(default: ../seeds/chargers.csv).",
+    )
+    parser.add_argument(
+        "--ignore-lifecycle",
+        action="store_true",
+        help="Do not limit traffic to the commissioned and decommissioned dates in --chargers-file.",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=Path("ocpp_client_generated_logs.csv"),
@@ -518,7 +584,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--start",
-        type=_parse_start,
+        type=parse_timestamp,
         default=None,
         help="Simulated start time, ISO 8601, UTC if no zone (default: now minus --days).",
     )
@@ -597,10 +663,19 @@ async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotoc
     if args.seed is not None:
         random.seed(args.seed)
     start = args.start or (datetime.now(timezone.utc) - timedelta(days=args.days)).replace(microsecond=0)
+    end = start + timedelta(days=args.days)
+    commissioned_ts, decommissioned_ts = (
+        (None, None) if args.ignore_lifecycle else read_lifecycle(args.chargers_file, args.charge_point_id)
+    )
+    if commissioned_ts and commissioned_ts > start:
+        start = commissioned_ts
+    last_activity_ts = decommissioned_ts - DECOMMISSION_MARGIN if decommissioned_ts else None
+    if last_activity_ts and last_activity_ts < end:
+        end = last_activity_ts
     vendor_faults, vendor_fault_weights = read_vendor_faults(args.vendor_codes_file)
     cfg = SimulationConfig(
         start=start,
-        days=args.days,
+        end=end,
         sessions_per_port_per_day=args.sessions_per_port_per_day,
         failed_attempt_probability=args.failed_attempt_probability,
         fault_probability=args.fault_probability,
@@ -609,6 +684,7 @@ async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotoc
         vendor_faults=tuple(vendor_faults),
         vendor_fault_weights=tuple(vendor_fault_weights),
         vendor_error_code_probability=args.vendor_error_code_probability,
+        hard_end=last_activity_ts,
     )
     connectors = read_connectors(args.connectors_file, args.charge_point_id)
     writer = SessionLogWriter(
@@ -616,6 +692,15 @@ async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotoc
         response_delay_ms=args.response_delay_ms,
         response_delay_jitter_ms=args.response_delay_jitter_ms,
     )
+    if cfg.start >= cfg.end:
+        print(
+            f"{args.charge_point_id} is not in commission in the requested period "
+            f"(commissioned {commissioned_ts}, decommissioned {decommissioned_ts}). "
+            f"No traffic generated, {args.output} has only the header. "
+            "Use --start inside the commissioned period or --ignore-lifecycle."
+        )
+        writer.close()
+        return
     start_task: asyncio.Task | None = None
     try:
         async with websockets.connect(
