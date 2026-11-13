@@ -58,14 +58,18 @@ async def on_connect(connection: websockets.ServerConnection):
     charge_point_id = connection.request.path.split("/")[-1]
     charge_point = MyChargePoint(charge_point_id, connection)
 
-    await charge_point.start()
+    try:
+        await charge_point.start()
+    except websockets.exceptions.ConnectionClosedOK:
+        # Normal shutdown when client closes after sending a finite test run.
+        pass
 
 async def main():
     server = await websockets.serve(
         on_connect,
         '0.0.0.0',
         9000,
-        subprotocols=["ocpp2.0.1"],
+        subprotocols=["ocpp1.6"],
     )
     await server.wait_closed()
 
