@@ -58,8 +58,8 @@ Each client runs one scripted session: boot, Available status for every connecto
 | `--output` | `ocpp_client_generated_logs.csv` | both | Output CSV path. |
 | `--status-every` | `10` | both | Emit a Preparing then Charging StatusNotification every N loops. `0` disables it. |
 | `--fault-probability` | `0.05` | both | Chance per loop of a Faulted, Available, Charging status sequence. `0` disables faults. |
-| `--response-delay-ms` | `40` | `client.py` only | Base spacing between request and response timestamps. |
-| `--response-delay-jitter-ms` | `10` | `client.py` only | Random extra delay (0 to N ms) added to the response timestamp. |
+| `--response-delay-ms` | `40` | both | Base spacing between request and response timestamps. |
+| `--response-delay-jitter-ms` | `10` | both | Random extra delay (0 to N ms) added to the response timestamp. |
 
 ### Ports file
 

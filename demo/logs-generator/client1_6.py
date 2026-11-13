@@ -2,50 +2,22 @@
 import argparse
 import asyncio
 import csv
-import json
-import logging
 import random
-import uuid
-from dataclasses import asdict, is_dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import websockets
 
+from common import (
+    SessionLogWriter,
+    configure_logging,
+    format_utc_z,
+    normalize_response_payload,
+)
+
 from ocpp.v16 import ChargePoint as cp
 from ocpp.v16 import call, call_result
 from ocpp.v16.enums import RegistrationStatus
-
-
-def configure_logging() -> None:
-    # force=True ensures config is applied even if logging was set elsewhere.
-    logging.basicConfig(level=logging.INFO, force=True)
-    logging.getLogger("ocpp").setLevel(logging.INFO)
-
-
-def format_utc_z(dt: datetime | None = None) -> str:
-    value = dt or datetime.now(timezone.utc)
-    return value.isoformat(timespec="milliseconds").replace("+00:00", "Z")
-
-
-def snake_to_camel(name: str) -> str:
-    parts = name.split("_")
-    return parts[0] + "".join(part.capitalize() for part in parts[1:])
-
-
-def to_camel(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {snake_to_camel(k): to_camel(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [to_camel(item) for item in value]
-    return value
-
-
-def normalize_response_payload(response: Any) -> dict[str, Any]:
-    if is_dataclass(response):
-        return to_camel(asdict(response))
-    return {}
 
 
 def read_ports(ports_path: Path, charge_point_id: str) -> list[int]:
@@ -295,41 +267,6 @@ class ChargePoint(cp):
             await asyncio.sleep(interval_s)
 
 
-class SessionLogWriter:
-    def __init__(self, output: Path):
-        self.output = output
-        self.file = output.open("w", encoding="utf-8", newline="")
-        self.writer = csv.DictWriter(self.file, fieldnames=["timestamp", "id", "action", "msg"])
-        self.writer.writeheader()
-
-    def close(self) -> None:
-        self.file.close()
-
-    def _write_row(self, timestamp: str, charge_point_id: str, action: str, msg: list[Any]) -> None:
-        self.writer.writerow(
-            {
-                "timestamp": timestamp,
-                "id": charge_point_id,
-                "action": action,
-                "msg": json.dumps(msg, separators=(",", ":")),
-            }
-        )
-
-    def log_exchange(
-        self,
-        charge_point_id: str,
-        action: str,
-        request_payload: dict[str, Any],
-        response_payload: dict[str, Any],
-        msg_prefix: str,
-    ) -> None:
-        msg_id = f"{msg_prefix}-{uuid.uuid4().hex[:5]}"
-        request_time = format_utc_z()
-        response_time = format_utc_z(datetime.now(timezone.utc))
-        self._write_row(request_time, charge_point_id, action, [2, msg_id, action, request_payload])
-        self._write_row(response_time, charge_point_id, "", [3, msg_id, response_payload])
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run OCPP charge point client traffic.")
     parser.add_argument(
@@ -373,6 +310,18 @@ def parse_args() -> argparse.Namespace:
         default=0.05,
         help="Chance of a fault/recovery status sequence per loop (default: 0.05).",
     )
+    parser.add_argument(
+        "--response-delay-ms",
+        type=int,
+        default=40,
+        help="Base response spacing in CSV rows (default: 40ms).",
+    )
+    parser.add_argument(
+        "--response-delay-jitter-ms",
+        type=int,
+        default=10,
+        help="Extra random response delay jitter in ms (default: 10).",
+    )
     return parser.parse_args()
 
 
@@ -384,9 +333,15 @@ async def main(
     output: Path,
     status_every: int,
     fault_probability: float,
+    response_delay_ms: int,
+    response_delay_jitter_ms: int,
 ):
     connector_ids = read_ports(ports_file, charge_point_id)
-    log_writer = SessionLogWriter(output)
+    log_writer = SessionLogWriter(
+        output,
+        response_delay_ms=response_delay_ms,
+        response_delay_jitter_ms=response_delay_jitter_ms,
+    )
     start_task: asyncio.Task | None = None
     async with websockets.connect(
         f"ws://localhost:9000/{charge_point_id}", subprotocols=["ocpp1.6"]
@@ -491,5 +446,7 @@ if __name__ == "__main__":
             output=args.output,
             status_every=args.status_every,
             fault_probability=args.fault_probability,
+            response_delay_ms=args.response_delay_ms,
+            response_delay_jitter_ms=args.response_delay_jitter_ms,
         )
     )
