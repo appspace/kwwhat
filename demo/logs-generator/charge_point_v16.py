@@ -27,6 +27,10 @@ class ChargePoint(cp):
         self.charge_point_id = charge_point_id
         # Per port state: each port has its own meter register and open transaction.
         self.transaction_ids: dict[int, int] = {}
+        # Last transaction id written to the log. The server numbers transactions from 5001 on
+        # every start, so when a series is continued the logged ids are shifted to keep increasing.
+        self.last_transaction_id: int | None = None
+        self.transaction_id_offset: int | None = None
         self.meter_wh: dict[int, int] = defaultdict(lambda: random.randint(2_300_000, 2_305_000))
 
     async def send_boot_notification(self):
@@ -103,7 +107,13 @@ class ChargePoint(cp):
         )
         response: call_result.StartTransaction = await self.call(request)
         response_payload = normalize_response_payload(response)
-        self.transaction_ids[port_id] = int(response_payload["transactionId"])
+        server_transaction_id = int(response_payload["transactionId"])
+        if self.transaction_id_offset is None:
+            self.transaction_id_offset = max(0, (self.last_transaction_id or 0) + 1 - server_transaction_id)
+        transaction_id = server_transaction_id + self.transaction_id_offset
+        response_payload["transactionId"] = transaction_id
+        self.last_transaction_id = max(self.last_transaction_id or 0, transaction_id)
+        self.transaction_ids[port_id] = transaction_id
         return request_payload, response_payload
 
     async def send_meter_values(

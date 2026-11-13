@@ -71,6 +71,33 @@ The demo seeds contain three chargers so that both situations can be generated:
 | CH-002 | commissioned 2025-09-15, still in commission | Live charger |
 | CH-003 | commissioned 2025-10-01, still in commission | Live charger, same layout as CH-002, has no logs in the demo logs seed |
 
+## Appending
+
+Without `--append`, every run overwrites `--output`. With `--append`, a run continues the series in the output file, so several runs give the same kind of log as one long run. Use `--append` on the first run too: it creates the file, and a state file next to it.
+
+```bash
+python client.py --append --charge-point-id CH-003 --start 2025-11-01T00:00:00Z --days 7 --output ch003.csv
+python client.py --append --charge-point-id CH-003 --days 7 --output ch003.csv   # continues at 2025-11-08
+```
+
+Each continued run starts where the previous one ended and simulates `--days` more. To keep the join between runs invisible:
+
+- **Time:** sessions never run past the end of an appended run. A session that could not finish before it is not started, so every port is free and Available at the boundary and the file stays sorted by timestamp.
+- **Heartbeats:** they continue on the same interval, with no gap or double beat at the boundary.
+- **No reboot:** a continued run sends no BootNotification and no initial StatusNotifications. Only the first run boots the charger.
+- **Message ids and meter readings:** they continue, so ids are never repeated and a meter never goes backwards.
+- **OCPP 1.6 transaction ids:** they continue even if the server was restarted in between. The server numbers transactions from 5001 on every start, and the client shifts the logged ids to keep them increasing.
+
+The state is kept in `<output>.state.json` (end of the previous run, next heartbeat, last message ids, meter readings, last transaction id, size of the output file). Keep the two files together. The run refuses to continue, with an explanation, when:
+
+- `--start` is given. The start is always the end of the previous run.
+- the output exists but the state file does not, or the output was changed since the last run (its size differs);
+- the series belongs to another charger or OCPP version. A series is one charger and one OCPP version, so use one `--output` per charger.
+
+A failed appended run (for example the server is not running) writes nothing, so a rerun is safe. A run without `--append` over an existing series overwrites the file, and the next `--append` then reports the stale state. The lifecycle limits still apply: the series stops at the charger's decommissioning, and a further `--append` prints that nothing was generated and leaves both files unchanged.
+
+Use a different `--seed` for each run, or none. The same seed in every run repeats the same random pattern.
+
 The output is a CSV with columns `timestamp,id,action,msg`, sorted by timestamp. Every exchange is one request row and one response row, and the response row is stamped `--response-delay-ms` plus jitter after the request. Message ids are sequential per message type (`hb-00001`, `notif-00001`). The `currentTime` in server responses is rewritten to the simulated time.
 
 Use `--seed` together with `--start` for reproducible output. The OCPP 2.0.1 transaction ids are random UUID fragments, so those differ between runs.
@@ -85,7 +112,8 @@ Use `--seed` together with `--start` for reproducible output. The OCPP 2.0.1 tra
 | `--chargers-file` | `../seeds/chargers.csv` | Chargers CSV with commissioned and decommissioned dates, see Lifecycle below. |
 | `--ignore-lifecycle` | off | Do not limit traffic to the charger's commissioned and decommissioned dates. |
 | `--output` | `ocpp_client_generated_logs.csv` | Output CSV path. |
-| `--start` | now minus `--days` | Simulated start time, ISO 8601. UTC if no zone is given. |
+| `--start` | now minus `--days` | Simulated start time, ISO 8601. UTC if no zone is given. Not allowed when `--append` continues an existing file. |
+| `--append` | off | Continue the series in `--output` instead of overwriting it, see Appending below. |
 | `--days` | `1` | Days of charger activity to simulate. |
 | `--sessions-per-port-per-day` | `6` | Average driver arrivals per port per day. `0` disables sessions. |
 | `--failed-attempt-probability` | `0.1` | Chance that an arrival never starts a transaction. |

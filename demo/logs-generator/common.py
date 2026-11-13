@@ -27,8 +27,9 @@ DEFAULT_CONNECTORS_FILE = Path(__file__).resolve().parent.parent / "seeds" / "co
 DEFAULT_CHARGERS_FILE = Path(__file__).resolve().parent.parent / "seeds" / "chargers.csv"
 DEFAULT_VENDOR_CODES_FILE = Path(__file__).resolve().parents[2] / "seeds" / "chargex_mrec_codes.csv"
 DEFAULT_MAX_POWER_KW = 50.0
-# Nothing is sent this close to a decommissioning, so response rows never land after it.
-DECOMMISSION_MARGIN = timedelta(seconds=1)
+# Nothing is sent this close to a decommissioning or to the end of an appended run, so
+# response rows never land after it.
+END_MARGIN = timedelta(seconds=1)
 # Faults reported with a plain OCPP 1.6 errorCode only, no vendor code.
 PLAIN_FAULT_ERROR_CODES = [
     "ConnectorLockFailure",
@@ -224,14 +225,18 @@ class SessionLogWriter:
         output: Path,
         response_delay_ms: int = 40,
         response_delay_jitter_ms: int = 10,
+        append: bool = False,
+        message_counters: dict[str, int] | None = None,
     ):
         self.output = output
         self.response_delay_ms = max(0, response_delay_ms)
         self.response_delay_jitter_ms = max(0, response_delay_jitter_ms)
+        self.message_counters: dict[str, int] = defaultdict(int, message_counters or {})
         self.exchanges: list[dict[str, Any]] = []
-        self.file = output.open("w", encoding="utf-8", newline="")
+        self.file = output.open("a" if append else "w", encoding="utf-8", newline="")
         self.writer = csv.DictWriter(self.file, fieldnames=["timestamp", "id", "action", "msg"])
-        self.writer.writeheader()
+        if not append:
+            self.writer.writeheader()
 
     def log_exchange(
         self,
@@ -253,23 +258,25 @@ class SessionLogWriter:
             }
         )
 
-    def close(self) -> None:
-        counters: dict[str, int] = defaultdict(int)
-        rows: list[tuple[datetime, dict[str, str]]] = []
-        for exchange in sorted(self.exchanges, key=lambda e: e["request_dt"]):
-            counters[exchange["msg_prefix"]] += 1
-            msg_id = f"{exchange['msg_prefix']}-{counters[exchange['msg_prefix']]:05d}"
-            request_dt = exchange["request_dt"]
-            response_dt = request_dt + timedelta(
-                milliseconds=self.response_delay_ms
-                + random.randint(0, self.response_delay_jitter_ms)
-            )
-            request_msg = [2, msg_id, exchange["action"], exchange["request_payload"]]
-            response_msg = [3, msg_id, exchange["response_payload"]]
-            rows.append((request_dt, self._row(request_dt, exchange["charge_point_id"], exchange["action"], request_msg)))
-            rows.append((response_dt, self._row(response_dt, exchange["charge_point_id"], "", response_msg)))
-        rows.sort(key=lambda item: item[0])
-        self.writer.writerows(row for _, row in rows)
+    def close(self, flush: bool = True) -> None:
+        """Write the collected exchanges (unless flush is False) and close the file."""
+        if flush:
+            rows: list[tuple[datetime, dict[str, str]]] = []
+            for exchange in sorted(self.exchanges, key=lambda e: e["request_dt"]):
+                prefix = exchange["msg_prefix"]
+                self.message_counters[prefix] += 1
+                msg_id = f"{prefix}-{self.message_counters[prefix]:05d}"
+                request_dt = exchange["request_dt"]
+                response_dt = request_dt + timedelta(
+                    milliseconds=self.response_delay_ms
+                    + random.randint(0, self.response_delay_jitter_ms)
+                )
+                request_msg = [2, msg_id, exchange["action"], exchange["request_payload"]]
+                response_msg = [3, msg_id, exchange["response_payload"]]
+                rows.append((request_dt, self._row(request_dt, exchange["charge_point_id"], exchange["action"], request_msg)))
+                rows.append((response_dt, self._row(response_dt, exchange["charge_point_id"], "", response_msg)))
+            rows.sort(key=lambda item: item[0])
+            self.writer.writerows(row for _, row in rows)
         self.file.close()
 
     @staticmethod
@@ -295,6 +302,8 @@ class SimulationConfig:
     vendor_fault_weights: tuple[int, ...] = ()
     vendor_error_code_probability: float = 0.0
     hard_end: datetime | None = None
+    continuation: bool = False
+    first_heartbeat_at: datetime | None = None
 
     def fits(self, free_at: datetime) -> bool:
         """False if the port would still be busy after the charger was decommissioned."""
@@ -319,13 +328,13 @@ class SimulationClock:
         self._waiting: list[tuple[datetime, int, asyncio.Future]] = []
         self._counter = itertools.count()
 
-    async def run(self, coroutines: list[Any]) -> None:
+    async def run(self, coroutines: list[Any]) -> list[Any]:
         self._active = len(coroutines)
-        await asyncio.gather(*(self._run_task(coroutine) for coroutine in coroutines))
+        return list(await asyncio.gather(*(self._run_task(coroutine) for coroutine in coroutines)))
 
-    async def _run_task(self, coroutine: Any) -> None:
+    async def _run_task(self, coroutine: Any) -> Any:
         try:
-            await coroutine
+            return await coroutine
         finally:
             self._active -= 1
             self._release_next()
@@ -488,7 +497,7 @@ async def _run_port(
     """Run back to back sessions on one port. A port serves one driver at a time."""
     if cfg.sessions_per_port_per_day <= 0:
         return
-    ts = cfg.start + timedelta(minutes=1)
+    ts = cfg.start if cfg.continuation else cfg.start + timedelta(minutes=1)
     while True:
         ts = _next_arrival(ts, cfg)
         if ts >= cfg.end:
@@ -513,11 +522,13 @@ async def _run_startup(recorder: Recorder, cfg: SimulationConfig, connectors: li
         await recorder.status(connector, "Available", cfg.start + timedelta(seconds=1 + index))
 
 
-async def _run_heartbeats(recorder: Recorder, cfg: SimulationConfig) -> None:
-    heartbeat_at = cfg.start + timedelta(seconds=cfg.heartbeat_interval_s)
+async def _run_heartbeats(recorder: Recorder, cfg: SimulationConfig) -> datetime:
+    """Send heartbeats until the end of the period. Returns the first heartbeat after it."""
+    heartbeat_at = cfg.first_heartbeat_at or cfg.start + timedelta(seconds=cfg.heartbeat_interval_s)
     while heartbeat_at < cfg.end:
         await recorder.exchange("Heartbeat", "hb", heartbeat_at, recorder.charge_point.send_heartbeat())
         heartbeat_at += timedelta(seconds=cfg.heartbeat_interval_s)
+    return heartbeat_at
 
 
 async def run_simulation(
@@ -525,23 +536,100 @@ async def run_simulation(
     writer: SessionLogWriter,
     cfg: SimulationConfig,
     connectors: list[Connector],
-) -> None:
-    """Boot the charger, then run heartbeats and every port concurrently in simulated time."""
+) -> datetime:
+    """Boot the charger (unless continuing), then run heartbeats and every port concurrently
+    in simulated time. Returns the first heartbeat time after the period."""
     clock = SimulationClock()
     recorder = Recorder(charge_point, writer, clock)
-    await clock.run([_run_startup(recorder, cfg, connectors)])
+    if not cfg.continuation:
+        await clock.run([_run_startup(recorder, cfg, connectors)])
 
     id_tags = [f"ABC{number}XYZ" for number in random.sample(range(100, 1000), 25)]
     connectors_by_port: dict[int, list[Connector]] = defaultdict(list)
     for connector in connectors:
         connectors_by_port[connector.port_id].append(connector)
-    await clock.run(
+    results = await clock.run(
         [_run_heartbeats(recorder, cfg)]
         + [
             _run_port(recorder, cfg, port_connectors, id_tags)
             for port_connectors in connectors_by_port.values()
         ]
     )
+    return results[0]
+
+
+STATE_VERSION = 1
+
+
+@dataclass(frozen=True)
+class AppendState:
+    """What the next appended run needs to continue exactly where this one stopped."""
+
+    charge_point_id: str
+    ocpp_version: str
+    end: datetime
+    next_heartbeat_at: datetime
+    message_counters: dict[str, int]
+    meter_wh: dict[int, int]
+    last_transaction_id: int | None
+    output_bytes: int
+
+
+def append_state_path(output: Path) -> Path:
+    return output.with_name(output.name + ".state.json")
+
+
+def load_append_state(output: Path, charge_point_id: str, ocpp_version: str) -> AppendState | None:
+    """State of the series in `output`, or None when the output does not exist yet."""
+    if not output.exists() or output.stat().st_size == 0:
+        return None
+    path = append_state_path(output)
+    if not path.exists():
+        raise SystemExit(
+            f"{output} already exists but {path} is missing, so the run cannot be continued. "
+            f"Move or delete {output} to start a new series, or run without --append to overwrite it."
+        )
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if raw.get("version") != STATE_VERSION:
+        raise SystemExit(f"{path} has an unsupported version {raw.get('version')}, expected {STATE_VERSION}.")
+    if raw["charge_point_id"] != charge_point_id or raw["ocpp_version"] != ocpp_version:
+        raise SystemExit(
+            f"{output} is a series for {raw['charge_point_id']} (OCPP {raw['ocpp_version']}), "
+            f"it cannot be continued with {charge_point_id} (OCPP {ocpp_version}). Use a different --output."
+        )
+    if raw["output_bytes"] != output.stat().st_size:
+        raise SystemExit(
+            f"{output} changed since the last run (its size differs from the one in {path}). "
+            f"Restore it, or delete both files to start a new series."
+        )
+    return AppendState(
+        charge_point_id=raw["charge_point_id"],
+        ocpp_version=raw["ocpp_version"],
+        end=parse_timestamp(raw["end"]),
+        next_heartbeat_at=parse_timestamp(raw["next_heartbeat_at"]),
+        message_counters=dict(raw["message_counters"]),
+        meter_wh={int(port): wh for port, wh in raw["meter_wh"].items()},
+        last_transaction_id=raw["last_transaction_id"],
+        output_bytes=raw["output_bytes"],
+    )
+
+
+def save_append_state(output: Path, state: AppendState) -> None:
+    path = append_state_path(output)
+    raw = {
+        "version": STATE_VERSION,
+        "charge_point_id": state.charge_point_id,
+        "ocpp_version": state.ocpp_version,
+        "end": format_utc_z(state.end),
+        "next_heartbeat_at": format_utc_z(state.next_heartbeat_at),
+        "message_counters": state.message_counters,
+        "meter_wh": {str(port): wh for port, wh in state.meter_wh.items()},
+        "last_transaction_id": state.last_transaction_id,
+        "output_bytes": state.output_bytes,
+    }
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def parse_args() -> argparse.Namespace:
@@ -583,10 +671,16 @@ def parse_args() -> argparse.Namespace:
         help="Output CSV path with columns timestamp,id,action,msg.",
     )
     parser.add_argument(
+        "--append",
+        action="store_true",
+        help="Continue the series in --output instead of overwriting it: the run starts where the "
+        "previous one ended. Creates the file (and its .state.json) if it does not exist yet.",
+    )
+    parser.add_argument(
         "--start",
         type=parse_timestamp,
         default=None,
-        help="Simulated start time, ISO 8601, UTC if no zone (default: now minus --days).",
+        help="Simulated start time, ISO 8601, UTC if no zone (default: now minus --days). Not allowed when --append continues an existing file.",
     )
     parser.add_argument(
         "--days",
@@ -662,16 +756,30 @@ def parse_args() -> argparse.Namespace:
 async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotocol: str) -> None:
     if args.seed is not None:
         random.seed(args.seed)
-    start = args.start or (datetime.now(timezone.utc) - timedelta(days=args.days)).replace(microsecond=0)
+    state = load_append_state(args.output, args.charge_point_id, args.ocpp_version) if args.append else None
+    if state and args.start:
+        raise SystemExit(
+            "--start cannot be used when --append continues an existing file, "
+            "the run starts where the previous one ended."
+        )
+    if state:
+        start = state.end
+    else:
+        start = args.start or (datetime.now(timezone.utc) - timedelta(days=args.days)).replace(microsecond=0)
     end = start + timedelta(days=args.days)
     commissioned_ts, decommissioned_ts = (
         (None, None) if args.ignore_lifecycle else read_lifecycle(args.chargers_file, args.charge_point_id)
     )
     if commissioned_ts and commissioned_ts > start:
         start = commissioned_ts
-    last_activity_ts = decommissioned_ts - DECOMMISSION_MARGIN if decommissioned_ts else None
+    last_activity_ts = decommissioned_ts - END_MARGIN if decommissioned_ts else None
     if last_activity_ts and last_activity_ts < end:
         end = last_activity_ts
+    hard_end = last_activity_ts
+    if args.append:
+        # No session may cross the end of the run, so the next run continues with every port free.
+        run_hard_end = end - END_MARGIN
+        hard_end = min(hard_end, run_hard_end) if hard_end else run_hard_end
     vendor_faults, vendor_fault_weights = read_vendor_faults(args.vendor_codes_file)
     cfg = SimulationConfig(
         start=start,
@@ -684,36 +792,68 @@ async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotoc
         vendor_faults=tuple(vendor_faults),
         vendor_fault_weights=tuple(vendor_fault_weights),
         vendor_error_code_probability=args.vendor_error_code_probability,
-        hard_end=last_activity_ts,
-    )
-    connectors = read_connectors(args.connectors_file, args.charge_point_id)
-    writer = SessionLogWriter(
-        args.output,
-        response_delay_ms=args.response_delay_ms,
-        response_delay_jitter_ms=args.response_delay_jitter_ms,
+        hard_end=hard_end,
+        continuation=state is not None,
+        first_heartbeat_at=state.next_heartbeat_at if state else None,
     )
     if cfg.start >= cfg.end:
         print(
             f"{args.charge_point_id} is not in commission in the requested period "
             f"(commissioned {commissioned_ts}, decommissioned {decommissioned_ts}). "
-            f"No traffic generated, {args.output} has only the header. "
-            "Use --start inside the commissioned period or --ignore-lifecycle."
+            "No traffic generated"
+            + (f", {args.output} was left unchanged. " if args.append else f", {args.output} has only the header. ")
+            + "Use --start inside the commissioned period or --ignore-lifecycle."
         )
-        writer.close()
+        if not args.append:
+            SessionLogWriter(args.output).close()
         return
+    connectors = read_connectors(args.connectors_file, args.charge_point_id)
+    writer = SessionLogWriter(
+        args.output,
+        response_delay_ms=args.response_delay_ms,
+        response_delay_jitter_ms=args.response_delay_jitter_ms,
+        append=state is not None,
+        message_counters=state.message_counters if state else None,
+    )
     start_task: asyncio.Task | None = None
+    next_heartbeat_at = cfg.end
+    meter_wh: dict[int, int] = {}
+    last_transaction_id: int | None = None
+    completed = False
     try:
         async with websockets.connect(
             f"ws://localhost:9000/{args.charge_point_id}", subprotocols=[subprotocol]
         ) as ws:
             charge_point = charge_point_cls(args.charge_point_id, ws)
+            if state:
+                charge_point.meter_wh.update(state.meter_wh)
+                if hasattr(charge_point, "last_transaction_id"):
+                    charge_point.last_transaction_id = state.last_transaction_id
             start_task = asyncio.create_task(charge_point.start())
-            await run_simulation(charge_point, writer, cfg, connectors)
+            next_heartbeat_at = await run_simulation(charge_point, writer, cfg, connectors)
+            meter_wh = dict(charge_point.meter_wh)
+            last_transaction_id = getattr(charge_point, "last_transaction_id", None)
             await ws.close()
         try:
             await start_task
         except websockets.exceptions.ConnectionClosed:
             # Expected when we close the socket after finishing traffic generation.
             pass
+        completed = True
     finally:
-        writer.close()
+        # A failed appended run must not leave a partial tail behind, the state would not match it.
+        writer.close(flush=completed or not args.append)
+    if args.append:
+        save_append_state(
+            args.output,
+            AppendState(
+                charge_point_id=args.charge_point_id,
+                ocpp_version=args.ocpp_version,
+                end=cfg.end,
+                next_heartbeat_at=next_heartbeat_at,
+                message_counters=dict(writer.message_counters),
+                meter_wh=meter_wh,
+                last_transaction_id=last_transaction_id,
+                output_bytes=args.output.stat().st_size,
+            ),
+        )
