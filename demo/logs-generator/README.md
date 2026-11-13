@@ -58,6 +58,8 @@ One client run simulates one charger over `--days` of simulated time. The websoc
 - **Failed attempt:** with `--failed-attempt-probability`, the driver plugs in (Preparing) and leaves a minute or two later (Available) without a transaction.
 - **Fault:** with `--fault-probability`, a session ends early with stop reason `Other`, the connector goes Faulted and returns to Available after 10 minutes to 4 hours of repair downtime. In OCPP 1.6 the Faulted StatusNotification carries an `errorCode`, and with `--vendor-error-code-probability` it also carries `vendorId` and `vendorErrorCode` taken from `--vendor-codes-file` (ChargeX codes such as `CX003`). Codes without a standard OCPP 1.6 equivalent are sent with `errorCode` `OtherError`. OCPP 2.0.1 StatusNotification has no error fields, so 2.0.1 faults only show the Faulted status.
 
+All ports and the heartbeat run concurrently against the simulated clock, and requests reach the server in timestamp order. That is why the OCPP 1.6 transaction ids assigned by the server increase with time, as they would on a real central system.
+
 The output is a CSV with columns `timestamp,id,action,msg`, sorted by timestamp. Every exchange is one request row and one response row, and the response row is stamped `--response-delay-ms` plus jitter after the request. Message ids are sequential per message type (`hb-00001`, `notif-00001`). The `currentTime` in server responses is rewritten to the simulated time.
 
 Use `--seed` together with `--start` for reproducible output. The OCPP 2.0.1 transaction ids are random UUID fragments, so those differ between runs.

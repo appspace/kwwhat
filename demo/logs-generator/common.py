@@ -9,6 +9,8 @@ import argparse
 import asyncio
 import csv
 import hashlib
+import heapq
+import itertools
 import json
 import logging
 import math
@@ -275,35 +277,77 @@ class SimulationConfig:
         return Fault(error_code=random.choice(PLAIN_FAULT_ERROR_CODES))
 
 
-async def _exchange(writer: SessionLogWriter, charge_point: Any, action: str, prefix: str, ts: datetime, call: Any) -> None:
-    request_payload, response_payload = await call
-    if "currentTime" in response_payload:
-        # The server answers with wall-clock time, the log must show simulated time.
-        response_payload = {**response_payload, "currentTime": format_utc_z(ts)}
-    writer.log_exchange(
-        charge_point_id=charge_point.charge_point_id,
-        action=action,
-        request_payload=request_payload,
-        response_payload=response_payload,
-        msg_prefix=prefix,
-        request_dt=ts,
-    )
+class SimulationClock:
+    """Runs coroutines concurrently but releases them in simulated time order.
+
+    A task calls wait_until(ts) before every request. The earliest waiting task is only
+    released once every other task is waiting too, so requests reach the server in
+    timestamp order and anything the server numbers (transaction ids) increases with time.
+    """
+
+    def __init__(self) -> None:
+        self._active = 0
+        self._waiting: list[tuple[datetime, int, asyncio.Future]] = []
+        self._counter = itertools.count()
+
+    async def run(self, coroutines: list[Any]) -> None:
+        self._active = len(coroutines)
+        await asyncio.gather(*(self._run_task(coroutine) for coroutine in coroutines))
+
+    async def _run_task(self, coroutine: Any) -> None:
+        try:
+            await coroutine
+        finally:
+            self._active -= 1
+            self._release_next()
+
+    async def wait_until(self, ts: datetime) -> None:
+        future = asyncio.get_running_loop().create_future()
+        heapq.heappush(self._waiting, (ts, next(self._counter), future))
+        self._active -= 1
+        self._release_next()
+        await future
+
+    def _release_next(self) -> None:
+        while self._active == 0 and self._waiting:
+            _, _, future = heapq.heappop(self._waiting)
+            if not future.done():
+                self._active += 1
+                future.set_result(None)
 
 
-async def _status(
-    writer: SessionLogWriter,
-    charge_point: Any,
-    connector: Connector,
-    status: str,
-    ts: datetime,
-    fault: Fault | None = None,
-) -> None:
-    await _exchange(
-        writer, charge_point, "StatusNotification", "notif", ts,
-        charge_point.send_status_notification(
-            connector.port_id, connector.connector_id, status, ts, fault
-        ),
-    )
+class Recorder:
+    """Sends a request through the charge point and logs the exchange at its simulated time."""
+
+    def __init__(self, charge_point: Any, writer: SessionLogWriter, clock: SimulationClock):
+        self.charge_point = charge_point
+        self.writer = writer
+        self.clock = clock
+
+    async def exchange(self, action: str, prefix: str, ts: datetime, call: Any) -> None:
+        await self.clock.wait_until(ts)
+        request_payload, response_payload = await call
+        if "currentTime" in response_payload:
+            # The server answers with wall-clock time, the log must show simulated time.
+            response_payload = {**response_payload, "currentTime": format_utc_z(ts)}
+        self.writer.log_exchange(
+            charge_point_id=self.charge_point.charge_point_id,
+            action=action,
+            request_payload=request_payload,
+            response_payload=response_payload,
+            msg_prefix=prefix,
+            request_dt=ts,
+        )
+
+    async def status(
+        self, connector: Connector, status: str, ts: datetime, fault: Fault | None = None
+    ) -> None:
+        await self.exchange(
+            "StatusNotification", "notif", ts,
+            self.charge_point.send_status_notification(
+                connector.port_id, connector.connector_id, status, ts, fault
+            ),
+        )
 
 
 def _next_arrival(after: datetime, cfg: SimulationConfig) -> datetime:
@@ -318,32 +362,30 @@ def _next_arrival(after: datetime, cfg: SimulationConfig) -> datetime:
             return ts
 
 
-async def _run_failed_attempt(
-    writer: SessionLogWriter, charge_point: Any, connector: Connector, ts: datetime
-) -> datetime:
+async def _run_failed_attempt(recorder: Recorder, connector: Connector, ts: datetime) -> datetime:
     """Driver plugs in, nothing starts, driver gives up. No transaction."""
-    await _status(writer, charge_point, connector, "Preparing", ts)
+    await recorder.status(connector, "Preparing", ts)
     free_at = ts + timedelta(seconds=random.randint(20, 120))
-    await _status(writer, charge_point, connector, "Available", free_at)
+    await recorder.status(connector, "Available", free_at)
     return free_at
 
 
 async def _run_charge_session(
-    writer: SessionLogWriter,
-    charge_point: Any,
+    recorder: Recorder,
     cfg: SimulationConfig,
     connector: Connector,
     id_tag: str,
     ts: datetime,
 ) -> datetime:
     """One driver session. Returns the time the port is free again."""
-    await _status(writer, charge_point, connector, "Preparing", ts)
+    charge_point = recorder.charge_point
+    await recorder.status(connector, "Preparing", ts)
     started_at = ts + timedelta(seconds=random.randint(5, 25))
-    await _exchange(
-        writer, charge_point, charge_point.start_action_name, "tx", started_at,
+    await recorder.exchange(
+        charge_point.start_action_name, "tx", started_at,
         charge_point.send_start_transaction(connector.port_id, connector.connector_id, id_tag, started_at),
     )
-    await _status(writer, charge_point, connector, "Charging", started_at + timedelta(seconds=1))
+    await recorder.status(connector, "Charging", started_at + timedelta(seconds=1))
 
     duration_s = 60 * min(180.0, max(5.0, random.lognormvariate(math.log(35), 0.6)))
     faulted = random.random() < cfg.fault_probability
@@ -356,16 +398,16 @@ async def _run_charge_session(
     last_sample_at = started_at
     while meter_at < ended_at:
         delta_wh = energy_wh_per_s * (meter_at - last_sample_at).total_seconds() * random.uniform(0.95, 1.05)
-        await _exchange(
-            writer, charge_point, "MeterValues", "meter", meter_at,
+        await recorder.exchange(
+            "MeterValues", "meter", meter_at,
             charge_point.send_meter_values(connector.port_id, connector.connector_id, delta_wh, meter_at),
         )
         last_sample_at = meter_at
         meter_at += timedelta(seconds=cfg.meter_interval_s)
 
     remaining_wh = energy_wh_per_s * (ended_at - last_sample_at).total_seconds()
-    await _exchange(
-        writer, charge_point, charge_point.stop_action_name, "stop", ended_at,
+    await recorder.exchange(
+        charge_point.stop_action_name, "stop", ended_at,
         charge_point.send_stop_transaction(
             connector.port_id, connector.connector_id, ended_at,
             "Other" if faulted else "EVDisconnected", remaining_wh,
@@ -374,18 +416,17 @@ async def _run_charge_session(
 
     if faulted:
         faulted_at = ended_at + timedelta(seconds=1)
-        await _status(writer, charge_point, connector, "Faulted", faulted_at, cfg.pick_fault())
+        await recorder.status(connector, "Faulted", faulted_at, cfg.pick_fault())
         free_at = faulted_at + timedelta(minutes=random.uniform(10, 240))
     else:
-        await _status(writer, charge_point, connector, "Finishing", ended_at + timedelta(seconds=1))
+        await recorder.status(connector, "Finishing", ended_at + timedelta(seconds=1))
         free_at = ended_at + timedelta(seconds=random.randint(10, 60))
-    await _status(writer, charge_point, connector, "Available", free_at)
+    await recorder.status(connector, "Available", free_at)
     return free_at
 
 
 async def _run_port(
-    writer: SessionLogWriter,
-    charge_point: Any,
+    recorder: Recorder,
     cfg: SimulationConfig,
     connectors: list[Connector],
     id_tags: list[str],
@@ -400,11 +441,24 @@ async def _run_port(
             return
         connector = random.choice(connectors)
         if random.random() < cfg.failed_attempt_probability:
-            ts = await _run_failed_attempt(writer, charge_point, connector, ts)
+            ts = await _run_failed_attempt(recorder, connector, ts)
         else:
-            ts = await _run_charge_session(
-                writer, charge_point, cfg, connector, random.choice(id_tags), ts
-            )
+            ts = await _run_charge_session(recorder, cfg, connector, random.choice(id_tags), ts)
+
+
+async def _run_startup(recorder: Recorder, cfg: SimulationConfig, connectors: list[Connector]) -> None:
+    await recorder.exchange(
+        "BootNotification", "boot", cfg.start, recorder.charge_point.send_boot_notification()
+    )
+    for index, connector in enumerate(connectors):
+        await recorder.status(connector, "Available", cfg.start + timedelta(seconds=1 + index))
+
+
+async def _run_heartbeats(recorder: Recorder, cfg: SimulationConfig) -> None:
+    heartbeat_at = cfg.start + timedelta(seconds=cfg.heartbeat_interval_s)
+    while heartbeat_at < cfg.end:
+        await recorder.exchange("Heartbeat", "hb", heartbeat_at, recorder.charge_point.send_heartbeat())
+        heartbeat_at += timedelta(seconds=cfg.heartbeat_interval_s)
 
 
 async def run_simulation(
@@ -413,24 +467,22 @@ async def run_simulation(
     cfg: SimulationConfig,
     connectors: list[Connector],
 ) -> None:
-    await _exchange(
-        writer, charge_point, "BootNotification", "boot", cfg.start,
-        charge_point.send_boot_notification(),
-    )
-    for index, connector in enumerate(connectors):
-        await _status(writer, charge_point, connector, "Available", cfg.start + timedelta(seconds=1 + index))
-
-    heartbeat_at = cfg.start + timedelta(seconds=cfg.heartbeat_interval_s)
-    while heartbeat_at < cfg.end:
-        await _exchange(writer, charge_point, "Heartbeat", "hb", heartbeat_at, charge_point.send_heartbeat())
-        heartbeat_at += timedelta(seconds=cfg.heartbeat_interval_s)
+    """Boot the charger, then run heartbeats and every port concurrently in simulated time."""
+    clock = SimulationClock()
+    recorder = Recorder(charge_point, writer, clock)
+    await clock.run([_run_startup(recorder, cfg, connectors)])
 
     id_tags = [f"ABC{number}XYZ" for number in random.sample(range(100, 1000), 25)]
     connectors_by_port: dict[int, list[Connector]] = defaultdict(list)
     for connector in connectors:
         connectors_by_port[connector.port_id].append(connector)
-    for port_connectors in connectors_by_port.values():
-        await _run_port(writer, charge_point, cfg, port_connectors, id_tags)
+    await clock.run(
+        [_run_heartbeats(recorder, cfg)]
+        + [
+            _run_port(recorder, cfg, port_connectors, id_tags)
+            for port_connectors in connectors_by_port.values()
+        ]
+    )
 
 
 def _parse_start(value: str) -> datetime:
