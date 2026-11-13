@@ -1,53 +1,36 @@
 # client.py
-import argparse
 import asyncio
-import csv
 import random
 import uuid
-from pathlib import Path
+from collections import defaultdict
+from datetime import datetime
 from typing import Any
 
 import websockets
 
 from common import (
-    SessionLogWriter,
     configure_logging,
     format_utc_z,
     normalize_response_payload,
+    parse_args,
+    run_client,
 )
 
 from ocpp.v201 import ChargePoint as cp
 from ocpp.v201 import call, call_result, datatypes, enums
 
 
-def read_ports(ports_path: Path, charge_point_id: str) -> list[tuple[int, int]]:
-    if not ports_path.exists():
-        return [(1, 1)]
-
-    connectors: list[tuple[int, int]] = []
-    with ports_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            if row.get("charge_point_id") != charge_point_id:
-                continue
-            connector_id_raw = row.get("connector_id")
-            evse_id_raw = row.get("port_id")
-            if not connector_id_raw or not connector_id_raw.isdigit():
-                continue
-            connector_id = int(connector_id_raw)
-            evse_id = int(evse_id_raw) if evse_id_raw and evse_id_raw.isdigit() else 1
-            connectors.append((evse_id, connector_id))
-
-    return sorted(set(connectors)) or [(1, 1)]
-
-
 class ChargePoint(cp):
+    start_action_name = "TransactionEvent"
+    stop_action_name = "TransactionEvent"
+
     def __init__(self, charge_point_id: str, connection: websockets.ClientConnection):
         super().__init__(charge_point_id, connection)
         self.charge_point_id = charge_point_id
-        self.current_transaction_id: str | None = None
-        self.current_meter_wh = random.randint(2_300_000, 2_305_000)
-        self.transaction_seq_no = 0
+        # Per port (EVSE) state: each port has its own meter register and open transaction.
+        self.transaction_ids: dict[int, str] = {}
+        self.transaction_seq_nos: dict[int, int] = {}
+        self.meter_wh: dict[int, int] = defaultdict(lambda: random.randint(2_300_000, 2_305_000))
 
     async def send_boot_notification(self):
         request_payload = {
@@ -80,76 +63,85 @@ class ChargePoint(cp):
         return request_payload, normalize_response_payload(response)
 
     async def send_status_notification(
-        self, evse_id: int, connector_id: int, status: str
+        self,
+        port_id: int,
+        connector_id: int,
+        status: str,
+        ts: datetime,
+        error_code: str = "NoError",
     ) -> tuple[dict[str, Any], dict[str, Any]]:
+        # OCPP 2.0.1 StatusNotification has no error code, so error_code is ignored.
         connector_status_map = {
             "Available": enums.ConnectorStatusEnumType.available,
             "Preparing": enums.ConnectorStatusEnumType.occupied,
             "Charging": enums.ConnectorStatusEnumType.occupied,
+            "Finishing": enums.ConnectorStatusEnumType.occupied,
             "Faulted": enums.ConnectorStatusEnumType.faulted,
         }
         connector_status = connector_status_map.get(
             status, enums.ConnectorStatusEnumType.occupied
         )
         request_payload = {
-            "timestamp": format_utc_z(),
+            "timestamp": format_utc_z(ts),
             "connectorStatus": connector_status.value,
-            "evseId": evse_id,
+            "evseId": port_id,
             "connectorId": connector_id,
         }
 
         request = call.StatusNotification(
             timestamp=request_payload["timestamp"],
             connector_status=connector_status,
-            evse_id=evse_id,
+            evse_id=port_id,
             connector_id=request_payload["connectorId"],
         )
         response: call_result.StatusNotification = await self.call(request)
         return request_payload, normalize_response_payload(response)
 
-    async def send_transaction_event_started(
-        self, evse_id: int, connector_id: int, id_tag: str
+    async def send_start_transaction(
+        self, port_id: int, connector_id: int, id_tag: str, ts: datetime
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        self.current_transaction_id = f"tx-{uuid.uuid4().hex[:8]}"
-        self.transaction_seq_no = 1
+        transaction_id = f"tx-{uuid.uuid4().hex[:8]}"
+        self.transaction_ids[port_id] = transaction_id
+        self.transaction_seq_nos[port_id] = 1
         request_payload = {
             "eventType": "Started",
-            "timestamp": format_utc_z(),
+            "timestamp": format_utc_z(ts),
             "triggerReason": "RemoteStart",
-            "seqNo": self.transaction_seq_no,
+            "seqNo": self.transaction_seq_nos[port_id],
             "transactionInfo": {
-                "transactionId": self.current_transaction_id,
+                "transactionId": transaction_id,
                 "chargingState": "Charging",
             },
-            "evse": {"id": evse_id, "connectorId": connector_id},
+            "evse": {"id": port_id, "connectorId": connector_id},
             "idToken": {"idToken": id_tag, "type": "Central"},
         }
         request = call.TransactionEvent(
             event_type=enums.TransactionEventEnumType.started,
             timestamp=request_payload["timestamp"],
             trigger_reason=enums.TriggerReasonEnumType.remote_start,
-            seq_no=self.transaction_seq_no,
+            seq_no=self.transaction_seq_nos[port_id],
             transaction_info=datatypes.TransactionType(
-                transaction_id=self.current_transaction_id,
+                transaction_id=transaction_id,
                 charging_state=enums.ChargingStateEnumType.charging,
             ),
-            evse=datatypes.EVSEType(id=evse_id, connector_id=connector_id),
+            evse=datatypes.EVSEType(id=port_id, connector_id=connector_id),
             id_token=datatypes.IdTokenType(
                 id_token=id_tag, type=enums.IdTokenEnumType.central
             ),
         )
         response: call_result.TransactionEvent = await self.call(request)
-        response_payload = normalize_response_payload(response)
-        return request_payload, response_payload
+        return request_payload, normalize_response_payload(response)
 
-    async def send_meter_values(self, evse_id: int) -> tuple[dict[str, Any], dict[str, Any]]:
-        self.current_meter_wh += random.randint(20, 120)
-        timestamp = format_utc_z()
+    async def send_meter_values(
+        self, port_id: int, connector_id: int, delta_wh: float, ts: datetime
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        self.meter_wh[port_id] += round(delta_wh)
+        timestamp = format_utc_z(ts)
         meter_value = datatypes.MeterValueType(
             timestamp=timestamp,
             sampled_value=[
                 datatypes.SampledValueType(
-                    value=float(self.current_meter_wh),
+                    value=float(self.meter_wh[port_id]),
                     context=enums.ReadingContextEnumType.sample_periodic,
                     measurand=enums.MeasurandEnumType.energy_active_import_register,
                     unit_of_measure=datatypes.UnitOfMeasureType(unit="Wh"),
@@ -157,18 +149,18 @@ class ChargePoint(cp):
             ],
         )
         request = call.MeterValues(
-            evse_id=evse_id,
+            evse_id=port_id,
             meter_value=[meter_value],
         )
         response: call_result.MeterValues = await self.call(request)
         request_payload = {
-            "evseId": evse_id,
+            "evseId": port_id,
             "meterValue": [
                 {
                     "timestamp": timestamp,
                     "sampledValue": [
                         {
-                            "value": str(self.current_meter_wh),
+                            "value": str(self.meter_wh[port_id]),
                             "context": "Sample.Periodic",
                             "measurand": "Energy.Active.Import.Register",
                             "unit": "Wh",
@@ -179,25 +171,35 @@ class ChargePoint(cp):
         }
         return request_payload, normalize_response_payload(response)
 
-    async def send_transaction_event_ended(
-        self, evse_id: int, connector_id: int
+    async def send_stop_transaction(
+        self, port_id: int, connector_id: int, ts: datetime, reason: str, delta_wh: float
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        stop_wh = self.current_meter_wh + random.randint(1, 30)
-        self.transaction_seq_no += 1
+        self.meter_wh[port_id] += round(delta_wh)
+        stop_wh = self.meter_wh[port_id]
+        timestamp = format_utc_z(ts)
+        transaction_id = self.transaction_ids.pop(port_id)
+        self.transaction_seq_nos[port_id] += 1
+        seq_no = self.transaction_seq_nos.pop(port_id)
+        if reason == "Other":
+            trigger_reason = enums.TriggerReasonEnumType.abnormal_condition
+            stopped_reason = enums.ReasonEnumType.other
+        else:
+            trigger_reason = enums.TriggerReasonEnumType.ev_departed
+            stopped_reason = enums.ReasonEnumType.ev_disconnected
         request_payload = {
             "eventType": "Ended",
-            "timestamp": format_utc_z(),
-            "triggerReason": "EVDeparted",
-            "seqNo": self.transaction_seq_no,
+            "timestamp": timestamp,
+            "triggerReason": trigger_reason.value,
+            "seqNo": seq_no,
             "transactionInfo": {
-                "transactionId": self.current_transaction_id,
-                "stoppedReason": "EVDisconnected",
+                "transactionId": transaction_id,
+                "stoppedReason": stopped_reason.value,
                 "chargingState": "Idle",
             },
-            "evse": {"id": evse_id, "connectorId": connector_id},
+            "evse": {"id": port_id, "connectorId": connector_id},
             "meterValue": [
                 {
-                    "timestamp": format_utc_z(),
+                    "timestamp": timestamp,
                     "sampledValue": [
                         {
                             "context": "Transaction.End",
@@ -211,17 +213,17 @@ class ChargePoint(cp):
         }
         request = call.TransactionEvent(
             event_type=enums.TransactionEventEnumType.ended,
-            timestamp=request_payload["timestamp"],
-            trigger_reason=enums.TriggerReasonEnumType.ev_departed,
-            seq_no=self.transaction_seq_no,
+            timestamp=timestamp,
+            trigger_reason=trigger_reason,
+            seq_no=seq_no,
             transaction_info=datatypes.TransactionType(
-                transaction_id=str(self.current_transaction_id),
+                transaction_id=transaction_id,
                 charging_state=enums.ChargingStateEnumType.idle,
-                stopped_reason=enums.ReasonEnumType.ev_disconnected,
+                stopped_reason=stopped_reason,
             ),
             meter_value=[
                 datatypes.MeterValueType(
-                    timestamp=request_payload["meterValue"][0]["timestamp"],
+                    timestamp=timestamp,
                     sampled_value=[
                         datatypes.SampledValueType(
                             value=float(stop_wh),
@@ -232,281 +234,13 @@ class ChargePoint(cp):
                     ],
                 )
             ],
-            evse=datatypes.EVSEType(id=evse_id, connector_id=connector_id),
+            evse=datatypes.EVSEType(id=port_id, connector_id=connector_id),
         )
         response: call_result.TransactionEvent = await self.call(request)
         return request_payload, normalize_response_payload(response)
-
-    async def send_repeated_actions(
-        self,
-        loops: int,
-        interval_s: float,
-        evse_id: int,
-        connector_id: int,
-        log_writer: "SessionLogWriter",
-        status_every: int,
-        fault_probability: float,
-    ) -> None:
-        for index in range(1, loops + 1):
-            if status_every > 0 and index % status_every == 0:
-                preparing_req, preparing_res = await self.send_status_notification(
-                    evse_id=evse_id, connector_id=connector_id, status="Preparing"
-                )
-                log_writer.log_exchange(
-                    charge_point_id=self.charge_point_id,
-                    action="StatusNotification",
-                    request_payload=preparing_req,
-                    response_payload=preparing_res,
-                    msg_prefix="notif",
-                )
-                charging_req, charging_res = await self.send_status_notification(
-                    evse_id=evse_id, connector_id=connector_id, status="Charging"
-                )
-                log_writer.log_exchange(
-                    charge_point_id=self.charge_point_id,
-                    action="StatusNotification",
-                    request_payload=charging_req,
-                    response_payload=charging_res,
-                    msg_prefix="notif",
-                )
-
-            if random.random() < fault_probability:
-                fault_req, fault_res = await self.send_status_notification(
-                    evse_id=evse_id,
-                    connector_id=connector_id,
-                    status="Faulted",
-                )
-                log_writer.log_exchange(
-                    charge_point_id=self.charge_point_id,
-                    action="StatusNotification",
-                    request_payload=fault_req,
-                    response_payload=fault_res,
-                    msg_prefix="notif",
-                )
-                recover_req, recover_res = await self.send_status_notification(
-                    evse_id=evse_id, connector_id=connector_id, status="Available"
-                )
-                log_writer.log_exchange(
-                    charge_point_id=self.charge_point_id,
-                    action="StatusNotification",
-                    request_payload=recover_req,
-                    response_payload=recover_res,
-                    msg_prefix="notif",
-                )
-                resume_req, resume_res = await self.send_status_notification(
-                    evse_id=evse_id, connector_id=connector_id, status="Charging"
-                )
-                log_writer.log_exchange(
-                    charge_point_id=self.charge_point_id,
-                    action="StatusNotification",
-                    request_payload=resume_req,
-                    response_payload=resume_res,
-                    msg_prefix="notif",
-                )
-
-            hb_req, hb_res = await self.send_heartbeat()
-            log_writer.log_exchange(
-                charge_point_id=self.charge_point_id,
-                action="Heartbeat",
-                request_payload=hb_req,
-                response_payload=hb_res,
-                msg_prefix="hb",
-            )
-            meter_req, meter_res = await self.send_meter_values(evse_id)
-            log_writer.log_exchange(
-                charge_point_id=self.charge_point_id,
-                action="MeterValues",
-                request_payload=meter_req,
-                response_payload=meter_res,
-                msg_prefix="meter",
-            )
-            await asyncio.sleep(interval_s)
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run OCPP charge point client traffic.")
-    parser.add_argument(
-        "--loops",
-        type=int,
-        default=10,
-        help="How many heartbeat/meter cycles to send (default: 10).",
-    )
-    parser.add_argument(
-        "--interval",
-        type=float,
-        default=1.0,
-        help="Delay between cycles in seconds (default: 1.0).",
-    )
-    parser.add_argument(
-        "--charge-point-id",
-        default="CH-002",
-        help="Charge point id used in URL and output logs (default: CH-002).",
-    )
-    parser.add_argument(
-        "--ports-file",
-        type=Path,
-        default=Path("ports.csv"),
-        help="Ports CSV used to derive connector ids (default: ports.csv).",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("ocpp_client_generated_logs.csv"),
-        help="Output CSV path with columns timestamp,id,action,msg.",
-    )
-    parser.add_argument(
-        "--status-every",
-        type=int,
-        default=10,
-        help="Emit Preparing/Charging StatusNotification every N loops (default: 10).",
-    )
-    parser.add_argument(
-        "--fault-probability",
-        type=float,
-        default=0.05,
-        help="Chance of a fault/recovery status sequence per loop (default: 0.05).",
-    )
-    parser.add_argument(
-        "--response-delay-ms",
-        type=int,
-        default=40,
-        help="Base response spacing in CSV rows (default: 40ms).",
-    )
-    parser.add_argument(
-        "--response-delay-jitter-ms",
-        type=int,
-        default=10,
-        help="Extra random response delay jitter in ms (default: 10).",
-    )
-    return parser.parse_args()
-
-
-async def main(
-    loops: int,
-    interval_s: float,
-    charge_point_id: str,
-    ports_file: Path,
-    output: Path,
-    status_every: int,
-    fault_probability: float,
-    response_delay_ms: int,
-    response_delay_jitter_ms: int,
-):
-    connector_ids = read_ports(ports_file, charge_point_id)
-    log_writer = SessionLogWriter(
-        output,
-        response_delay_ms=response_delay_ms,
-        response_delay_jitter_ms=response_delay_jitter_ms,
-    )
-    start_task: asyncio.Task | None = None
-    async with websockets.connect(
-        f"ws://localhost:9000/{charge_point_id}", subprotocols=["ocpp2.0.1"]
-    ) as ws:
-        charge_point = ChargePoint(charge_point_id, ws)
-        start_task = asyncio.create_task(charge_point.start())
-
-        boot_req, boot_res = await charge_point.send_boot_notification()
-        log_writer.log_exchange(
-            charge_point_id=charge_point_id,
-            action="BootNotification",
-            request_payload=boot_req,
-            response_payload=boot_res,
-            msg_prefix="boot",
-        )
-
-        for evse_id, connector_id in connector_ids:
-            sn_req, sn_res = await charge_point.send_status_notification(
-                evse_id=evse_id, connector_id=connector_id, status="Available"
-            )
-            log_writer.log_exchange(
-                charge_point_id=charge_point_id,
-                action="StatusNotification",
-                request_payload=sn_req,
-                response_payload=sn_res,
-                msg_prefix="notif",
-            )
-
-        evse_id, connector_id = connector_ids[0]
-        start_req, start_res = await charge_point.send_transaction_event_started(
-            evse_id=evse_id,
-            connector_id=connector_id,
-            id_tag=f"ABC{random.randint(100, 999)}XYZ",
-        )
-        log_writer.log_exchange(
-            charge_point_id=charge_point_id,
-            action="TransactionEvent",
-            request_payload=start_req,
-            response_payload=start_res,
-            msg_prefix="tx",
-        )
-
-        charging_req, charging_res = await charge_point.send_status_notification(
-            evse_id=evse_id, connector_id=connector_id, status="Charging"
-        )
-        log_writer.log_exchange(
-            charge_point_id=charge_point_id,
-            action="StatusNotification",
-            request_payload=charging_req,
-            response_payload=charging_res,
-            msg_prefix="notif",
-        )
-
-        await charge_point.send_repeated_actions(
-            loops=loops,
-            interval_s=interval_s,
-            evse_id=evse_id,
-            connector_id=connector_id,
-            log_writer=log_writer,
-            status_every=status_every,
-            fault_probability=fault_probability,
-        )
-
-        stop_req, stop_res = await charge_point.send_transaction_event_ended(
-            evse_id=evse_id, connector_id=connector_id
-        )
-        log_writer.log_exchange(
-            charge_point_id=charge_point_id,
-            action="TransactionEvent",
-            request_payload=stop_req,
-            response_payload=stop_res,
-            msg_prefix="stop",
-        )
-
-        final_req, final_res = await charge_point.send_status_notification(
-            evse_id=evse_id, connector_id=connector_id, status="Available"
-        )
-        log_writer.log_exchange(
-            charge_point_id=charge_point_id,
-            action="StatusNotification",
-            request_payload=final_req,
-            response_payload=final_res,
-            msg_prefix="notif",
-        )
-
-        await ws.close()
-    try:
-        if start_task is not None:
-            await start_task
-    except websockets.exceptions.ConnectionClosed:
-        # Expected when we close the socket after finishing traffic generation.
-        pass
-    finally:
-        log_writer.close()
 
 
 if __name__ == "__main__":
     args = parse_args()
     configure_logging()
-    asyncio.run(
-        main(
-            loops=args.loops,
-            interval_s=args.interval,
-            charge_point_id=args.charge_point_id,
-            ports_file=args.ports_file,
-            output=args.output,
-            status_every=args.status_every,
-            fault_probability=args.fault_probability,
-            response_delay_ms=args.response_delay_ms,
-            response_delay_jitter_ms=args.response_delay_jitter_ms,
-        )
-    )
+    asyncio.run(run_client(args, ChargePoint, "ocpp2.0.1"))
