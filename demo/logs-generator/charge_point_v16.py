@@ -1,5 +1,4 @@
-# client1_6.py
-import asyncio
+# charge_point_v16.py
 import random
 from collections import defaultdict
 from datetime import datetime
@@ -10,11 +9,8 @@ import websockets
 from common import (
     Fault,
     charger_identity,
-    configure_logging,
     format_utc_z,
     normalize_response_payload,
-    parse_args,
-    run_client,
 )
 
 from ocpp.v16 import ChargePoint as cp
@@ -180,8 +176,3 @@ class ChargePoint(cp):
         response: call_result.StopTransaction = await self.call(request)
         return request_payload, normalize_response_payload(response)
 
-
-if __name__ == "__main__":
-    args = parse_args()
-    configure_logging()
-    asyncio.run(run_client(args, ChargePoint, "ocpp1.6"))
