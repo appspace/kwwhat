@@ -305,10 +305,6 @@ semantic_models:
         type_params:
           time_granularity: day
     measures:
-      - name: drivers_count
-        description: "Total number of distinct drivers, including the UNKNOWN sentinel."
-        agg: count
-        expr: driver_key
       - name: known_drivers_count
         description: "Number of drivers with a real id_tag, excluding the UNKNOWN sentinel."
         agg: sum_boolean
