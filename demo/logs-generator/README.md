@@ -9,7 +9,7 @@ Two protocol versions are available:
 | OCPP 2.0.1 | `server.py` | `client.py` |
 | OCPP 1.6 | `server1_6.py` | `client1_6.py` |
 
-Both servers listen on port 9000, so run only one server at a time.
+Both servers listen on port 9000, so run only one server at a time. `common.py` holds the code shared by both clients (simulation, CLI, CSV writer).
 
 ## Installation
 
@@ -36,38 +36,54 @@ python server1_6.py
 OCPP 2.0.1:
 
 ```bash
-python client.py --loops 100 --interval 0.2 --charge-point-id CH-001 --response-delay-ms 40 --response-delay-jitter-ms 0 --output ocpp_client_generated_logs.csv
+python client.py --charge-point-id CH-001 --days 7 --start 2025-11-01T00:00:00Z --seed 42 --output ocpp_client_generated_logs.csv
 ```
 
 OCPP 1.6:
 
 ```bash
-python client1_6.py --loops 100 --interval 0.2 --charge-point-id CH-001 --output ocpp_client_generated_logs.csv
+python client1_6.py --charge-point-id CH-001 --days 7 --start 2025-11-01T00:00:00Z --seed 42 --output ocpp_client_generated_logs.csv
 ```
 
-Each client runs one scripted session: boot, Available status for every connector, start transaction, a loop of heartbeats and meter values (with occasional status changes and faults), stop transaction, final Available status. It writes a CSV with columns `timestamp,id,action,msg`, where every exchange is one request row and one response row.
+## What a run simulates
+
+One client run simulates one charger over `--days` of simulated time. The websocket traffic runs as fast as possible and every timestamp comes from a simulated clock, so a week of activity takes a few seconds to generate.
+
+- **Startup:** BootNotification, then an Available StatusNotification for every connector of the charger.
+- **Heartbeats:** one every `--heartbeat-interval` seconds for the whole period.
+- **Driver arrivals:** every port gets about `--sessions-per-port-per-day` arrivals per day, spread over the day with quiet nights and morning, lunch and evening peaks.
+- **One driver per port:** a port never serves two drivers at once, and each arrival picks a random connector of the port. Different ports charge at the same time.
+- **Charging session:** Preparing, start transaction, Charging, MeterValues every `--meter-interval` seconds, stop transaction, Finishing, Available. Session length varies (median about 35 minutes) and the energy delivered depends on the connector's `max_power_kw`.
+- **Failed attempt:** with `--failed-attempt-probability`, the driver plugs in (Preparing) and leaves a minute or two later (Available) without a transaction.
+- **Fault:** with `--fault-probability`, a session ends early with stop reason `Other`, the connector goes Faulted (OCPP 1.6 also gets an `errorCode`) and returns to Available after 10 minutes to 4 hours of repair downtime.
+
+The output is a CSV with columns `timestamp,id,action,msg`, sorted by timestamp. Every exchange is one request row and one response row, and the response row is stamped `--response-delay-ms` plus jitter after the request. Message ids are sequential per message type (`hb-00001`, `notif-00001`). The `currentTime` in server responses is rewritten to the simulated time.
+
+Use `--seed` together with `--start` for reproducible output. The OCPP 2.0.1 transaction ids are random UUID fragments, so those differ between runs.
 
 ## Client options
 
-| Option | Default | Clients | Description |
-|---|---|---|---|
-| `--loops` | `10` | both | Number of heartbeat/meter cycles to send. |
-| `--interval` | `1.0` | both | Delay between cycles, in seconds. |
-| `--charge-point-id` | `CH-002` | both | Charge point id, used in the websocket URL and in the output `id` column. |
-| `--ports-file` | `ports.csv` | both | Ports CSV used to look up the connectors of the charge point (see below). |
-| `--output` | `ocpp_client_generated_logs.csv` | both | Output CSV path. |
-| `--status-every` | `10` | both | Emit a Preparing then Charging StatusNotification every N loops. `0` disables it. |
-| `--fault-probability` | `0.05` | both | Chance per loop of a Faulted, Available, Charging status sequence. `0` disables faults. |
-| `--response-delay-ms` | `40` | both | Base spacing between request and response timestamps. |
-| `--response-delay-jitter-ms` | `10` | both | Random extra delay (0 to N ms) added to the response timestamp. |
+| Option | Default | Description |
+|---|---|---|
+| `--charge-point-id` | `CH-002` | Charge point id, used in the websocket URL and in the output `id` column. |
+| `--connectors-file` | `../seeds/connectors.csv` | Connectors CSV, see below. |
+| `--output` | `ocpp_client_generated_logs.csv` | Output CSV path. |
+| `--start` | now minus `--days` | Simulated start time, ISO 8601. UTC if no zone is given. |
+| `--days` | `1` | Days of charger activity to simulate. |
+| `--sessions-per-port-per-day` | `6` | Average driver arrivals per port per day. `0` disables sessions. |
+| `--failed-attempt-probability` | `0.1` | Chance that an arrival never starts a transaction. |
+| `--fault-probability` | `0.05` | Chance that a charging session ends in a fault. |
+| `--meter-interval` | `300` | Seconds between MeterValues during a session. |
+| `--heartbeat-interval` | `300` | Seconds between Heartbeats. |
+| `--response-delay-ms` | `40` | Base spacing between request and response timestamps. |
+| `--response-delay-jitter-ms` | `10` | Random extra delay (0 to N ms) added to the response timestamp. |
+| `--seed` | random | Random seed for reproducible logs. |
 
-### Ports file
+### Connectors file
 
-`--ports-file` points to a CSV with the columns `charge_point_id`, `connector_id` and (2.0.1 only) `port_id`. Rows are filtered by `--charge-point-id`.
+`--connectors-file` points to a CSV like `demo/seeds/connectors.csv` with the columns `charge_point_id`, `port_id`, `connector_id` and `max_power_kw`. Rows are filtered by `--charge-point-id`.
 
-- A StatusNotification (Available) is sent for every matching connector at startup.
-- The charging session itself runs on the first connector only.
-- `port_id` is used as the EVSE id in 2.0.1 and defaults to `1` if missing.
-- If the file does not exist, or no row matches the charge point, the client falls back to a single connector `1`.
-
-The default path is relative to the current directory, so run the client from the folder that contains `ports.csv` or pass an absolute path.
+- Connectors of the same `port_id` share one port, so only one of them is in use at a time.
+- `port_id` is used as the EVSE id in 2.0.1. OCPP 1.6 has no EVSE concept, so only `connector_id` is sent.
+- `max_power_kw` drives the energy delivered per session. It defaults to 50 if missing.
+- If the file does not exist, or no row matches the charger, the client falls back to a single connector 1 on port 1.
