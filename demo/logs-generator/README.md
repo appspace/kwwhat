@@ -98,7 +98,7 @@ A failed appended run (for example the server is not running) writes nothing, so
 
 Use a different `--seed` for each run, or none. The same seed in every run repeats the same random pattern.
 
-The output is a CSV with columns `timestamp,id,action,msg`, sorted by timestamp. Every exchange is one request row and one response row, and the response row is stamped `--response-delay-ms` plus jitter after the request. Message ids are sequential per message type (`hb-00001`, `notif-00001`). The `currentTime` in server responses is rewritten to the simulated time.
+The output is a CSV with columns `timestamp,id,action,msg`, sorted by timestamp. Every exchange is one request row and one response row, and the response row is stamped `--response-delay-ms` plus jitter after the request. Message ids are sequential per message type and start with the charge point id (`CH-003-hb-00001`, `CH-003-notif-00001`). dbt matches a response to its request by message id alone, so ids have to be unique across chargers that share a log file. The limit is 36 characters per id (OCPP), so a charge point id can have at most 23 characters. The `currentTime` in server responses is rewritten to the simulated time.
 
 Use `--seed` together with `--start` for reproducible output. The OCPP 2.0.1 transaction ids are random UUID fragments, so those differ between runs.
 

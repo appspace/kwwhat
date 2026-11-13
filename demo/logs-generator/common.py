@@ -27,6 +27,10 @@ DEFAULT_CONNECTORS_FILE = Path(__file__).resolve().parent.parent / "seeds" / "co
 DEFAULT_CHARGERS_FILE = Path(__file__).resolve().parent.parent / "seeds" / "chargers.csv"
 DEFAULT_VENDOR_CODES_FILE = Path(__file__).resolve().parents[2] / "seeds" / "chargex_mrec_codes.csv"
 DEFAULT_MAX_POWER_KW = 50.0
+# OCPP limits a message id to 36 characters. Ids are "<charge point id>-<type>-<number>", the type
+# is at most 5 characters ("notif", "meter") and the number has 5 digits, more after 99999 messages.
+MAX_MESSAGE_ID_LENGTH = 36
+MAX_CHARGE_POINT_ID_LENGTH = MAX_MESSAGE_ID_LENGTH - len("-notif-") - 6
 # Nothing is sent this close to a decommissioning or to the end of an appended run, so
 # response rows never land after it.
 END_MARGIN = timedelta(seconds=1)
@@ -217,7 +221,9 @@ def read_lifecycle(chargers_path: Path, charge_point_id: str) -> tuple[datetime 
 class SessionLogWriter:
     """Collects exchanges in memory and writes them as one time-ordered CSV on close.
 
-    Message ids are assigned in request time order, one counter per prefix.
+    Message ids are assigned in request time order, one counter per message type, and start with
+    the charge point id. dbt matches a response to its request by message id alone, so the id must
+    be unique across chargers that share one log file.
     """
 
     def __init__(
@@ -265,7 +271,7 @@ class SessionLogWriter:
             for exchange in sorted(self.exchanges, key=lambda e: e["request_dt"]):
                 prefix = exchange["msg_prefix"]
                 self.message_counters[prefix] += 1
-                msg_id = f"{prefix}-{self.message_counters[prefix]:05d}"
+                msg_id = f"{exchange['charge_point_id']}-{prefix}-{self.message_counters[prefix]:05d}"
                 request_dt = exchange["request_dt"]
                 response_dt = request_dt + timedelta(
                     milliseconds=self.response_delay_ms
@@ -756,6 +762,11 @@ def parse_args() -> argparse.Namespace:
 async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotocol: str) -> None:
     if args.seed is not None:
         random.seed(args.seed)
+    if len(args.charge_point_id) > MAX_CHARGE_POINT_ID_LENGTH:
+        raise SystemExit(
+            f"--charge-point-id {args.charge_point_id!r} is longer than {MAX_CHARGE_POINT_ID_LENGTH} characters, "
+            f"so the message ids built from it could exceed the OCPP limit of {MAX_MESSAGE_ID_LENGTH} characters."
+        )
     state = load_append_state(args.output, args.charge_point_id, args.ocpp_version) if args.append else None
     if state and args.start:
         raise SystemExit(
