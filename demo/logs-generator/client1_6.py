@@ -8,6 +8,8 @@ from typing import Any
 import websockets
 
 from common import (
+    Fault,
+    charger_identity,
     configure_logging,
     format_utc_z,
     normalize_response_payload,
@@ -32,11 +34,12 @@ class ChargePoint(cp):
         self.meter_wh: dict[int, int] = defaultdict(lambda: random.randint(2_300_000, 2_305_000))
 
     async def send_boot_notification(self):
+        identity = charger_identity(self.charge_point_id)
         request_payload = {
-            "chargePointVendor": "ACME",
-            "chargePointModel": "UltraFast-200",
-            "chargePointSerialNumber": f"UF200-{random.randint(1, 9999):04d}",
-            "firmwareVersion": "1.6.7",
+            "chargePointVendor": identity.vendor,
+            "chargePointModel": identity.model,
+            "chargePointSerialNumber": identity.serial_number,
+            "firmwareVersion": identity.firmware_version,
         }
         request = call.BootNotification(
             charge_point_vendor=request_payload["chargePointVendor"],
@@ -61,16 +64,19 @@ class ChargePoint(cp):
         connector_id: int,
         status: str,
         ts: datetime,
-        error_code: str = "NoError",
+        fault: Fault | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         request_payload = {
             "connectorId": connector_id,
             "status": status,
-            "errorCode": error_code,
+            "errorCode": fault.error_code if fault else "NoError",
             "timestamp": format_utc_z(ts),
         }
-        if error_code != "NoError":
+        if fault:
             request_payload["info"] = "Synthetic connector issue"
+            if fault.vendor_id and fault.vendor_error_code:
+                request_payload["vendorId"] = fault.vendor_id
+                request_payload["vendorErrorCode"] = fault.vendor_error_code
 
         request = call.StatusNotification(
             connector_id=request_payload["connectorId"],
@@ -78,6 +84,8 @@ class ChargePoint(cp):
             error_code=request_payload["errorCode"],
             timestamp=request_payload["timestamp"],
             info=request_payload.get("info"),
+            vendor_id=request_payload.get("vendorId"),
+            vendor_error_code=request_payload.get("vendorErrorCode"),
         )
         response: call_result.StatusNotification = await self.call(request)
         return request_payload, normalize_response_payload(response)

@@ -8,6 +8,7 @@ from a simulated clock, so a day of charging takes a few seconds to generate.
 import argparse
 import asyncio
 import csv
+import hashlib
 import json
 import logging
 import math
@@ -21,14 +22,27 @@ from typing import Any
 import websockets
 
 DEFAULT_CONNECTORS_FILE = Path(__file__).resolve().parent.parent / "seeds" / "connectors.csv"
+DEFAULT_VENDOR_CODES_FILE = Path(__file__).resolve().parents[2] / "seeds" / "chargex_mrec_codes.csv"
 DEFAULT_MAX_POWER_KW = 50.0
-FAULT_ERROR_CODES = [
+# Faults reported with a plain OCPP 1.6 errorCode only, no vendor code.
+PLAIN_FAULT_ERROR_CODES = [
     "ConnectorLockFailure",
     "GroundFailure",
     "HighTemperature",
     "OverCurrentFailure",
     "PowerSwitchFailure",
     "OverVoltage",
+]
+# Faults that have a standard OCPP 1.6 equivalent are far more common than the exotic ones.
+STANDARD_FAULT_WEIGHT = 3
+EXOTIC_FAULT_WEIGHT = 1
+# (vendor, model, serial prefix, firmware version)
+VENDOR_CATALOG = [
+    ("ABB", "Terra 184", "TA", "1.9.4"),
+    ("Kempower", "C500", "KP", "3.2.1"),
+    ("Tritium", "RTM75", "TR", "2.4.0"),
+    ("Alpitronic", "HYC300", "AL", "1.7.2"),
+    ("Delta", "UFC 500", "DL", "2.1.8"),
 ]
 # Relative chance of a driver arriving in each hour of the day (UTC): quiet nights,
 # a morning bump, a lunch bump and an evening peak.
@@ -66,6 +80,66 @@ def normalize_response_payload(response: Any) -> dict[str, Any]:
     if is_dataclass(response):
         return to_camel(asdict(response))
     return {}
+
+
+@dataclass(frozen=True)
+class ChargerIdentity:
+    vendor: str
+    model: str
+    serial_number: str
+    firmware_version: str
+
+
+def charger_identity(charge_point_id: str) -> ChargerIdentity:
+    """Vendor, model, serial and firmware of a charger, stable for a given charge point id.
+
+    Derived from a hash of the id (not from --seed), so CH-001 is always the same make.
+    """
+    digest = int.from_bytes(hashlib.sha256(charge_point_id.encode("utf-8")).digest()[:8], "big")
+    vendor, model, serial_prefix, firmware_version = VENDOR_CATALOG[digest % len(VENDOR_CATALOG)]
+    serial_number = f"{serial_prefix}-{digest // len(VENDOR_CATALOG) % 1_000_000:06d}"
+    return ChargerIdentity(
+        vendor=vendor,
+        model=model,
+        serial_number=serial_number,
+        firmware_version=firmware_version,
+    )
+
+
+@dataclass(frozen=True)
+class Fault:
+    """A connector fault as reported in StatusNotification (OCPP 1.6 only reports it)."""
+
+    error_code: str
+    vendor_id: str | None = None
+    vendor_error_code: str | None = None
+
+
+def read_vendor_faults(vendor_codes_path: Path) -> tuple[list[Fault], list[int]]:
+    """Read vendor faults and their selection weights from a chargex_mrec_codes.csv style file.
+
+    Expected columns: taxonomy, fault_code and optionally ocpp_1_6_error_code. Faults without
+    a standard OCPP 1.6 equivalent are reported with the generic errorCode OtherError.
+    Returns empty lists when the file is missing.
+    """
+    faults: list[Fault] = []
+    weights: list[int] = []
+    if not vendor_codes_path.exists():
+        return faults, weights
+    with vendor_codes_path.open("r", encoding="utf-8", newline="") as file:
+        for row in csv.DictReader(file):
+            if not row.get("taxonomy") or not row.get("fault_code"):
+                continue
+            standard_error_code = row.get("ocpp_1_6_error_code") or ""
+            faults.append(
+                Fault(
+                    error_code=standard_error_code or "OtherError",
+                    vendor_id=row["taxonomy"],
+                    vendor_error_code=row["fault_code"],
+                )
+            )
+            weights.append(STANDARD_FAULT_WEIGHT if standard_error_code else EXOTIC_FAULT_WEIGHT)
+    return faults, weights
 
 
 @dataclass(frozen=True)
@@ -187,10 +261,18 @@ class SimulationConfig:
     fault_probability: float
     meter_interval_s: int
     heartbeat_interval_s: int
+    vendor_faults: tuple[Fault, ...] = ()
+    vendor_fault_weights: tuple[int, ...] = ()
+    vendor_error_code_probability: float = 0.0
 
     @property
     def end(self) -> datetime:
         return self.start + timedelta(days=self.days)
+
+    def pick_fault(self) -> Fault:
+        if self.vendor_faults and random.random() < self.vendor_error_code_probability:
+            return random.choices(self.vendor_faults, weights=self.vendor_fault_weights)[0]
+        return Fault(error_code=random.choice(PLAIN_FAULT_ERROR_CODES))
 
 
 async def _exchange(writer: SessionLogWriter, charge_point: Any, action: str, prefix: str, ts: datetime, call: Any) -> None:
@@ -214,12 +296,12 @@ async def _status(
     connector: Connector,
     status: str,
     ts: datetime,
-    error_code: str = "NoError",
+    fault: Fault | None = None,
 ) -> None:
     await _exchange(
         writer, charge_point, "StatusNotification", "notif", ts,
         charge_point.send_status_notification(
-            connector.port_id, connector.connector_id, status, ts, error_code
+            connector.port_id, connector.connector_id, status, ts, fault
         ),
     )
 
@@ -292,7 +374,7 @@ async def _run_charge_session(
 
     if faulted:
         faulted_at = ended_at + timedelta(seconds=1)
-        await _status(writer, charge_point, connector, "Faulted", faulted_at, random.choice(FAULT_ERROR_CODES))
+        await _status(writer, charge_point, connector, "Faulted", faulted_at, cfg.pick_fault())
         free_at = faulted_at + timedelta(minutes=random.uniform(10, 240))
     else:
         await _status(writer, charge_point, connector, "Finishing", ended_at + timedelta(seconds=1))
@@ -407,6 +489,20 @@ def parse_args() -> argparse.Namespace:
         help="Chance that a charging session ends in a fault with repair downtime (default: 0.05).",
     )
     parser.add_argument(
+        "--vendor-codes-file",
+        type=Path,
+        default=DEFAULT_VENDOR_CODES_FILE,
+        help="Vendor fault codes CSV (taxonomy, fault_code, ocpp_1_6_error_code) "
+        "(default: ../../seeds/chargex_mrec_codes.csv). Used by OCPP 1.6 only.",
+    )
+    parser.add_argument(
+        "--vendor-error-code-probability",
+        type=float,
+        default=0.8,
+        help="Chance that a fault also reports vendorId and vendorErrorCode, "
+        "otherwise only a plain errorCode (default: 0.8). OCPP 1.6 only.",
+    )
+    parser.add_argument(
         "--meter-interval",
         type=int,
         default=300,
@@ -443,6 +539,7 @@ async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotoc
     if args.seed is not None:
         random.seed(args.seed)
     start = args.start or (datetime.now(timezone.utc) - timedelta(days=args.days)).replace(microsecond=0)
+    vendor_faults, vendor_fault_weights = read_vendor_faults(args.vendor_codes_file)
     cfg = SimulationConfig(
         start=start,
         days=args.days,
@@ -451,6 +548,9 @@ async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotoc
         fault_probability=args.fault_probability,
         meter_interval_s=max(1, args.meter_interval),
         heartbeat_interval_s=max(1, args.heartbeat_interval),
+        vendor_faults=tuple(vendor_faults),
+        vendor_fault_weights=tuple(vendor_fault_weights),
+        vendor_error_code_probability=args.vendor_error_code_probability,
     )
     connectors = read_connectors(args.connectors_file, args.charge_point_id)
     writer = SessionLogWriter(
