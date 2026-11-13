@@ -389,7 +389,7 @@ async def main(
     log_writer = SessionLogWriter(output)
     start_task: asyncio.Task | None = None
     async with websockets.connect(
-        f"ws://localhost:9000/{charge_point_id}", subprotocols=["ocpp2.0.1"]
+        f"ws://localhost:9000/{charge_point_id}", subprotocols=["ocpp1.6"]
     ) as ws:
         charge_point = ChargePoint(charge_point_id, ws)
         start_task = asyncio.create_task(charge_point.start())
