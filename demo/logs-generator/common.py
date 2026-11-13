@@ -1,0 +1,870 @@
+# common.py
+"""Shared code for the OCPP 1.6 and 2.0.1 log generator clients.
+
+The generator simulates one charger over a period of simulated time. The
+websocket traffic itself runs as fast as possible, while every timestamp comes
+from a simulated clock, so a day of charging takes a few seconds to generate.
+"""
+import argparse
+import asyncio
+import csv
+import hashlib
+import heapq
+import itertools
+import json
+import logging
+import math
+import random
+from collections import defaultdict
+from dataclasses import asdict, dataclass, is_dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+import websockets
+
+DEFAULT_CONNECTORS_FILE = Path(__file__).resolve().parent.parent / "seeds" / "connectors.csv"
+DEFAULT_CHARGERS_FILE = Path(__file__).resolve().parent.parent / "seeds" / "chargers.csv"
+DEFAULT_VENDOR_CODES_FILE = Path(__file__).resolve().parents[2] / "seeds" / "chargex_mrec_codes.csv"
+DEFAULT_MAX_POWER_KW = 50.0
+# OCPP limits a message id to 36 characters. Ids are "<charge point id>-<type>-<number>", the type
+# is at most 5 characters ("notif", "meter") and the number has 5 digits, more after 99999 messages.
+MAX_MESSAGE_ID_LENGTH = 36
+MAX_CHARGE_POINT_ID_LENGTH = MAX_MESSAGE_ID_LENGTH - len("-notif-") - 6
+# Nothing is sent this close to a decommissioning or to the end of an appended run, so
+# response rows never land after it.
+END_MARGIN = timedelta(seconds=1)
+# Faults reported with a plain OCPP 1.6 errorCode only, no vendor code.
+PLAIN_FAULT_ERROR_CODES = [
+    "ConnectorLockFailure",
+    "GroundFailure",
+    "HighTemperature",
+    "OverCurrentFailure",
+    "PowerSwitchFailure",
+    "OverVoltage",
+]
+# Faults that have a standard OCPP 1.6 equivalent are far more common than the exotic ones.
+STANDARD_FAULT_WEIGHT = 3
+EXOTIC_FAULT_WEIGHT = 1
+# (vendor, model, serial prefix, firmware version)
+VENDOR_CATALOG = [
+    ("ABB", "Terra 184", "TA", "1.9.4"),
+    ("Kempower", "C500", "KP", "3.2.1"),
+    ("Tritium", "RTM75", "TR", "2.4.0"),
+    ("Alpitronic", "HYC300", "AL", "1.7.2"),
+    ("Delta", "UFC 500", "DL", "2.1.8"),
+]
+# Relative chance of a driver arriving in each hour of the day (UTC): quiet nights,
+# a morning bump, a lunch bump and an evening peak.
+HOURLY_ARRIVAL_WEIGHTS = [
+    0.10, 0.05, 0.05, 0.05, 0.10, 0.20, 0.50, 0.90, 1.20, 1.00, 0.90, 1.00,
+    1.30, 1.20, 1.00, 1.00, 1.20, 1.60, 1.80, 1.50, 1.00, 0.60, 0.30, 0.15,
+]
+
+
+def parse_timestamp(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def configure_logging() -> None:
+    # force=True ensures config is applied even if logging was set elsewhere.
+    logging.basicConfig(level=logging.INFO, force=True)
+    logging.getLogger("ocpp").setLevel(logging.INFO)
+
+
+def format_utc_z(dt: datetime | None = None) -> str:
+    value = dt or datetime.now(timezone.utc)
+    return value.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def snake_to_camel(name: str) -> str:
+    parts = name.split("_")
+    return parts[0] + "".join(part.capitalize() for part in parts[1:])
+
+
+def to_camel(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {snake_to_camel(k): to_camel(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [to_camel(item) for item in value]
+    return value
+
+
+def normalize_response_payload(response: Any) -> dict[str, Any]:
+    if is_dataclass(response):
+        return to_camel(asdict(response))
+    return {}
+
+
+@dataclass(frozen=True)
+class ChargerIdentity:
+    vendor: str
+    model: str
+    serial_number: str
+    firmware_version: str
+
+
+def charger_identity(charge_point_id: str) -> ChargerIdentity:
+    """Vendor, model, serial and firmware of a charger, stable for a given charge point id.
+
+    Derived from a hash of the id (not from --seed), so CH-001 is always the same make.
+    """
+    digest = int.from_bytes(hashlib.sha256(charge_point_id.encode("utf-8")).digest()[:8], "big")
+    vendor, model, serial_prefix, firmware_version = VENDOR_CATALOG[digest % len(VENDOR_CATALOG)]
+    serial_number = f"{serial_prefix}-{digest // len(VENDOR_CATALOG) % 1_000_000:06d}"
+    return ChargerIdentity(
+        vendor=vendor,
+        model=model,
+        serial_number=serial_number,
+        firmware_version=firmware_version,
+    )
+
+
+@dataclass(frozen=True)
+class Fault:
+    """A connector fault as reported in StatusNotification (OCPP 1.6 only reports it)."""
+
+    error_code: str
+    vendor_id: str | None = None
+    vendor_error_code: str | None = None
+
+
+def read_vendor_faults(vendor_codes_path: Path) -> tuple[list[Fault], list[int]]:
+    """Read vendor faults and their selection weights from a chargex_mrec_codes.csv style file.
+
+    Expected columns: taxonomy, fault_code and optionally ocpp_1_6_error_code. Faults without
+    a standard OCPP 1.6 equivalent are reported with the generic errorCode OtherError.
+    Returns empty lists when the file is missing.
+    """
+    faults: list[Fault] = []
+    weights: list[int] = []
+    if not vendor_codes_path.exists():
+        return faults, weights
+    with vendor_codes_path.open("r", encoding="utf-8", newline="") as file:
+        for row in csv.DictReader(file):
+            if not row.get("taxonomy") or not row.get("fault_code"):
+                continue
+            standard_error_code = row.get("ocpp_1_6_error_code") or ""
+            faults.append(
+                Fault(
+                    error_code=standard_error_code or "OtherError",
+                    vendor_id=row["taxonomy"],
+                    vendor_error_code=row["fault_code"],
+                )
+            )
+            weights.append(STANDARD_FAULT_WEIGHT if standard_error_code else EXOTIC_FAULT_WEIGHT)
+    return faults, weights
+
+
+@dataclass(frozen=True)
+class Connector:
+    port_id: int
+    connector_id: int
+    max_power_kw: float
+
+
+def read_connectors(connectors_path: Path, charge_point_id: str) -> list[Connector]:
+    """Read the connectors of one charger from a connectors.csv style file.
+
+    Expected columns: charge_point_id, port_id, connector_id and optionally max_power_kw.
+    Falls back to a single connector when the file or the charger is missing.
+    """
+    fallback = [Connector(port_id=1, connector_id=1, max_power_kw=DEFAULT_MAX_POWER_KW)]
+    if not connectors_path.exists():
+        return fallback
+
+    connectors: set[Connector] = set()
+    with connectors_path.open("r", encoding="utf-8", newline="") as file:
+        for row in csv.DictReader(file):
+            if row.get("charge_point_id") != charge_point_id:
+                continue
+            connector_id_raw = row.get("connector_id")
+            port_id_raw = row.get("port_id")
+            if not connector_id_raw or not connector_id_raw.isdigit():
+                continue
+            power_raw = row.get("max_power_kw") or ""
+            try:
+                max_power_kw = float(power_raw)
+            except ValueError:
+                max_power_kw = DEFAULT_MAX_POWER_KW
+            connectors.add(
+                Connector(
+                    port_id=int(port_id_raw) if port_id_raw and port_id_raw.isdigit() else 1,
+                    connector_id=int(connector_id_raw),
+                    max_power_kw=max_power_kw,
+                )
+            )
+    return sorted(connectors, key=lambda c: (c.port_id, c.connector_id)) or fallback
+
+
+def read_lifecycle(chargers_path: Path, charge_point_id: str) -> tuple[datetime | None, datetime | None]:
+    """Read (commissioned_ts, decommissioned_ts) of one charger from a chargers.csv style file.
+
+    Blank values and a missing file or charger give None, meaning no limit on that side.
+    """
+    if not chargers_path.exists():
+        return None, None
+    with chargers_path.open("r", encoding="utf-8", newline="") as file:
+        for row in csv.DictReader(file):
+            if row.get("charge_point_id") != charge_point_id:
+                continue
+            commissioned_raw = (row.get("commissioned_ts") or "").strip()
+            decommissioned_raw = (row.get("decommissioned_ts") or "").strip()
+            return (
+                parse_timestamp(commissioned_raw) if commissioned_raw else None,
+                parse_timestamp(decommissioned_raw) if decommissioned_raw else None,
+            )
+    return None, None
+
+
+class SessionLogWriter:
+    """Collects exchanges in memory and writes them as one time-ordered CSV on close.
+
+    Message ids are assigned in request time order, one counter per message type, and start with
+    the charge point id. dbt matches a response to its request by message id alone, so the id must
+    be unique across chargers that share one log file.
+    """
+
+    def __init__(
+        self,
+        output: Path,
+        response_delay_ms: int = 40,
+        response_delay_jitter_ms: int = 10,
+        append: bool = False,
+        message_counters: dict[str, int] | None = None,
+    ):
+        self.output = output
+        self.response_delay_ms = max(0, response_delay_ms)
+        self.response_delay_jitter_ms = max(0, response_delay_jitter_ms)
+        self.message_counters: dict[str, int] = defaultdict(int, message_counters or {})
+        self.exchanges: list[dict[str, Any]] = []
+        self.file = output.open("a" if append else "w", encoding="utf-8", newline="")
+        self.writer = csv.DictWriter(self.file, fieldnames=["timestamp", "id", "action", "msg"])
+        if not append:
+            self.writer.writeheader()
+
+    def log_exchange(
+        self,
+        charge_point_id: str,
+        action: str,
+        request_payload: dict[str, Any],
+        response_payload: dict[str, Any],
+        msg_prefix: str,
+        request_dt: datetime,
+    ) -> None:
+        self.exchanges.append(
+            {
+                "charge_point_id": charge_point_id,
+                "action": action,
+                "request_payload": request_payload,
+                "response_payload": response_payload,
+                "msg_prefix": msg_prefix,
+                "request_dt": request_dt,
+            }
+        )
+
+    def close(self, flush: bool = True) -> None:
+        """Write the collected exchanges (unless flush is False) and close the file."""
+        if flush:
+            rows: list[tuple[datetime, dict[str, str]]] = []
+            for exchange in sorted(self.exchanges, key=lambda e: e["request_dt"]):
+                prefix = exchange["msg_prefix"]
+                self.message_counters[prefix] += 1
+                msg_id = f"{exchange['charge_point_id']}-{prefix}-{self.message_counters[prefix]:05d}"
+                request_dt = exchange["request_dt"]
+                response_dt = request_dt + timedelta(
+                    milliseconds=self.response_delay_ms
+                    + random.randint(0, self.response_delay_jitter_ms)
+                )
+                request_msg = [2, msg_id, exchange["action"], exchange["request_payload"]]
+                response_msg = [3, msg_id, exchange["response_payload"]]
+                rows.append((request_dt, self._row(request_dt, exchange["charge_point_id"], exchange["action"], request_msg)))
+                rows.append((response_dt, self._row(response_dt, exchange["charge_point_id"], "", response_msg)))
+            rows.sort(key=lambda item: item[0])
+            self.writer.writerows(row for _, row in rows)
+        self.file.close()
+
+    @staticmethod
+    def _row(timestamp: datetime, charge_point_id: str, action: str, msg: list[Any]) -> dict[str, str]:
+        return {
+            "timestamp": format_utc_z(timestamp),
+            "id": charge_point_id,
+            "action": action,
+            "msg": json.dumps(msg, separators=(",", ":")),
+        }
+
+
+@dataclass(frozen=True)
+class SimulationConfig:
+    start: datetime
+    end: datetime
+    sessions_per_port_per_day: float
+    failed_attempt_probability: float
+    fault_probability: float
+    meter_interval_s: int
+    heartbeat_interval_s: int
+    vendor_faults: tuple[Fault, ...] = ()
+    vendor_fault_weights: tuple[int, ...] = ()
+    vendor_error_code_probability: float = 0.0
+    hard_end: datetime | None = None
+    continuation: bool = False
+    first_heartbeat_at: datetime | None = None
+
+    def fits(self, free_at: datetime) -> bool:
+        """False if the port would still be busy after the charger was decommissioned."""
+        return self.hard_end is None or free_at <= self.hard_end
+
+    def pick_fault(self) -> Fault:
+        if self.vendor_faults and random.random() < self.vendor_error_code_probability:
+            return random.choices(self.vendor_faults, weights=self.vendor_fault_weights)[0]
+        return Fault(error_code=random.choice(PLAIN_FAULT_ERROR_CODES))
+
+
+class SimulationClock:
+    """Runs coroutines concurrently but releases them in simulated time order.
+
+    A task calls wait_until(ts) before every request. The earliest waiting task is only
+    released once every other task is waiting too, so requests reach the server in
+    timestamp order and anything the server numbers (transaction ids) increases with time.
+    """
+
+    def __init__(self) -> None:
+        self._active = 0
+        self._waiting: list[tuple[datetime, int, asyncio.Future]] = []
+        self._counter = itertools.count()
+
+    async def run(self, coroutines: list[Any]) -> list[Any]:
+        self._active = len(coroutines)
+        return list(await asyncio.gather(*(self._run_task(coroutine) for coroutine in coroutines)))
+
+    async def _run_task(self, coroutine: Any) -> Any:
+        try:
+            return await coroutine
+        finally:
+            self._active -= 1
+            self._release_next()
+
+    async def wait_until(self, ts: datetime) -> None:
+        future = asyncio.get_running_loop().create_future()
+        heapq.heappush(self._waiting, (ts, next(self._counter), future))
+        self._active -= 1
+        self._release_next()
+        await future
+
+    def _release_next(self) -> None:
+        while self._active == 0 and self._waiting:
+            _, _, future = heapq.heappop(self._waiting)
+            if not future.done():
+                self._active += 1
+                future.set_result(None)
+
+
+class Recorder:
+    """Sends a request through the charge point and logs the exchange at its simulated time."""
+
+    def __init__(self, charge_point: Any, writer: SessionLogWriter, clock: SimulationClock):
+        self.charge_point = charge_point
+        self.writer = writer
+        self.clock = clock
+
+    async def exchange(self, action: str, prefix: str, ts: datetime, call: Any) -> None:
+        await self.clock.wait_until(ts)
+        request_payload, response_payload = await call
+        if "currentTime" in response_payload:
+            # The server answers with wall-clock time, the log must show simulated time.
+            response_payload = {**response_payload, "currentTime": format_utc_z(ts)}
+        self.writer.log_exchange(
+            charge_point_id=self.charge_point.charge_point_id,
+            action=action,
+            request_payload=request_payload,
+            response_payload=response_payload,
+            msg_prefix=prefix,
+            request_dt=ts,
+        )
+
+    async def status(
+        self, connector: Connector, status: str, ts: datetime, fault: Fault | None = None
+    ) -> None:
+        await self.exchange(
+            "StatusNotification", "notif", ts,
+            self.charge_point.send_status_notification(
+                connector.port_id, connector.connector_id, status, ts, fault
+            ),
+        )
+
+
+def _next_arrival(after: datetime, cfg: SimulationConfig) -> datetime:
+    """Next driver arrival on a port, thinned by the hourly arrival profile."""
+    max_weight = max(HOURLY_ARRIVAL_WEIGHTS)
+    mean_weight = sum(HOURLY_ARRIVAL_WEIGHTS) / len(HOURLY_ARRIVAL_WEIGHTS)
+    max_rate_per_s = cfg.sessions_per_port_per_day / 86400 * max_weight / mean_weight
+    ts = after
+    while True:
+        ts += timedelta(seconds=random.expovariate(max_rate_per_s))
+        if random.random() < HOURLY_ARRIVAL_WEIGHTS[ts.hour] / max_weight:
+            return ts
+
+
+async def _run_failed_attempt(
+    recorder: Recorder, connector: Connector, ts: datetime, free_at: datetime
+) -> datetime:
+    """Driver plugs in, nothing starts, driver gives up. No transaction."""
+    await recorder.status(connector, "Preparing", ts)
+    await recorder.status(connector, "Available", free_at)
+    return free_at
+
+
+@dataclass(frozen=True)
+class ChargePlan:
+    """Every random choice of one charging session, made before anything is sent."""
+
+    started_at: datetime
+    ended_at: datetime
+    free_at: datetime
+    energy_wh_per_s: float
+    fault: Fault | None
+
+
+def _plan_charge_session(cfg: SimulationConfig, connector: Connector, ts: datetime) -> ChargePlan:
+    started_at = ts + timedelta(seconds=random.randint(5, 25))
+    duration_s = 60 * min(180.0, max(5.0, random.lognormvariate(math.log(35), 0.6)))
+    faulted = random.random() < cfg.fault_probability
+    if faulted:
+        duration_s *= random.uniform(0.2, 0.8)
+    ended_at = started_at + timedelta(seconds=duration_s)
+    energy_wh_per_s = connector.max_power_kw * random.uniform(0.4, 0.9) * 1000 / 3600
+    if faulted:
+        fault = cfg.pick_fault()
+        free_at = ended_at + timedelta(seconds=1) + timedelta(minutes=random.uniform(10, 240))
+    else:
+        fault = None
+        free_at = ended_at + timedelta(seconds=random.randint(10, 60))
+    return ChargePlan(
+        started_at=started_at,
+        ended_at=ended_at,
+        free_at=free_at,
+        energy_wh_per_s=energy_wh_per_s,
+        fault=fault,
+    )
+
+
+async def _run_charge_session(
+    recorder: Recorder,
+    cfg: SimulationConfig,
+    connector: Connector,
+    id_tag: str,
+    ts: datetime,
+    plan: ChargePlan,
+) -> datetime:
+    """One driver session. Returns the time the port is free again."""
+    charge_point = recorder.charge_point
+    await recorder.status(connector, "Preparing", ts)
+    await recorder.exchange(
+        charge_point.start_action_name, "tx", plan.started_at,
+        charge_point.send_start_transaction(connector.port_id, connector.connector_id, id_tag, plan.started_at),
+    )
+    await recorder.status(connector, "Charging", plan.started_at + timedelta(seconds=1))
+
+    meter_at = plan.started_at + timedelta(seconds=cfg.meter_interval_s)
+    last_sample_at = plan.started_at
+    while meter_at < plan.ended_at:
+        delta_wh = plan.energy_wh_per_s * (meter_at - last_sample_at).total_seconds() * random.uniform(0.95, 1.05)
+        await recorder.exchange(
+            "MeterValues", "meter", meter_at,
+            charge_point.send_meter_values(connector.port_id, connector.connector_id, delta_wh, meter_at),
+        )
+        last_sample_at = meter_at
+        meter_at += timedelta(seconds=cfg.meter_interval_s)
+
+    remaining_wh = plan.energy_wh_per_s * (plan.ended_at - last_sample_at).total_seconds()
+    await recorder.exchange(
+        charge_point.stop_action_name, "stop", plan.ended_at,
+        charge_point.send_stop_transaction(
+            connector.port_id, connector.connector_id, plan.ended_at,
+            "Other" if plan.fault else "EVDisconnected", remaining_wh,
+        ),
+    )
+
+    if plan.fault:
+        await recorder.status(connector, "Faulted", plan.ended_at + timedelta(seconds=1), plan.fault)
+    else:
+        await recorder.status(connector, "Finishing", plan.ended_at + timedelta(seconds=1))
+    await recorder.status(connector, "Available", plan.free_at)
+    return plan.free_at
+
+
+async def _run_port(
+    recorder: Recorder,
+    cfg: SimulationConfig,
+    connectors: list[Connector],
+    id_tags: list[str],
+) -> None:
+    """Run back to back sessions on one port. A port serves one driver at a time."""
+    if cfg.sessions_per_port_per_day <= 0:
+        return
+    ts = cfg.start if cfg.continuation else cfg.start + timedelta(minutes=1)
+    while True:
+        ts = _next_arrival(ts, cfg)
+        if ts >= cfg.end:
+            return
+        connector = random.choice(connectors)
+        if random.random() < cfg.failed_attempt_probability:
+            free_at = ts + timedelta(seconds=random.randint(20, 120))
+            if cfg.fits(free_at):
+                ts = await _run_failed_attempt(recorder, connector, ts, free_at)
+        else:
+            id_tag = random.choice(id_tags)
+            plan = _plan_charge_session(cfg, connector, ts)
+            if cfg.fits(plan.free_at):
+                ts = await _run_charge_session(recorder, cfg, connector, id_tag, ts, plan)
+
+
+async def _run_startup(recorder: Recorder, cfg: SimulationConfig, connectors: list[Connector]) -> None:
+    await recorder.exchange(
+        "BootNotification", "boot", cfg.start, recorder.charge_point.send_boot_notification()
+    )
+    for index, connector in enumerate(connectors):
+        await recorder.status(connector, "Available", cfg.start + timedelta(seconds=1 + index))
+
+
+async def _run_heartbeats(recorder: Recorder, cfg: SimulationConfig) -> datetime:
+    """Send heartbeats until the end of the period. Returns the first heartbeat after it."""
+    heartbeat_at = cfg.first_heartbeat_at or cfg.start + timedelta(seconds=cfg.heartbeat_interval_s)
+    while heartbeat_at < cfg.end:
+        await recorder.exchange("Heartbeat", "hb", heartbeat_at, recorder.charge_point.send_heartbeat())
+        heartbeat_at += timedelta(seconds=cfg.heartbeat_interval_s)
+    return heartbeat_at
+
+
+async def run_simulation(
+    charge_point: Any,
+    writer: SessionLogWriter,
+    cfg: SimulationConfig,
+    connectors: list[Connector],
+) -> datetime:
+    """Boot the charger (unless continuing), then run heartbeats and every port concurrently
+    in simulated time. Returns the first heartbeat time after the period."""
+    clock = SimulationClock()
+    recorder = Recorder(charge_point, writer, clock)
+    if not cfg.continuation:
+        await clock.run([_run_startup(recorder, cfg, connectors)])
+
+    id_tags = [f"ABC{number}XYZ" for number in random.sample(range(100, 1000), 25)]
+    connectors_by_port: dict[int, list[Connector]] = defaultdict(list)
+    for connector in connectors:
+        connectors_by_port[connector.port_id].append(connector)
+    results = await clock.run(
+        [_run_heartbeats(recorder, cfg)]
+        + [
+            _run_port(recorder, cfg, port_connectors, id_tags)
+            for port_connectors in connectors_by_port.values()
+        ]
+    )
+    return results[0]
+
+
+STATE_VERSION = 1
+
+
+@dataclass(frozen=True)
+class AppendState:
+    """What the next appended run needs to continue exactly where this one stopped."""
+
+    charge_point_id: str
+    ocpp_version: str
+    end: datetime
+    next_heartbeat_at: datetime
+    message_counters: dict[str, int]
+    meter_wh: dict[int, int]
+    last_transaction_id: int | None
+    output_bytes: int
+
+
+def append_state_path(output: Path) -> Path:
+    return output.with_name(output.name + ".state.json")
+
+
+def load_append_state(output: Path, charge_point_id: str, ocpp_version: str) -> AppendState | None:
+    """State of the series in `output`, or None when the output does not exist yet."""
+    if not output.exists() or output.stat().st_size == 0:
+        return None
+    path = append_state_path(output)
+    if not path.exists():
+        raise SystemExit(
+            f"{output} already exists but {path} is missing, so the run cannot be continued. "
+            f"Move or delete {output} to start a new series, or run without --append to overwrite it."
+        )
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if raw.get("version") != STATE_VERSION:
+        raise SystemExit(f"{path} has an unsupported version {raw.get('version')}, expected {STATE_VERSION}.")
+    if raw["charge_point_id"] != charge_point_id or raw["ocpp_version"] != ocpp_version:
+        raise SystemExit(
+            f"{output} is a series for {raw['charge_point_id']} (OCPP {raw['ocpp_version']}), "
+            f"it cannot be continued with {charge_point_id} (OCPP {ocpp_version}). Use a different --output."
+        )
+    if raw["output_bytes"] != output.stat().st_size:
+        raise SystemExit(
+            f"{output} changed since the last run (its size differs from the one in {path}). "
+            f"Restore it, or delete both files to start a new series."
+        )
+    return AppendState(
+        charge_point_id=raw["charge_point_id"],
+        ocpp_version=raw["ocpp_version"],
+        end=parse_timestamp(raw["end"]),
+        next_heartbeat_at=parse_timestamp(raw["next_heartbeat_at"]),
+        message_counters=dict(raw["message_counters"]),
+        meter_wh={int(port): wh for port, wh in raw["meter_wh"].items()},
+        last_transaction_id=raw["last_transaction_id"],
+        output_bytes=raw["output_bytes"],
+    )
+
+
+def save_append_state(output: Path, state: AppendState) -> None:
+    path = append_state_path(output)
+    raw = {
+        "version": STATE_VERSION,
+        "charge_point_id": state.charge_point_id,
+        "ocpp_version": state.ocpp_version,
+        "end": format_utc_z(state.end),
+        "next_heartbeat_at": format_utc_z(state.next_heartbeat_at),
+        "message_counters": state.message_counters,
+        "meter_wh": {str(port): wh for port, wh in state.meter_wh.items()},
+        "last_transaction_id": state.last_transaction_id,
+        "output_bytes": state.output_bytes,
+    }
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run OCPP charge point client traffic.")
+    parser.add_argument(
+        "--ocpp-version",
+        choices=["1.6", "2.0.1"],
+        default="1.6",
+        help="OCPP protocol version to speak (default: 1.6).",
+    )
+    parser.add_argument(
+        "--charge-point-id",
+        default="CH-002",
+        help="Charge point id used in URL and output logs (default: CH-002).",
+    )
+    parser.add_argument(
+        "--connectors-file",
+        type=Path,
+        default=DEFAULT_CONNECTORS_FILE,
+        help="Connectors CSV (charge_point_id, port_id, connector_id, max_power_kw) "
+        "(default: ../seeds/connectors.csv).",
+    )
+    parser.add_argument(
+        "--chargers-file",
+        type=Path,
+        default=DEFAULT_CHARGERS_FILE,
+        help="Chargers CSV (charge_point_id, commissioned_ts, decommissioned_ts) "
+        "(default: ../seeds/chargers.csv).",
+    )
+    parser.add_argument(
+        "--ignore-lifecycle",
+        action="store_true",
+        help="Do not limit traffic to the commissioned and decommissioned dates in --chargers-file.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("ocpp_client_generated_logs.csv"),
+        help="Output CSV path with columns timestamp,id,action,msg.",
+    )
+    parser.add_argument(
+        "--append",
+        action="store_true",
+        help="Continue the series in --output instead of overwriting it: the run starts where the "
+        "previous one ended. Creates the file (and its .state.json) if it does not exist yet.",
+    )
+    parser.add_argument(
+        "--start",
+        type=parse_timestamp,
+        default=None,
+        help="Simulated start time, ISO 8601, UTC if no zone (default: now minus --days). Not allowed when --append continues an existing file.",
+    )
+    parser.add_argument(
+        "--days",
+        type=float,
+        default=1.0,
+        help="How many days of charger activity to simulate (default: 1).",
+    )
+    parser.add_argument(
+        "--sessions-per-port-per-day",
+        type=float,
+        default=6.0,
+        help="Average number of driver arrivals per port per day (default: 6).",
+    )
+    parser.add_argument(
+        "--failed-attempt-probability",
+        type=float,
+        default=0.1,
+        help="Chance that an arrival never starts a transaction (default: 0.1).",
+    )
+    parser.add_argument(
+        "--fault-probability",
+        type=float,
+        default=0.05,
+        help="Chance that a charging session ends in a fault with repair downtime (default: 0.05).",
+    )
+    parser.add_argument(
+        "--vendor-codes-file",
+        type=Path,
+        default=DEFAULT_VENDOR_CODES_FILE,
+        help="Vendor fault codes CSV (taxonomy, fault_code, ocpp_1_6_error_code) "
+        "(default: ../../seeds/chargex_mrec_codes.csv). Used by OCPP 1.6 only.",
+    )
+    parser.add_argument(
+        "--vendor-error-code-probability",
+        type=float,
+        default=0.8,
+        help="Chance that a fault also reports vendorId and vendorErrorCode, "
+        "otherwise only a plain errorCode (default: 0.8). OCPP 1.6 only.",
+    )
+    parser.add_argument(
+        "--meter-interval",
+        type=int,
+        default=300,
+        help="Seconds between MeterValues during a session (default: 300).",
+    )
+    parser.add_argument(
+        "--heartbeat-interval",
+        type=int,
+        default=300,
+        help="Seconds between Heartbeats (default: 300).",
+    )
+    parser.add_argument(
+        "--response-delay-ms",
+        type=int,
+        default=40,
+        help="Base response spacing in CSV rows (default: 40ms).",
+    )
+    parser.add_argument(
+        "--response-delay-jitter-ms",
+        type=int,
+        default=10,
+        help="Extra random response delay jitter in ms (default: 10).",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible logs (default: random).",
+    )
+    return parser.parse_args()
+
+
+async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotocol: str) -> None:
+    if args.seed is not None:
+        random.seed(args.seed)
+    if len(args.charge_point_id) > MAX_CHARGE_POINT_ID_LENGTH:
+        raise SystemExit(
+            f"--charge-point-id {args.charge_point_id!r} is longer than {MAX_CHARGE_POINT_ID_LENGTH} characters, "
+            f"so the message ids built from it could exceed the OCPP limit of {MAX_MESSAGE_ID_LENGTH} characters."
+        )
+    state = load_append_state(args.output, args.charge_point_id, args.ocpp_version) if args.append else None
+    if state and args.start:
+        raise SystemExit(
+            "--start cannot be used when --append continues an existing file, "
+            "the run starts where the previous one ended."
+        )
+    if state:
+        start = state.end
+    else:
+        start = args.start or (datetime.now(timezone.utc) - timedelta(days=args.days)).replace(microsecond=0)
+    end = start + timedelta(days=args.days)
+    commissioned_ts, decommissioned_ts = (
+        (None, None) if args.ignore_lifecycle else read_lifecycle(args.chargers_file, args.charge_point_id)
+    )
+    if commissioned_ts and commissioned_ts > start:
+        start = commissioned_ts
+    last_activity_ts = decommissioned_ts - END_MARGIN if decommissioned_ts else None
+    if last_activity_ts and last_activity_ts < end:
+        end = last_activity_ts
+    hard_end = last_activity_ts
+    if args.append:
+        # No session may cross the end of the run, so the next run continues with every port free.
+        run_hard_end = end - END_MARGIN
+        hard_end = min(hard_end, run_hard_end) if hard_end else run_hard_end
+    vendor_faults, vendor_fault_weights = read_vendor_faults(args.vendor_codes_file)
+    cfg = SimulationConfig(
+        start=start,
+        end=end,
+        sessions_per_port_per_day=args.sessions_per_port_per_day,
+        failed_attempt_probability=args.failed_attempt_probability,
+        fault_probability=args.fault_probability,
+        meter_interval_s=max(1, args.meter_interval),
+        heartbeat_interval_s=max(1, args.heartbeat_interval),
+        vendor_faults=tuple(vendor_faults),
+        vendor_fault_weights=tuple(vendor_fault_weights),
+        vendor_error_code_probability=args.vendor_error_code_probability,
+        hard_end=hard_end,
+        continuation=state is not None,
+        first_heartbeat_at=state.next_heartbeat_at if state else None,
+    )
+    if cfg.start >= cfg.end:
+        print(
+            f"{args.charge_point_id} is not in commission in the requested period "
+            f"(commissioned {commissioned_ts}, decommissioned {decommissioned_ts}). "
+            "No traffic generated"
+            + (f", {args.output} was left unchanged. " if args.append else f", {args.output} has only the header. ")
+            + "Use --start inside the commissioned period or --ignore-lifecycle."
+        )
+        if not args.append:
+            SessionLogWriter(args.output).close()
+        return
+    connectors = read_connectors(args.connectors_file, args.charge_point_id)
+    writer = SessionLogWriter(
+        args.output,
+        response_delay_ms=args.response_delay_ms,
+        response_delay_jitter_ms=args.response_delay_jitter_ms,
+        append=state is not None,
+        message_counters=state.message_counters if state else None,
+    )
+    start_task: asyncio.Task | None = None
+    next_heartbeat_at = cfg.end
+    meter_wh: dict[int, int] = {}
+    last_transaction_id: int | None = None
+    completed = False
+    try:
+        async with websockets.connect(
+            f"ws://localhost:9000/{args.charge_point_id}", subprotocols=[subprotocol]
+        ) as ws:
+            charge_point = charge_point_cls(args.charge_point_id, ws)
+            if state:
+                charge_point.meter_wh.update(state.meter_wh)
+                if hasattr(charge_point, "last_transaction_id"):
+                    charge_point.last_transaction_id = state.last_transaction_id
+            start_task = asyncio.create_task(charge_point.start())
+            next_heartbeat_at = await run_simulation(charge_point, writer, cfg, connectors)
+            meter_wh = dict(charge_point.meter_wh)
+            last_transaction_id = getattr(charge_point, "last_transaction_id", None)
+            await ws.close()
+        try:
+            await start_task
+        except websockets.exceptions.ConnectionClosed:
+            # Expected when we close the socket after finishing traffic generation.
+            pass
+        completed = True
+    finally:
+        # A failed appended run must not leave a partial tail behind, the state would not match it.
+        writer.close(flush=completed or not args.append)
+    if args.append:
+        save_append_state(
+            args.output,
+            AppendState(
+                charge_point_id=args.charge_point_id,
+                ocpp_version=args.ocpp_version,
+                end=cfg.end,
+                next_heartbeat_at=next_heartbeat_at,
+                message_counters=dict(writer.message_counters),
+                meter_wh=meter_wh,
+                last_transaction_id=last_transaction_id,
+                output_bytes=args.output.stat().st_size,
+            ),
+        )
