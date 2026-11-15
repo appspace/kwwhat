@@ -279,33 +279,29 @@ models:
               - ingested_ts
 
   - name: int_driver_aggregates
-    description: "Incremental per-driver history over stopped fact_charge_attempts. First/last seen are the earliest/latest non-null charge_attempt_stop_ts; authorization attributes follow the same stop ordering. Open attempts are excluded. Null credentials accumulate under __UNKNOWN__. A stop-time migration requires rebuilding existing start-based history; stop retractions or inward corrections to an extreme also require reconciliation."
+    description: "Incremental per-driver history. First/last seen are the earliest/latest fact_visits.visit_end_ts. Each run merges drivers with a visit written in the window into stored state. first_visit_id and last_visit_id let a rewritten visit replace its own stored end, so an extended first visit moves first seen later. Visits with no end are excluded. Visits with no id_tag accumulate under __UNKNOWN__."
     columns:
       - name: id_tag
-        description: "Driver credential natural key; __UNKNOWN__ represents stopped attempts with a null credential."
+        description: "Driver credential natural key; __UNKNOWN__ represents visits with no id_tag."
         data_tests:
           - not_null
           - unique
+      - name: first_visit_id
+        description: "Visit that set first_seen_ts. visit_id is stable when a visit is extended, which lets the merge recognise a rewritten first visit. Not exposed in dim_drivers."
+        data_tests:
+          - not_null
+      - name: last_visit_id
+        description: "Visit that set last_seen_ts. Not exposed in dim_drivers."
+        data_tests:
+          - not_null
       - name: first_seen_ts
-        description: "Earliest observed charge_attempt_stop_ts for this credential. Earlier late-arriving stops can revise it; limited by available source history."
+        description: "visit_end_ts of first_visit_id, the earliest observed visit end for this credential. Moves later if that visit is extended; limited by available source history."
         data_tests:
           - not_null
       - name: last_seen_ts
-        description: "Latest observed charge_attempt_stop_ts for this credential; never an open-attempt start."
+        description: "Latest observed visit_end_ts for this credential."
         data_tests:
           - not_null
-      - name: first_authorization_status
-        description: "Authorization status associated with the earliest stopped attempt, ordered by stop time; not necessarily Accepted. Equal stop-time ties retain the existing min_by behavior."
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: ['Accepted', 'Blocked', 'Expired', 'Invalid', 'ConcurrentTx']
-      - name: latest_authorization_status
-        description: "Authorization status associated with the latest stopped attempt, ordered by stop time. Equal stop-time ties retain the existing max_by behavior."
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: ['Accepted', 'Blocked', 'Expired', 'Invalid', 'ConcurrentTx']
     data_tests:
       - dbt_utils.expression_is_true:
           arguments:

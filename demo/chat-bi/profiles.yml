@@ -8,5 +8,5 @@ kwwhat:
         - path: /data/raw.duckdb
           alias: RAW
           read_only: true
-      schema: ANALYTICS
+      schema: MARTS
       threads: 4

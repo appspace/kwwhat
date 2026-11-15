@@ -1,6 +1,6 @@
 # 0010. Stop-based driver lifecycle activity
 
-- Status: Proposed
+- Status: Superseded by [0011](0011-visit-based-driver-first-last-seen.md) for first and last seen
 - Date: 2026-11-03
 - Related: ADRs 0003, 0008; int_driver_aggregates, dim_drivers
 
