@@ -18,5 +18,10 @@ repos:
     local_path: /kwwhat
     include:
       - models/semantic/semantic_models.yml
+      - models/semantic/README.md
       - models/marts/marts.yml
       - dbt_project.yml
+      - demo/chat-bi/skills/driver-period-cohorts/SKILL.md
+      - demo/chat-bi/skills/driver-period-cohorts/references/period_driver_cohorts.sql
+      - demo/chat-bi/skills/driver-period-cohorts/references/validation.md
+
