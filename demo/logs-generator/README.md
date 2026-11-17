@@ -72,13 +72,15 @@ The client reads `commissioned_ts` and `decommissioned_ts` of the charger from `
 - A blank `decommissioned_ts` means the charger is still in commission. A charger missing from the file has no limits.
 - `--ignore-lifecycle` turns all of this off.
 
-The demo seeds contain three chargers so that both situations can be generated:
+The demo seeds contain five chargers so that both situations can be generated:
 
 | Charger | Lifecycle | Use |
 |---|---|---|
 | CH-001 | commissioned 2025-10-01, decommissioned 2025-10-15 | Replay the decommissioning scenario: `--start 2025-10-01T00:00:00Z --days 30` |
 | CH-002 | commissioned 2025-09-15, still in commission | Live charger |
-| CH-003 | commissioned 2025-10-01, still in commission | Live charger, same layout as CH-002, has no logs in the demo logs seed |
+| CH-003 | commissioned 2025-10-20, still in commission | Live charger, same layout as CH-001 |
+| CH-004 | commissioned 2025-10-20, still in commission | Live charger, same layout as CH-001 |
+| CH-005 | commissioned 2025-10-21, still in commission | Live charger, same layout as CH-002, has no logs in the demo logs seed |
 
 ## Appending
 
