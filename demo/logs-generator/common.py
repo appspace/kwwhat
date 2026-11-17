@@ -407,7 +407,7 @@ def _next_arrival(after: datetime, cfg: SimulationConfig) -> datetime:
 
 
 async def _run_failed_attempt(
-    recorder: Recorder, connector: Connector, ts: datetime, free_at: datetime
+    recorder: "PortRecorder", connector: Connector, ts: datetime, free_at: datetime
 ) -> datetime:
     """Driver plugs in, nothing starts, driver gives up. No transaction."""
     await recorder.status(connector, "Preparing", ts)
@@ -421,9 +421,17 @@ class ChargePlan:
 
     started_at: datetime
     ended_at: datetime
+    # When the driver has left and the port can serve the next driver.
     free_at: datetime
     energy_wh_per_s: float
     fault: Fault | None
+    # When a faulted connector is repaired. Only that connector is out of service until then.
+    repaired_at: datetime | None = None
+
+    @property
+    def done_at(self) -> datetime:
+        """When everything the session started is over, including a repair."""
+        return max(self.free_at, self.repaired_at or self.free_at)
 
 
 def _plan_charge_session(cfg: SimulationConfig, connector: Connector, ts: datetime) -> ChargePlan:
@@ -434,23 +442,61 @@ def _plan_charge_session(cfg: SimulationConfig, connector: Connector, ts: dateti
         duration_s *= random.uniform(0.2, 0.8)
     ended_at = started_at + timedelta(seconds=duration_s)
     energy_wh_per_s = connector.max_power_kw * random.uniform(0.4, 0.9) * 1000 / 3600
+    free_at = ended_at + timedelta(seconds=random.randint(10, 60))
     if faulted:
         fault = cfg.pick_fault()
-        free_at = ended_at + timedelta(seconds=1) + timedelta(minutes=random.uniform(10, 240))
+        repaired_at = ended_at + timedelta(seconds=1) + timedelta(minutes=random.uniform(10, 240))
     else:
         fault = None
-        free_at = ended_at + timedelta(seconds=random.randint(10, 60))
+        repaired_at = None
     return ChargePlan(
         started_at=started_at,
         ended_at=ended_at,
         free_at=free_at,
         energy_wh_per_s=energy_wh_per_s,
         fault=fault,
+        repaired_at=repaired_at,
     )
 
 
+class PortRecorder:
+    """Sends the exchanges of one port, and the Available of every repaired connector, in time order.
+
+    A fault takes only its own connector out of service. The port keeps serving drivers on its other
+    connectors, so a repair can finish in the middle of another session on the same port. Before every
+    exchange, the repairs due by then are reported first. The port is down only while all its
+    connectors are faulted.
+    """
+
+    def __init__(self, recorder: Recorder):
+        self.recorder = recorder
+        self.charge_point = recorder.charge_point
+        self.repairs: dict[Connector, datetime] = {}
+
+    def in_service(self, connectors: list[Connector]) -> list[Connector]:
+        return [connector for connector in connectors if connector not in self.repairs]
+
+    async def release_repairs(self, until: datetime | None = None) -> None:
+        """Report Available for every connector repaired by `until`, or for all of them if None."""
+        for connector, repaired_at in sorted(self.repairs.items(), key=lambda item: item[1]):
+            if until is not None and repaired_at > until:
+                break
+            del self.repairs[connector]
+            await self.recorder.status(connector, "Available", repaired_at)
+
+    async def exchange(self, action: str, prefix: str, ts: datetime, call: Any) -> None:
+        await self.release_repairs(ts)
+        await self.recorder.exchange(action, prefix, ts, call)
+
+    async def status(
+        self, connector: Connector, status: str, ts: datetime, fault: Fault | None = None
+    ) -> None:
+        await self.release_repairs(ts)
+        await self.recorder.status(connector, status, ts, fault)
+
+
 async def _run_charge_session(
-    recorder: Recorder,
+    recorder: PortRecorder,
     cfg: SimulationConfig,
     connector: Connector,
     id_tag: str,
@@ -487,10 +533,13 @@ async def _run_charge_session(
     )
 
     if plan.fault:
+        # The connector stays Faulted until its repair, reported by the port recorder. The driver
+        # leaves and the port serves the next driver on its other connectors.
         await recorder.status(connector, "Faulted", plan.ended_at + timedelta(seconds=1), plan.fault)
+        recorder.repairs[connector] = plan.repaired_at
     else:
         await recorder.status(connector, "Finishing", plan.ended_at + timedelta(seconds=1))
-    await recorder.status(connector, "Available", plan.free_at)
+        await recorder.status(connector, "Available", plan.free_at)
     return plan.free_at
 
 
@@ -500,24 +549,36 @@ async def _run_port(
     connectors: list[Connector],
     id_tags: list[str],
 ) -> None:
-    """Run back to back sessions on one port. A port serves one driver at a time."""
+    """Run back to back sessions on one port. A port serves one driver at a time.
+
+    A faulted connector is out of service until its repair, and drivers use the other connectors of
+    the port meanwhile. A driver who finds every connector faulted leaves without plugging in.
+    """
     if cfg.sessions_per_port_per_day <= 0:
         return
+    port = PortRecorder(recorder)
     ts = cfg.start if cfg.continuation else cfg.start + timedelta(minutes=1)
     while True:
         ts = _next_arrival(ts, cfg)
         if ts >= cfg.end:
-            return
-        connector = random.choice(connectors)
+            break
+        await port.release_repairs(ts)
+        in_service = port.in_service(connectors)
+        if not in_service:
+            continue
+        connector = random.choice(in_service)
         if random.random() < cfg.failed_attempt_probability:
             free_at = ts + timedelta(seconds=random.randint(20, 120))
             if cfg.fits(free_at):
-                ts = await _run_failed_attempt(recorder, connector, ts, free_at)
+                ts = await _run_failed_attempt(port, connector, ts, free_at)
         else:
             id_tag = random.choice(id_tags)
             plan = _plan_charge_session(cfg, connector, ts)
-            if cfg.fits(plan.free_at):
-                ts = await _run_charge_session(recorder, cfg, connector, id_tag, ts, plan)
+            # The repair has to fit too, so every connector is Available at a decommissioning or at
+            # the end of an appended run.
+            if cfg.fits(plan.done_at):
+                ts = await _run_charge_session(port, cfg, connector, id_tag, ts, plan)
+    await port.release_repairs()
 
 
 async def _run_startup(recorder: Recorder, cfg: SimulationConfig, connectors: list[Connector]) -> None:
