@@ -72,14 +72,12 @@ The client reads `commissioned_ts` and `decommissioned_ts` of the charger from `
 - A blank `decommissioned_ts` means the charger is still in commission. A charger missing from the file has no limits.
 - `--ignore-lifecycle` turns all of this off.
 
-The demo seeds contain four chargers so that both situations can be generated:
+To see which chargers exist and when they are in commission, look at `demo/seeds/chargers.csv`, and at `demo/seeds/connectors.csv` for their layout.
 
-| Charger | Lifecycle | Use |
-|---|---|---|
-| CH-001 | commissioned 2025-10-01, decommissioned 2025-10-15 | Replay the decommissioning scenario: `--start 2025-10-01T00:00:00Z --days 30` |
-| CH-002 | commissioned 2025-09-15, still in commission | Live charger |
-| CH-003 | commissioned 2025-10-20, still in commission | Live charger, same layout as CH-001 |
-| CH-004 | commissioned 2025-10-20, still in commission | Live charger, same layout as CH-001 |
+- **Live charger:** pick one with a blank `decommissioned_ts` and a `--start` after its `commissioned_ts`.
+- **Decommissioning:** pick one with a `decommissioned_ts` and a `--start` before it, with enough `--days` to reach it. The series stops at the decommissioning.
+- **New charger:** add it to `chargers.csv` and `connectors.csv` (and `ports.csv` for dbt) first. A charger in the seeds that has no logs shows in dbt as offline for its whole commissioned period, so load its generated logs too.
+
 ## Appending
 
 Without `--append`, every run overwrites `--output`. With `--append`, a run continues the series in the output file, so several runs give the same kind of log as one long run. Use `--append` on the first run too: it creates the file, and a state file next to it.
