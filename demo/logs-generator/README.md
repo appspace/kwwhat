@@ -18,6 +18,15 @@ One server and one client speak both OCPP 1.6 and OCPP 2.0.1. The client picks t
 pip install -r requirements.txt
 ```
 
+## Run tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+The tests need Python 3.10 or newer and no running server. They connect the real client to the real central system classes through an in-memory pipe that stands in for the websocket, so every message still goes through the `ocpp` library and its schema validation. They check what downstream dbt relies on: one driver per port, a fault taking only its own connector out of service, closed transactions, increasing transaction ids, meters that never go backwards, even heartbeats, the commissioned period, and `--append` continuing a series without a visible join.
+
 ## Run server
 
 ```bash
@@ -49,7 +58,7 @@ One client run simulates one charger over `--days` of simulated time. The websoc
 - **One driver per port:** a port never serves two drivers at once, and each arrival picks a random connector of the port. Different ports charge at the same time.
 - **Charging session:** Preparing, start transaction, Charging, MeterValues every `--meter-interval` seconds, stop transaction, Finishing, Available. Session length varies (median about 35 minutes) and the energy delivered depends on the connector's `max_power_kw`.
 - **Failed attempt:** with `--failed-attempt-probability`, the driver plugs in (Preparing) and leaves a minute or two later (Available) without a transaction.
-- **Fault:** with `--fault-probability`, a session ends early with stop reason `Other`, the connector goes Faulted and returns to Available after 10 minutes to 4 hours of repair downtime. In OCPP 1.6 the Faulted StatusNotification carries an `errorCode`, and with `--vendor-error-code-probability` it also carries `vendorId` and `vendorErrorCode` taken from `--vendor-codes-file` (ChargeX codes such as `CX003`). Codes without a standard OCPP 1.6 equivalent are sent with `errorCode` `OtherError`. OCPP 2.0.1 StatusNotification has no error fields, so 2.0.1 faults only show the Faulted status.
+- **Fault:** with `--fault-probability`, a session ends early with stop reason `Other`, the connector goes Faulted and returns to Available after 10 minutes to 4 hours of repair. Only the faulted connector is out of service. The driver leaves and the port keeps serving drivers on its other connectors, so a repair can finish in the middle of another session on the same port. The port is down only while all its connectors are faulted, which is also when dbt counts port downtime. A driver who arrives then leaves without plugging in. A session is not started if its repair could not finish before a decommissioning or the end of an appended run. In OCPP 1.6 the Faulted StatusNotification carries an `errorCode`, and with `--vendor-error-code-probability` it also carries `vendorId` and `vendorErrorCode` taken from `--vendor-codes-file` (ChargeX codes such as `CX003`). Codes without a standard OCPP 1.6 equivalent are sent with `errorCode` `OtherError`. OCPP 2.0.1 StatusNotification has no error fields, so 2.0.1 faults only show the Faulted status.
 
 All ports and the heartbeat run concurrently against the simulated clock, and requests reach the server in timestamp order. That is why the OCPP 1.6 transaction ids assigned by the server increase with time, as they would on a real central system.
 
