@@ -38,13 +38,13 @@ python server.py
 OCPP 1.6 (default):
 
 ```bash
-python client.py --charge-point-id CH-001 --days 7 --start 2025-11-01T00:00:00Z --seed 42 --output ocpp_client_generated_logs.csv
+python client.py --charge-point-id CH-002 --days 7 --start 2025-11-01T00:00:00Z --seed 42 --output ocpp_client_generated_logs.csv
 ```
 
 OCPP 2.0.1:
 
 ```bash
-python client.py --ocpp-version 2.0.1 --charge-point-id CH-001 --days 7 --start 2025-11-01T00:00:00Z --seed 42 --output ocpp_client_generated_logs.csv
+python client.py --ocpp-version 2.0.1 --charge-point-id CH-002 --days 7 --start 2025-11-01T00:00:00Z --seed 42 --output ocpp_client_generated_logs.csv
 ```
 
 ## What a run simulates
