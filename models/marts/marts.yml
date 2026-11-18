@@ -887,7 +887,7 @@ models:
                 min_value: 1
 
   - name: fact_uptime_daily
-    description: "Port-level daily uptime. One row per Port per day (charger_id + port_id + date_id). Uptime = (commissioned minutes that day − outage minutes) / commissioned minutes. Reliability is tracked at Port grain because a Port is the independently operated unit that serves one EV at a time."
+    description: "Port-level daily uptime. One row per Port per day while the port is commissioned (charger_id + port_id + date_id). No row means the port was not commissioned that day: before its charger's commissioned_ts or after its decommissioned_ts (see dim_chargers). It is not missing data, and it is not downtime. Uptime = (commissioned minutes that day − outage minutes) / commissioned minutes. Reliability is tracked at Port grain because a Port is the independently operated unit that serves one EV at a time."
     columns:
       - name: uptime_id
         description: "Surrogate key for the row, generated from port_id and date_id."
