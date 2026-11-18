@@ -33,6 +33,9 @@ clean-targets:         # directories to be removed by `dbt clean`
 models:
   kwwhat:
     +on_schema_change: append_new_columns
+    +persist_docs:
+      relation: true
+      columns: true
     marts:
       +materialized: table
 
