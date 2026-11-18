@@ -17,7 +17,7 @@ left join {{ ref('int_ports') }} as p
     on sc.charger_id = p.charger_id
     and sc.port_id = p.port_id
 where sc.status = 'Faulted'
-    and sc.connector_id != '0'
+    and sc.connector_id != {{ network_scoped_id('sc.charger_id', "'0'") }}
     and p.port_id is null
 
 union all
@@ -31,7 +31,7 @@ from {{ ref('int_status_changes') }} as sc
 left join {{ ref('int_ports') }} as p
     on sc.charger_id = p.charger_id
 where sc.status = 'Faulted'
-    and sc.connector_id = '0'
+    and sc.connector_id = {{ network_scoped_id('sc.charger_id', "'0'") }}
     and p.charger_id is null
 
 union all

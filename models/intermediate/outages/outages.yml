@@ -35,9 +35,10 @@ models:
         data_tests:
           - not_null
       - name: port_id
-        description: "Identifier for the port that experienced the faulted outage (all connectors on this port were faulted during the outage period)"
+        description: "Port that experienced the faulted outage (all connectors on this port were faulted during the outage period, or connector 0 faulted the whole charger). Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: from_ts
         description: "Timestamp when the faulted outage period started (when all connectors for the port became faulted)"
         data_tests:

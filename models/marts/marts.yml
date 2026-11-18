@@ -5,12 +5,12 @@ models:
     description: "Incremental marts model that combines charge attempts and transactions data using outer join. Provides comprehensive view of charge attempts with associated transaction details where available."
     columns:
       - name: charge_attempt_id
-        description: "Surrogate key for the charge attempt, generated from charger_id, connector_id, and charge_attempt_start_ts."
+        description: "Surrogate key for the charge attempt, generated from connector_id and charge_attempt_start_ts (connector_id is network-unique, so it already identifies the charger)."
         data_tests:
           - unique
           - not_null
       - name: port_key
-        description: "Surrogate key for the port the attempt occurred on, generated in place from charger_id + port_id (port_id resolved upstream in int_connector_preparing/int_transactions via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
+        description: "Surrogate key for the port the attempt occurred on, generated in place from port_id (port_id resolved upstream in int_connector_preparing/int_transactions via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
           - not_null:
               config:
@@ -32,9 +32,10 @@ models:
         data_tests:
           - not_null
       - name: connector_id
-        description: "Identifier for the charging connector. Kept as a degenerate dimension alongside port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use port_key."
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port. Kept as a degenerate dimension alongside port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use port_key."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: charge_attempt_start_ts
         description: "Start timestamp of the charge attempt. Uses preparing_start_ts (coalesce of payload_ts and ingested_ts from StatusNotification) if available, otherwise transaction_start_ts."
         data_tests:
@@ -132,12 +133,12 @@ models:
     description: "15-minute aggregates of meter values by measurand used to profile delivery within each transaction (energy, power, current, SoC per interval). Provides average values for each measurand within each 15-minute interval. Use for rebates reporting and time-series analysis."
     columns:
       - name: interval_data_id
-        description: "Null-safe surrogate key for the interval record, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start. Used as the incremental merge key."
+        description: "Null-safe surrogate key for the interval record, generated from transaction_id, ingested_ts, connector_id, measurand, unit, phase, and meter_15min_interval_start (connector_id is network-unique, so it already identifies the charger). Used as the incremental merge key."
         data_tests:
           - unique
           - not_null
       - name: port_key
-        description: "Surrogate key for the port the interval was recorded on, generated in place from charger_id + port_id (port_id resolved upstream in int_meter_values via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
+        description: "Surrogate key for the port the interval was recorded on, generated in place from port_id (port_id resolved upstream in int_meter_values via int_connectors: charger_id + connector_id -> port_id). Matches dim_ports.port_key by construction; null if the connector isn't found in int_connectors."
         data_tests:
           - not_null:
               config:
@@ -163,9 +164,10 @@ models:
         data_tests:
           - not_null
       - name: connector_id
-        description: "Unique identifier for the connector within the charging point. Kept as a degenerate dimension alongside port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use port_key."
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port. Kept as a degenerate dimension alongside port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use port_key."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: ingested_ts
         description: "Timestamp when transaction was ingested into the system"
         data_tests:
@@ -224,7 +226,7 @@ models:
         data_tests:
           - not_null
       - name: port_key
-        description: "Surrogate key for the affected port, generated in place from charger_id + port_id (both already on this fact via int_ports enumeration). Matches dim_ports.port_key by construction."
+        description: "Surrogate key for the affected port, generated in place from port_id (already on this fact via int_ports enumeration). Matches dim_ports.port_key by construction."
         data_tests:
           - not_null
           - relationships:
@@ -247,9 +249,12 @@ models:
                 to: ref('dim_error_codes')
                 field: error_code_key
       - name: port_id
-        description: "Port identifier associated with the charger. Always populated: both the OFFLINE and FAULTED outage sources are inner-joined to int_ports before reaching this model."
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports. Always populated: both the OFFLINE and FAULTED outage sources are inner-joined to int_ports before reaching this model."
         data_tests:
           - not_null
+          - scoped_by_charger
+      - name: location_id
+        description: "Location of the charger, from int_chargers. Kept as a degenerate dimension alongside location_key so an outage's location can be read without joining dim_locations. Null if the charger isn't found in int_chargers."
       - name: duration_minutes
         description: "Minutes of this outage that fall on date_id"
         data_tests:
@@ -276,7 +281,7 @@ models:
               config:
                 where: "reason not in ('NoHeartbeat', 'NoError', 'UnknownError')"
       - name: outage_id
-        description: "Identifies the outage, shared by all of its rows (one per day it covers). Generated from charger_id, port_id, downtime_type and outage_from_ts, which stay the same while an ongoing outage is extended. The incremental key: a re-read outage replaces all of its rows."
+        description: "Identifies the outage, shared by all of its rows (one per day it covers). Generated from port_id, downtime_type and outage_from_ts, which stay the same while an ongoing outage is extended. The incremental key: a re-read outage replaces all of its rows."
         data_tests:
           - not_null
       - name: outage_from_ts
@@ -309,7 +314,7 @@ models:
     description: "One row per driver visit — a single trip to a charging location that may span multiple charge attempts (e.g., a failed plug-in followed by a retry). Authenticated visits (idTag present) group attempts by driver + location within a 30-minute window; unauthenticated visits group by port within a 2-minute window. Implementation uses two-step grouping: Step 1 groups attempts by charger_id within 2 minutes, inferring idTag from any attempt in the group that has one. Step 2 groups by location_id + idTag within 30 minutes (authenticated) or by charger_id + port_id within 2 minutes (unauthenticated). Time gaps are measured from charge_attempt_stop_ts of one attempt to charge_attempt_start_ts of the next."
     columns:
       - name: visit_id
-        description: "Unique identifier for the visit, generated from location_id, first_charger_id, and visit_start_ts"
+        description: "Unique identifier for the visit, generated from location_id, first_charger_id, first_port_id, and visit_start_ts. first_charger_id stays in the hash because first_port_id is null when the port can't be resolved."
         data_tests:
           - not_null
           - unique
@@ -364,23 +369,31 @@ models:
       - name: last_charge_attempt_id
         description: "Charge attempt ID that ended the visit"
       - name: first_port_key
-        description: "Surrogate key for the port where the visit started, generated in place from first_charger_id + first_port_id. Matches dim_ports.port_key by construction."
+        description: "Surrogate key for the port where the visit started, generated in place from first_port_id. Matches dim_ports.port_key by construction."
         data_tests:
           - relationships:
               arguments:
                 to: ref('dim_ports')
                 field: port_key
       - name: last_port_key
-        description: "Surrogate key for the port where the visit ended, generated in place from last_charger_id + last_port_id. Matches dim_ports.port_key by construction."
+        description: "Surrogate key for the port where the visit ended, generated in place from last_port_id. Matches dim_ports.port_key by construction."
         data_tests:
           - relationships:
               arguments:
                 to: ref('dim_ports')
                 field: port_key
       - name: first_port_id
-        description: "Port ID where the visit started. Kept as a degenerate dimension alongside first_port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use first_port_key."
+        description: "Port where the visit started. Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports. Kept as a degenerate dimension alongside first_port_key - downstream joins should use first_port_key."
+        data_tests:
+          - scoped_by_charger:
+              arguments:
+                charger_column: first_charger_id
       - name: last_port_id
-        description: "Port ID where the visit ended. Kept as a degenerate dimension alongside last_port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use last_port_key."
+        description: "Port where the visit ended. Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports. Kept as a degenerate dimension alongside last_port_key - downstream joins should use last_port_key."
+        data_tests:
+          - scoped_by_charger:
+              arguments:
+                charger_column: last_charger_id
       - name: total_energy_transferred_kwh
         description: "Total energy transferred across all charge attempts in this visit (kWh)"
       - name: visit_duration_minutes
@@ -490,7 +503,7 @@ models:
       Sanity check: the number of Ports at a location answers "how many vehicles can charge simultaneously?".
     columns:
       - name: port_key
-        description: "Surrogate key for the Port, generated from charger_id and port_id."
+        description: "Surrogate key for the Port, generated from port_id (network-unique)."
         data_tests:
           - not_null
           - unique
@@ -499,9 +512,11 @@ models:
         data_tests:
           - not_null
       - name: port_id
-        description: "Port (EVSE) identifier within the Charger."
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports. Readable alternative to port_key: both are unique per row."
         data_tests:
           - not_null
+          - unique
+          - scoped_by_charger
       - name: connector_count
         description: "Number of connectors on this port."
         data_tests:
@@ -531,7 +546,7 @@ models:
       Use for connector-type analysis, current inventory, and connector-specific operational reporting.
     columns:
       - name: connector_key
-        description: "Surrogate key for the connector, generated from charger_id, port_id, and connector_id."
+        description: "Surrogate key for the connector, generated from connector_id (network-unique)."
         data_tests:
           - not_null
           - unique
@@ -540,13 +555,23 @@ models:
         data_tests:
           - not_null
       - name: port_id
-        description: "Port this connector belongs to."
+        description: "Port this connector belongs to. Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: connector_id
-        description: "Connector identifier within the port."
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port. Readable alternative to connector_key: both are unique per row."
         data_tests:
           - not_null
+          - unique
+          - scoped_by_charger
+      - name: connector_number
+        description: "OCPP 1.6 connectorId: the Connector's number within the Charger (1, 2, ...), as in the raw connectors source and OCPP payloads. Numbered per charger, not per port. Not unique across the network; use connector_id to identify a Connector."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
       - name: connector_type
         description: "Plug standard for this connector (e.g. CCS, NACS)."
         data_tests:
@@ -609,6 +634,11 @@ models:
               - charger_id
               - port_id
               - connector_id
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charger_id
+              - connector_number
 
   - name: dim_error_codes
     description: >
@@ -860,7 +890,7 @@ models:
     description: "Port-level daily uptime. One row per Port per day (charger_id + port_id + date_id). Uptime = (commissioned minutes that day − outage minutes) / commissioned minutes. Reliability is tracked at Port grain because a Port is the independently operated unit that serves one EV at a time."
     columns:
       - name: uptime_id
-        description: "Surrogate key for the row (charger_id, port_id, date_id)"
+        description: "Surrogate key for the row, generated from port_id and date_id."
         data_tests:
           - unique
           - not_null
@@ -869,7 +899,7 @@ models:
         data_tests:
           - not_null
       - name: port_key
-        description: "Surrogate key for the port, generated in place from charger_id + port_id (both enumerated via int_ports). Matches dim_ports.port_key by construction."
+        description: "Surrogate key for the port, generated in place from port_id (enumerated via int_ports). Matches dim_ports.port_key by construction."
         data_tests:
           - not_null
           - relationships:
@@ -885,9 +915,10 @@ models:
                 to: ref('dim_locations')
                 field: location_key
       - name: port_id
-        description: "Port identifier within the charger. Kept as a degenerate dimension alongside port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use port_key."
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports. Kept as a degenerate dimension alongside port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use port_key."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: date_id
         description: "Calendar day (date)"
         data_tests:

@@ -14,10 +14,7 @@ with ports as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key([
-        'ports.charger_id',
-        'ports.port_id'
-        ]) }} as port_key,
+    {{ dbt_utils.generate_surrogate_key(['ports.port_id']) }} as port_key,
     ports.charger_id,
     ports.port_id,
     ports.max_power_kw,

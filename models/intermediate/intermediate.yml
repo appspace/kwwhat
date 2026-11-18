@@ -17,9 +17,13 @@ models:
         data_tests:
           - not_null
       - name: connector_id
-        description: "Connector identifier extracted from the payload. Null for message actions that don't carry connector context (e.g. Authorize, Heartbeat)."
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port, built from the payload's connectorId. Connector 0 (the charger as a whole) becomes '<charger_id>-0'. Null for message actions that don't carry connector context (e.g. Authorize, Heartbeat)."
+        data_tests:
+          - scoped_by_charger
       - name: port_id
-        description: "Identifier for the port, resolved from int_connectors (charger_id + connector_id -> port_id). Null for message actions that don't carry connector context (e.g. Authorize, Heartbeat), or if the connector isn't found in int_connectors."
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports, resolved from int_connectors (charger_id + connector_id -> port_id). Null for message actions that don't carry connector context (e.g. Authorize, Heartbeat), for connector 0, or if the connector isn't found in int_connectors."
+        data_tests:
+          - scoped_by_charger
       - name: location_id
         description: "Identifier for the charger's location, resolved from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
     data_tests:
@@ -44,13 +48,15 @@ models:
         data_tests:
           - not_null
       - name: connector_id
-        description: "Identifier for the connector"
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: port_id
-        description: "Identifier for the port"
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: latest_status
         description: "Most recent OCPP status for this connector"
         data_tests:
@@ -92,13 +98,15 @@ models:
         data_tests:
           - not_null
       - name: connector_id
-        description: "Identifier for the connector"
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: port_id
-        description: "Identifier for the port. Carried through from int_ocpp_logs, which resolves it from int_connectors (charger_id + connector_id -> port_id)."
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports. Carried through from int_ocpp_logs, which resolves it from int_connectors (charger_id + connector_id -> port_id)."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: location_id
         description: "Identifier for the charger's location. Carried through from int_ocpp_logs, which resolves it from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
       - name: ingested_ts
@@ -162,11 +170,14 @@ models:
         data_tests:
           - not_null
       - name: connector_id
-        description: "Identifier for the charging connector"
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: port_id
-        description: "Identifier for the port. Carried through from int_status_changes, which resolves it from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports. Carried through from int_status_changes, which resolves it from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+        data_tests:
+          - scoped_by_charger
       - name: location_id
         description: "Identifier for the charger's location. Carried through from int_status_changes, which resolves it from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
       - name: unique_id
@@ -229,11 +240,14 @@ models:
         data_tests:
           - not_null
       - name: connector_id
-        description: "Connector ID for this transaction"
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: port_id
-        description: "Identifier for the port, resolved from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports. Resolved from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+        data_tests:
+          - scoped_by_charger
       - name: location_id
         description: "Identifier for the charger's location, resolved from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
       - name: ingested_ts
@@ -315,7 +329,7 @@ models:
     description: "Intermediate incremental model that processes transaction-level aggregated meter values. Provides min, max, and average values for each measurand aggregated across the entire transaction. Use for transaction-level analysis."
     columns:
       - name: meter_value_id
-        description: "Null-safe surrogate key for the measurement aggregate, generated from charger_id, transaction_id, ingested_ts, connector_id, measurand, unit, and phase. Used as the incremental merge key."
+        description: "Null-safe surrogate key for the measurement aggregate, generated from transaction_id, ingested_ts, connector_id, measurand, unit, and phase (connector_id is network-unique, so it already identifies the charger). Used as the incremental merge key."
         data_tests:
           - unique
           - not_null
@@ -328,11 +342,14 @@ models:
         data_tests:
           - not_null
       - name: connector_id
-        description: "Unique identifier for the connector within the charging point"
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: port_id
-        description: "Identifier for the port. Carried through from int_ocpp_logs, which resolves it from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports. Carried through from int_ocpp_logs, which resolves it from int_connectors (charger_id + connector_id -> port_id). Null if the connector isn't found in int_connectors."
+        data_tests:
+          - scoped_by_charger
       - name: location_id
         description: "Identifier for the charger's location. Carried through from int_ocpp_logs, which resolves it from int_chargers (charger_id -> location_id). Null if the charger isn't found in int_chargers."
       - name: ingested_ts
@@ -422,9 +439,10 @@ models:
         data_tests:
           - not_null
       - name: port_id
-        description: "Port identifier within the Charger."
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: connector_count
         description: "Number of Connectors on this Port."
         data_tests:
@@ -450,13 +468,17 @@ models:
         data_tests:
           - not_null
       - name: port_id
-        description: "Port identifier within the Charger."
+        description: "Port that contains this Connector. Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: connector_id
-        description: "Connector identifier within the Port."
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port."
         data_tests:
           - not_null
+          - scoped_by_charger
+      - name: connector_number
+        description: "OCPP 1.6 connectorId: the Connector's number within the Charger (1, 2, ...), as in the raw connectors source and OCPP payloads. Numbered per charger, not per port. Not unique across the network; use connector_id to identify a Connector."
       - name: connector_type
         description: "Type of connector (e.g., CCS, NACS, CHAdeMO)."
         data_tests:

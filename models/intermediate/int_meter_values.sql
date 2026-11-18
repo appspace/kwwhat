@@ -237,7 +237,7 @@ with incremental_date_range as (
 
     select
         {{ dbt_utils.generate_surrogate_key([
-            'charger_id', 'transaction_id', 'ingested_ts',
+            'transaction_id', 'ingested_ts',
             'connector_id', 'measurand', 'unit', 'phase'
         ]) }} as meter_value_id,
         charger_id,

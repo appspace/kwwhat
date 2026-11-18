@@ -30,3 +30,4 @@ project-wide convention.
 | [0009](0009-duration-weighted-uptime.md) | Duration-weighted uptime | Accepted |
 | [0010](0010-stop-based-driver-lifecycle.md) | Stop-based driver lifecycle activity | Superseded by [0011](0011-visit-based-driver-first-last-seen.md) for first and last seen |
 | [0011](0011-visit-based-driver-first-last-seen.md) | Visit-based driver first and last seen | Proposed |
+| [0012](0012-network-unique-port-and-connector-ids.md) | Network-unique port and connector ids | Proposed |

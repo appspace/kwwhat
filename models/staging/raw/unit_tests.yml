@@ -1,0 +1,32 @@
+unit_tests:
+  - name: test_stg_connectors_ids_scoped_by_charger
+    description: >
+      The raw connectors source numbers ports and connectors within a charger (port 2 of CH-002
+      has connectors 3 and 4, as OCPP 1.6 connectorId), so the raw values repeat across chargers.
+      stg_connectors must build network-unique ids '<charger_id>-<number>' and keep the raw
+      connector number as connector_number.
+    model: stg_connectors
+    given:
+      - input: source('raw', 'connectors')
+        rows:
+          - {charge_point_id: 'CH-001', port_id: '1', connector_id: '1', connector_type: 'CCS', max_power_kw: 150}
+          - {charge_point_id: 'CH-002', port_id: '2', connector_id: '3', connector_type: 'NACS', max_power_kw: 150}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_id: 'CH-001-1', connector_number: 1}
+        - {charger_id: 'CH-002', port_id: 'CH-002-2', connector_id: 'CH-002-3', connector_number: 3}
+
+  - name: test_stg_ports_ids_scoped_by_charger
+    description: >
+      Port numbers repeat across chargers (every two-port charger has ports 1 and 2), so stg_ports
+      must build the network-unique port_id '<charger_id>-<number>'.
+    model: stg_ports
+    given:
+      - input: source('raw', 'ports')
+        rows:
+          - {charge_point_id: 'CH-001', port_id: '1', max_power_kw: 150}
+          - {charge_point_id: 'CH-002', port_id: '1', max_power_kw: 350}
+    expect:
+      rows:
+        - {charger_id: 'CH-001', port_id: 'CH-001-1'}
+        - {charger_id: 'CH-002', port_id: 'CH-002-1'}

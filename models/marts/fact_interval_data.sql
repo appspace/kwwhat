@@ -60,7 +60,7 @@ with incremental_date_range as (
             ingested_ts,
             charger_id,
             payload,
-            {{ payload_extract_connector_id('action', 'payload') }} as connector_id,
+            {{ network_scoped_id('charger_id', payload_extract_connector_id('action', 'payload')) }} as connector_id,
             {{ payload_extract_transaction_id('action', 'payload', 'null') }} as transaction_id,
             {{ payload_extract_meter_values('action', 'payload') }} as meter_values
         from ocpp_logs
@@ -247,12 +247,12 @@ with incremental_date_range as (
     select
         -- Generate a deterministic unique ID from the composite key
         {{ dbt_utils.generate_surrogate_key([
-            'charger_id', 'transaction_id', 'ingested_ts',
+            'transaction_id', 'ingested_ts',
             'connector_id', 'measurand', 'unit', 'phase', 'meter_15min_interval_start'
         ]) }} as interval_data_id,
         -- port_id/location_id resolved upstream in int_meter_values
         case when port_id is not null
-            then {{ dbt_utils.generate_surrogate_key(['charger_id', 'port_id']) }}
+            then {{ dbt_utils.generate_surrogate_key(['port_id']) }}
         end as port_key,
         case when location_id is not null
             then {{ dbt_utils.generate_surrogate_key(['location_id']) }}
