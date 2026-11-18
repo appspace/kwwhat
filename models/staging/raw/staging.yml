@@ -53,7 +53,7 @@ sources:
           - name: charge_point_id
             description: "Charger identifier"
           - name: port_id
-            description: "Port identifier within the charger"
+            description: "Port number within the charger (1, 2, ...). Staging turns it into the network-unique port_id '<charge_point_id>-<port_id>'."
           - name: max_power_kw
             description: "Maximum rated output power of the Port in kilowatts"
 
@@ -64,9 +64,9 @@ sources:
           - name: charge_point_id
             description: "Charger identifier"
           - name: port_id
-            description: "Port identifier within the charger"
+            description: "Port number within the charger (1, 2, ...). Staging turns it into the network-unique port_id '<charge_point_id>-<port_id>'."
           - name: connector_id
-            description: "Connector identifier within the port"
+            description: "OCPP 1.6 connectorId: the connector's number within the charger (not within the port; port 2 of CH-002 has connectors 3 and 4). Staging turns it into the network-unique connector_id '<charge_point_id>-<connector_id>' and keeps the raw value as connector_number."
           - name: connector_type
             description: "Type of connector (e.g., CCS, NACS)"
           - name: max_power_kw
@@ -124,9 +124,11 @@ models:
         data_tests:
           - not_null
       - name: port_id
-        description: "Identifier for the Port within the Charger."
+        description: "Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports."
         data_tests:
           - not_null
+          - unique
+          - scoped_by_charger
       - name: max_power_kw
         description: "Maximum rated output power of the Port in kilowatts (e.g., 50, 150, 350)."
         data_tests:
@@ -150,13 +152,23 @@ models:
         data_tests:
           - not_null
       - name: port_id
-        description: "Identifier for the Port that contains this Connector."
+        description: "Port that contains this Connector. Network-unique Port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Unique on its own, so count(distinct port_id) counts Ports."
         data_tests:
           - not_null
+          - scoped_by_charger
       - name: connector_id
-        description: "Identifier for the Connector within the Port."
+        description: "Network-unique Connector id, '<charger_id>-<connector_number>' (e.g. 'CH-002-3'). OCPP 1.6 numbers connectors per charger, not per port."
         data_tests:
           - not_null
+          - unique
+          - scoped_by_charger
+      - name: connector_number
+        description: "OCPP 1.6 connectorId: the Connector's number within the Charger (1, 2, ...), as in the raw connectors source and OCPP payloads. Numbered per charger, not per port. Not unique across the network; use connector_id to identify a Connector."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
       - name: connector_type
         description: "Type of connector (e.g., CCS, NACS, CHAdeMO)."
         data_tests:
@@ -179,3 +191,8 @@ models:
               - charger_id
               - port_id
               - connector_id
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - charger_id
+              - connector_number

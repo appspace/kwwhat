@@ -66,8 +66,8 @@ with_location as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key(['charger_id', 'port_id', 'date_id']) }} as uptime_id,
-    {{ dbt_utils.generate_surrogate_key(['charger_id', 'port_id']) }} as port_key,
+    {{ dbt_utils.generate_surrogate_key(['port_id', 'date_id']) }} as uptime_id,
+    {{ dbt_utils.generate_surrogate_key(['port_id']) }} as port_key,
     case when location_id is not null
         then {{ dbt_utils.generate_surrogate_key(['location_id']) }}
     end as location_key,

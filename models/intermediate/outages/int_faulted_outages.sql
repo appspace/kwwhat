@@ -74,7 +74,7 @@ connector_fault_periods as (
         coalesce(next_ingested_ts, (select last_log_ts from last_log)) as to_ts
     from status_changes
     where status = 'Faulted'
-        and connector_id != '0'
+        and connector_id != {{ network_scoped_id('charger_id', "'0'") }}
 ),
 
 -- Connector 0 reports for the charger as a whole and has no port_id: its fault periods apply to every port on the
@@ -93,7 +93,7 @@ charger_fault_periods as (
     inner join {{ ref('int_connectors') }} as con
         on sc.charger_id = con.charger_id
     where sc.status = 'Faulted'
-        and sc.connector_id = '0'
+        and sc.connector_id = {{ network_scoped_id('sc.charger_id', "'0'") }}
 ),
 
 fault_periods as (

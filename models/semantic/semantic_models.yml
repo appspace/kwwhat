@@ -234,6 +234,7 @@ semantic_models:
         type: categorical
       - name: connector_id
         type: categorical
+        description: "Network-unique connector id, '<charger_id>-<OCPP connectorId>' (e.g. 'CH-002-3'). OCPP numbers connectors per charger, not per port."
       - name: status
         type: categorical
       - name: has_error
@@ -337,6 +338,7 @@ semantic_models:
         type: categorical
       - name: port_id
         type: categorical
+        description: "Network-unique port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Count distinct port_id to count ports."
     measures:
       - name: commissioned_minutes_total
         description: "Total minutes ports were commissioned. Denominator for duration-weighted uptime."
@@ -386,6 +388,7 @@ semantic_models:
         type: categorical
       - name: port_id
         type: categorical
+        description: "Network-unique port id, '<charger_id>-<port number>' (e.g. 'CH-002-1'). Count distinct port_id to count ports."
       - name: downtime_type
         type: categorical
       - name: reason

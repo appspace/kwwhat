@@ -288,11 +288,11 @@ attempt_errors_agg as (
 select
     -- Generate a deterministic unique ID from the composite key
     {{ dbt_utils.generate_surrogate_key([
-        'charger_id', 'connector_id', 'charge_attempt_start_ts'
+        'connector_id', 'charge_attempt_start_ts'
     ]) }} as charge_attempt_id,
     -- port_id/location_id resolved upstream in int_connector_preparing/int_transactions
     case when port_id is not null
-        then {{ dbt_utils.generate_surrogate_key(['charger_id', 'port_id']) }}
+        then {{ dbt_utils.generate_surrogate_key(['port_id']) }}
     end as port_key,
     case when location_id is not null
         then {{ dbt_utils.generate_surrogate_key(['location_id']) }}

@@ -44,8 +44,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 10:35:00}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, updated_ts: 2025-10-02 10:20:00}
-          - {charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:25:00, charge_attempt_stop_ts: 2025-10-02 10:35:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 10:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, updated_ts: 2025-10-02 10:20:00}
+          - {charger_id: 'CH-002', connector_id: 'CH-002-1', charge_attempt_start_ts: 2025-10-02 10:25:00, charge_attempt_stop_ts: 2025-10-02 10:35:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 10:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -72,8 +72,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 10:35:00}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, last_error_code: 'HighTemperature', is_successful: false, updated_ts: 2025-10-02 10:20:00}
-          - {charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:25:00, charge_attempt_stop_ts: 2025-10-02 10:35:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 10:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, last_error_code: 'HighTemperature', is_successful: false, updated_ts: 2025-10-02 10:20:00}
+          - {charger_id: 'CH-002', connector_id: 'CH-002-1', charge_attempt_start_ts: 2025-10-02 10:25:00, charge_attempt_stop_ts: 2025-10-02 10:35:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 10:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -96,8 +96,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 10:35:00}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, updated_ts: 2025-10-02 10:20:00}
-          - {charger_id: 'CH-003', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:25:00, charge_attempt_stop_ts: 2025-10-02 10:35:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 10:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:10:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, updated_ts: 2025-10-02 10:20:00}
+          - {charger_id: 'CH-003', connector_id: 'CH-003-1', charge_attempt_start_ts: 2025-10-02 10:25:00, charge_attempt_stop_ts: 2025-10-02 10:35:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 10:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -121,8 +121,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 10:41:00}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:05:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, updated_ts: 2025-10-02 10:40:00}
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:40:00, charge_attempt_stop_ts: 2025-10-02 10:41:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 10:40:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:05:00, id_tag: 'TAG-001', energy_transferred_kwh: 5.5, is_successful: true, updated_ts: 2025-10-02 10:40:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 10:40:00, charge_attempt_stop_ts: 2025-10-02 10:41:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 10:40:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -146,8 +146,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 11:35:00}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:10:00, energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
-          - {charger_id: 'CH-001', connector_id: '2', charge_attempt_start_ts: 2025-10-02 11:25:00, charge_attempt_stop_ts: 2025-10-02 11:35:00, energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:10:00, energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-2', charge_attempt_start_ts: 2025-10-02 11:25:00, charge_attempt_stop_ts: 2025-10-02 11:35:00, energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -171,8 +171,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 11:20:00}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
-          - {charger_id: 'CH-001', connector_id: '2', charge_attempt_start_ts: 2025-10-02 11:01:30, charge_attempt_stop_ts: 2025-10-02 11:01:35, energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-2', charge_attempt_start_ts: 2025-10-02 11:01:30, charge_attempt_stop_ts: 2025-10-02 11:01:35, energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -195,8 +195,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 12:20:00}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 12:00:00, charge_attempt_stop_ts: 2025-10-02 12:00:30, energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 12:20:00}
-          - {charger_id: 'CH-001', connector_id: '3', charge_attempt_start_ts: 2025-10-02 12:01:30, charge_attempt_stop_ts: 2025-10-02 12:01:35, energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 12:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 12:00:00, charge_attempt_stop_ts: 2025-10-02 12:00:30, energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 12:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-3', charge_attempt_start_ts: 2025-10-02 12:01:30, charge_attempt_stop_ts: 2025-10-02 12:01:35, energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 12:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -220,8 +220,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 11:20:00}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:01:30, charge_attempt_stop_ts: 2025-10-02 11:01:35, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 11:01:30, charge_attempt_stop_ts: 2025-10-02 11:01:35, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -244,8 +244,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 13:20:00}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 13:00:00, charge_attempt_stop_ts: 2025-10-02 13:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 13:20:00}
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 13:03:30, charge_attempt_stop_ts: 2025-10-02 13:03:35, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 13:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 13:00:00, charge_attempt_stop_ts: 2025-10-02 13:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 13:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 13:03:30, charge_attempt_stop_ts: 2025-10-02 13:03:35, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 13:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -269,10 +269,10 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 11:20:30}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:58:00, charge_attempt_stop_ts: 2025-10-02 10:58:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:01:00, charge_attempt_stop_ts: 2025-10-02 11:01:30, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:20:00}
-          - {charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:20:00, charge_attempt_stop_ts: 2025-10-02 11:20:30, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 10:58:00, charge_attempt_stop_ts: 2025-10-02 10:58:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 11:00:00, charge_attempt_stop_ts: 2025-10-02 11:00:30, id_tag: null,        energy_transferred_kwh: 3.0, is_successful: false, updated_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 11:01:00, charge_attempt_stop_ts: 2025-10-02 11:01:30, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:20:00}
+          - {charger_id: 'CH-002', connector_id: 'CH-002-1', charge_attempt_start_ts: 2025-10-02 11:20:00, charge_attempt_stop_ts: 2025-10-02 11:20:30, id_tag: 'TAG-001', energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -297,10 +297,10 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 10:20:00}
       - input: this
         rows:
-          - {location_id: 'LOC-001', id_tag: 'TAG-001', visit_start_ts: 2025-10-02 10:00:00, visit_end_ts: 2025-10-02 10:10:00, visit_duration_minutes: 10, charge_attempt_count: 1, total_energy_transferred_kwh: 5.5, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: true, _grouping_key: 'LOC-001_TAG-001'}
+          - {location_id: 'LOC-001', id_tag: 'TAG-001', visit_start_ts: 2025-10-02 10:00:00, visit_end_ts: 2025-10-02 10:10:00, visit_duration_minutes: 10, charge_attempt_count: 1, total_energy_transferred_kwh: 5.5, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: 'CH-001-1', last_port_id: 'CH-001-1', is_successful: true, _grouping_key: 'LOC-001_TAG-001'}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charge_attempt_id: 'CHA2', charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-02 10:15:00, charge_attempt_stop_ts: 2025-10-02 10:20:00, preparing_ingested_ts: 2025-10-02 10:15:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 10:20:00}
+          - {charge_attempt_id: 'CHA2', charger_id: 'CH-002', connector_id: 'CH-002-1', charge_attempt_start_ts: 2025-10-02 10:15:00, charge_attempt_stop_ts: 2025-10-02 10:20:00, preparing_ingested_ts: 2025-10-02 10:15:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 10:20:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -309,7 +309,7 @@ unit_tests:
         fixture: dim_chargers_fixture
     expect:
       rows:
-        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7, visit_start_ts: '2025-10-02 10:00:00', visit_end_ts: '2025-10-02 10:20:00', visit_duration_minutes: 20, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charger_id: 'CH-001', last_charger_id: 'CH-002', first_port_id: '1', last_port_id: '1'}
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, total_energy_transferred_kwh: 11.7, visit_start_ts: '2025-10-02 10:00:00', visit_end_ts: '2025-10-02 10:20:00', visit_duration_minutes: 20, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charger_id: 'CH-001', last_charger_id: 'CH-002', first_port_id: 'CH-001-1', last_port_id: 'CH-002-1'}
 
   
   - name: test_incremental_unauthorized_visit_merge
@@ -326,10 +326,10 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 11:02:00}
       - input: this
         rows:
-          - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 11:00:00, visit_end_ts: 2025-10-02 11:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: false, _grouping_key: 'LOC-001_CH-001_1'}
+          - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 11:00:00, visit_end_ts: 2025-10-02 11:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: 'CH-001-1', last_port_id: 'CH-001-1', is_successful: false, _grouping_key: 'LOC-001_CH-001_1'}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charge_attempt_id: 'CHA2', charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 11:01:00, charge_attempt_stop_ts: 2025-10-02 11:01:30, preparing_ingested_ts: 2025-10-02 11:01:00, energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:02:00}
+          - {charge_attempt_id: 'CHA2', charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 11:01:00, charge_attempt_stop_ts: 2025-10-02 11:01:30, preparing_ingested_ts: 2025-10-02 11:01:00, energy_transferred_kwh: 2.5, is_successful: false, updated_ts: 2025-10-02 11:02:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -338,7 +338,7 @@ unit_tests:
         fixture: dim_chargers_fixture
     expect:
       rows:
-        - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 2, total_energy_transferred_kwh: 5.5, visit_start_ts: '2025-10-02 11:00:00', visit_end_ts: '2025-10-02 11:01:30', visit_duration_minutes: 1, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1'} 
+        - {location_id: 'LOC-001', id_tag: null, charge_attempt_count: 2, total_energy_transferred_kwh: 5.5, visit_start_ts: '2025-10-02 11:00:00', visit_end_ts: '2025-10-02 11:01:30', visit_duration_minutes: 1, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA2', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: 'CH-001-1', last_port_id: 'CH-001-1'} 
 
   - name: test_incremental_unauthorized_to_authorized_id_tag_inference
     description: "An unauthorized visit from a previous batch that continues with an authorized visit in a new batch should have its id_tag inferred and merge into one visit"
@@ -354,10 +354,10 @@ unit_tests:
           - {ingested_timestamp: 2025-10-02 12:05:00}
       - input: this
         rows:
-          - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 12:00:00, visit_end_ts: 2025-10-02 12:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: '1', last_port_id: '1', is_successful: false, _grouping_key: 'LOC-001_CH-001_1'}
+          - {location_id: 'LOC-001', id_tag: null, visit_start_ts: 2025-10-02 12:00:00, visit_end_ts: 2025-10-02 12:00:30, visit_duration_minutes: 1, charge_attempt_count: 1, total_energy_transferred_kwh: 3.0, first_charge_attempt_id: 'CHA1', last_charge_attempt_id: 'CHA1', first_charger_id: 'CH-001', last_charger_id: 'CH-001', first_port_id: 'CH-001-1', last_port_id: 'CH-001-1', is_successful: false, _grouping_key: 'LOC-001_CH-001_1'}
       - input: ref('fact_charge_attempts')
         rows:
-          - {charge_attempt_id: 'CHA2', charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-02 12:01:00, charge_attempt_stop_ts: 2025-10-02 12:05:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 12:05:00}
+          - {charge_attempt_id: 'CHA2', charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 12:01:00, charge_attempt_stop_ts: 2025-10-02 12:05:00, id_tag: 'TAG-001', energy_transferred_kwh: 6.2, is_successful: true, updated_ts: 2025-10-02 12:05:00}
       - input: ref('dim_connectors')
         format: sql
         fixture: dim_connectors_fixture
@@ -384,10 +384,10 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:30:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'EVDisconnected', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:30:00}
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'EVDisconnected', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -409,15 +409,15 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', port_id: null, unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-001', _incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', port_id: null, unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-001', _incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: '1', port_id: null, ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'EVDisconnected', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, _incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', port_id: null, ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'EVDisconnected', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, _incremental_ts: 2025-10-01 10:30:00, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
       rows:
-        - {charger_id: 'CH-001', connector_id: '1', port_key: null}
+        - {charger_id: 'CH-001', connector_id: 'CH-001-1', port_key: null}
 
   - name: test_charge_attempt_not_successful_when_energy_too_low
     description: >
@@ -433,10 +433,10 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:05:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:05:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:05:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:05:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:05:00}
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:04:00, transaction_stop_reason: 'EVDisconnected', meter_start_wh: 1000, meter_stop_wh: 1050, energy_transferred_kwh: 0.05, updated_ts: 2025-10-01 10:05:00}
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:04:00, transaction_stop_reason: 'EVDisconnected', meter_start_wh: 1000, meter_stop_wh: 1050, energy_transferred_kwh: 0.05, updated_ts: 2025-10-01 10:05:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -456,7 +456,7 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:05:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:05:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:05:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:05:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:05:00}
       - input: ref('int_transactions')
         rows: []
       - input: ref('int_ocpp_logs')
@@ -479,10 +479,10 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:10:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:10:00, status: 'Preparing', next_status: 'Faulted', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:10:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:10:00, status: 'Preparing', next_status: 'Faulted', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:10:00}
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:09:00, transaction_stop_reason: 'EVDisconnected', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:10:00}
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:09:00, transaction_stop_reason: 'EVDisconnected', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:10:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -503,10 +503,10 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:10:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:10:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:10:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:10:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:10:00}
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:09:00, transaction_stop_reason: 'HardReset', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:10:00}
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:09:00, transaction_stop_reason: 'HardReset', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:10:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -530,12 +530,12 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:29:00}
       - input: this
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', transaction_id: 'TXN-001', transaction_start_ts: 2025-10-01 10:01:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', transaction_id: 'TXN-001', transaction_start_ts: 2025-10-01 10:01:00}
       - input: ref('int_connector_preparing')
         rows: []  # no new preparing events this run
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:29:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:29:00}
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:29:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -557,12 +557,12 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
       - input: ref('int_transactions')
         rows: []
       - input: ref('int_ocpp_logs')
         rows:
-          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-999', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'}
+          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-999', connector_id: 'CH-999-1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'}
     expect:
       rows:
         - {has_error: false, last_error_code: null}
@@ -581,13 +581,13 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
       - input: ref('int_transactions')
         rows: []
       - input: ref('int_ocpp_logs')
         rows:
-          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'}
-          - {ingested_timestamp: 2025-10-01 10:20:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'}
+          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: 'CH-001-1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'}
+          - {ingested_timestamp: 2025-10-01 10:20:00, charger_id: 'CH-001', connector_id: 'CH-001-1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Preparing"}'}
     expect:
       rows:
         - {has_error: false, last_error_code: null}
@@ -607,14 +607,14 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
       - input: ref('int_transactions')
         rows: []
       - input: ref('int_ocpp_logs')
         rows:
-          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'}
-          - {ingested_timestamp: 2025-10-01 10:10:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'}
-          - {ingested_timestamp: 2025-10-01 10:20:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted"}'}
+          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: 'CH-001-1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'}
+          - {ingested_timestamp: 2025-10-01 10:10:00, charger_id: 'CH-001', connector_id: 'CH-001-1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "ConnectorLockFailure", "status": "Faulted"}'}
+          - {ingested_timestamp: 2025-10-01 10:20:00, charger_id: 'CH-001', connector_id: 'CH-001-1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted"}'}
     expect:
       rows:
         - {has_error: true, last_error_code: 'HighTemperature'}
@@ -635,13 +635,13 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:00:00}
       - input: ref('int_transactions')
         rows: []
       - input: ref('int_ocpp_logs')
         rows:
-          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted"}'}
-          - {ingested_timestamp: 2025-10-01 10:20:00, charger_id: 'CH-001', connector_id: '1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'}
+          - {ingested_timestamp: 2025-10-01 10:05:00, charger_id: 'CH-001', connector_id: 'CH-001-1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "HighTemperature", "status": "Faulted"}'}
+          - {ingested_timestamp: 2025-10-01 10:20:00, charger_id: 'CH-001', connector_id: 'CH-001-1', action: 'StatusNotification', message_type_id: '2', payload: '{"connectorId": 1, "errorCode": "NoError", "status": "Available"}'}
     expect:
       rows:
         - {has_error: true, last_error_code: 'HighTemperature'}
@@ -666,12 +666,12 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: this
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:00:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:00:00}
       - input: ref('int_connector_preparing')
         rows: []  # no new preparing events this run
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:30:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:30:00}
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:30:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -701,10 +701,10 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:30:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-002', updated_ts: 2025-10-01 10:30:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-002', updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-002', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:29:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:30:00}
+          - {transaction_id: 'TXN-002', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:29:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:30:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -738,7 +738,7 @@ unit_tests:
         rows: []
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-003', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:01:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:29:00}
+          - {transaction_id: 'TXN-003', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:01:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 10:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -766,7 +766,7 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:15:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:15:00, status: 'Preparing', next_status: 'Available', transaction_id: null, updated_ts: 2025-10-01 10:15:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:15:00, status: 'Preparing', next_status: 'Available', transaction_id: null, updated_ts: 2025-10-01 10:15:00}
       - input: ref('int_transactions')
         rows: []
       - input: ref('int_ocpp_logs')
@@ -803,14 +803,14 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:15:00}
       - input: this
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', status: 'Preparing', transaction_id: null}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-01 10:00:00, preparing_unique_id: 'UID-001', status: 'Preparing', transaction_id: null}
       - input: ref('int_connector_preparing')
         rows:
           # Same underlying status-change event as the buffered row (same
           # charger/connector/unique_id/ingested_ts) but now enriched with the
           # next status change, as int_connector_preparing's own incremental merge
           # would emit it once the Available status change has been ingested.
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:15:00, status: 'Preparing', next_status: 'Available', transaction_id: null, updated_ts: 2025-10-01 10:15:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:15:00, status: 'Preparing', next_status: 'Available', transaction_id: null, updated_ts: 2025-10-01 10:15:00}
       - input: ref('int_transactions')
         rows: []
       - input: ref('int_ocpp_logs')
@@ -837,12 +837,12 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:29:00}
       - input: this
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:01:00, transaction_id: 'TXN-004', transaction_start_ts: 2025-10-01 10:01:00, meter_start_wh: 1000}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-01 10:01:00, transaction_id: 'TXN-004', transaction_start_ts: 2025-10-01 10:01:00, meter_start_wh: 1000}
       - input: ref('int_connector_preparing')
         rows: []
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-004', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 10:29:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Remote', meter_start_wh: 1000, meter_stop_wh: 8000, energy_transferred_kwh: 7.0, updated_ts: 2025-10-01 10:29:00}
+          - {transaction_id: 'TXN-004', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:29:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Remote', meter_start_wh: 1000, meter_stop_wh: 8000, energy_transferred_kwh: 7.0, updated_ts: 2025-10-01 10:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -887,12 +887,12 @@ unit_tests:
           # since this row was created) - that gap is exactly what the fix has to
           # survive: charge_attempts_buffer must scope by transaction_id, not a time
           # window, or this row is never read back.
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 08:00:00, preparing_unique_id: 'UID-005', transaction_id: 'TXN-005'}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-01 08:00:00, preparing_unique_id: 'UID-005', transaction_id: 'TXN-005'}
       - input: ref('int_connector_preparing')
         rows: []
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-005', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-05 10:29:00, transaction_start_ts: 2025-10-01 08:00:01, transaction_stop_ts: 2025-10-05 10:29:00, transaction_stop_reason: 'Remote', energy_transferred_kwh: 7.0, updated_ts: 2025-10-05 10:29:00}
+          - {transaction_id: 'TXN-005', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-05 10:29:00, transaction_start_ts: 2025-10-01 08:00:01, transaction_stop_ts: 2025-10-05 10:29:00, transaction_stop_reason: 'Remote', energy_transferred_kwh: 7.0, updated_ts: 2025-10-05 10:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -931,12 +931,12 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 09:29:00}
       - input: this
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 09:00:00, preparing_unique_id: null, status: null, transaction_id: 'TXN-010', transaction_start_ts: 2025-10-01 09:00:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-01 09:00:00, preparing_unique_id: null, status: null, transaction_id: 'TXN-010', transaction_start_ts: 2025-10-01 09:00:00}
       - input: ref('int_connector_preparing')
         rows: []
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-010', charger_id: 'CH-001', connector_id: '1', ingested_ts: 2025-10-01 09:29:00, transaction_start_ts: 2025-10-01 09:00:00, transaction_stop_ts: 2025-10-01 09:29:00, transaction_stop_reason: 'Local', energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 09:29:00}
+          - {transaction_id: 'TXN-010', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 09:29:00, transaction_start_ts: 2025-10-01 09:00:00, transaction_stop_ts: 2025-10-01 09:29:00, transaction_stop_reason: 'Local', energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 09:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -980,14 +980,14 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:05:00}
       - input: this
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', charge_attempt_start_ts: 2025-10-01 10:01:00, preparing_unique_id: null, transaction_id: 'TXN-100', transaction_start_ts: 2025-10-01 10:01:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-01 10:01:00, preparing_unique_id: null, transaction_id: 'TXN-100', transaction_start_ts: 2025-10-01 10:01:00}
       - input: ref('int_connector_preparing')
         rows:
           # The Preparing event for this same attempt, arriving late. Its own
           # transaction_id is still null here - event chaining hasn't resolved it
           # yet (e.g. the StartTransaction CALLRESULT confirmation is still in
           # flight) - an ordinary, not-contrived, lag.
-          - {charger_id: 'CH-001', connector_id: '1', unique_id: 'UID-100', ingested_ts: 2025-10-01 10:00:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:05:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-100', ingested_ts: 2025-10-01 10:00:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:05:00}
       - input: ref('int_transactions')
         rows: []
       - input: ref('int_ocpp_logs')
@@ -1025,12 +1025,12 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 11:29:00}
       - input: this
         rows:
-          - {charger_id: 'CH-002', connector_id: '1', charge_attempt_start_ts: 2025-10-01 11:00:00, preparing_unique_id: 'UID-200', status: 'Preparing', transaction_id: null}
+          - {charger_id: 'CH-002', connector_id: 'CH-002-1', charge_attempt_start_ts: 2025-10-01 11:00:00, preparing_unique_id: 'UID-200', status: 'Preparing', transaction_id: null}
       - input: ref('int_connector_preparing')
         rows: []
       - input: ref('int_transactions')
         rows:
-          - {transaction_id: 'TXN-200', charger_id: 'CH-002', connector_id: '1', ingested_ts: 2025-10-01 11:29:00, transaction_start_ts: 2025-10-01 11:00:01, transaction_stop_ts: 2025-10-01 11:29:00, transaction_stop_reason: 'Local', energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 11:29:00}
+          - {transaction_id: 'TXN-200', charger_id: 'CH-002', connector_id: 'CH-002-1', ingested_ts: 2025-10-01 11:29:00, transaction_start_ts: 2025-10-01 11:00:01, transaction_stop_ts: 2025-10-01 11:29:00, transaction_stop_reason: 'Local', energy_transferred_kwh: 5.0, updated_ts: 2025-10-01 11:29:00}
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
@@ -1064,10 +1064,10 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:06:00, charger_id: 'CH-001', action: 'MeterValues', message_type_id: '2', unique_id: 'UID-001', payload: '{"connectorId": 1, "transactionId": "TXN-001", "meterValue": [{"timestamp": "2025-10-01T10:05:00Z", "sampledValue": [{"measurand": "Energy.Active.Import.Register", "value": "100", "unit": "Wh"}]}]}'}
       - input: ref('int_meter_values')
         rows:
-          - {charger_id: 'CH-001', transaction_id: 'TXN-001', connector_id: '1', port_id: null, location_id: null, ingested_ts: 2025-10-01 10:06:00, measurand: 'Energy.Active.Import.Register', unit: 'Wh', phase: null, first_measurement_ts: 2025-10-01 10:05:00, last_measurement_ts: 2025-10-01 10:05:00, _incremental_ts: 2025-10-01 10:06:00}
+          - {charger_id: 'CH-001', transaction_id: 'TXN-001', connector_id: 'CH-001-1', port_id: null, location_id: null, ingested_ts: 2025-10-01 10:06:00, measurand: 'Energy.Active.Import.Register', unit: 'Wh', phase: null, first_measurement_ts: 2025-10-01 10:05:00, last_measurement_ts: 2025-10-01 10:05:00, _incremental_ts: 2025-10-01 10:06:00}
     expect:
       rows:
-        - {charger_id: 'CH-001', connector_id: '1', transaction_id: 'TXN-001', port_key: null, avg_value: 100.0}
+        - {charger_id: 'CH-001', connector_id: 'CH-001-1', transaction_id: 'TXN-001', port_key: null, avg_value: 100.0}
 
   - name: test_downtime_daily_offline_during_faulted_outage_is_left_to_post_hook
     description: >
@@ -1087,7 +1087,7 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 12:30:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
       - input: ref('int_offline_outages')
         rows:
           - {charger_id: 'CH-001', from_ts: 2025-10-01 10:30:00, to_ts: 2025-10-01 12:30:00, duration_minutes: 120}
@@ -1098,14 +1098,14 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001'}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1'}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 120}
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 120}
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 120}
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', duration_minutes: 120}
 
   - name: test_downtime_daily_outages_without_port_record_are_dropped
     description: >
@@ -1125,7 +1125,7 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 12:00:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null, _incremental_ts: 2025-10-01 12:00:00}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null, _incremental_ts: 2025-10-01 12:00:00}
       - input: ref('int_offline_outages')
         rows:
           - {charger_id: 'CH-002', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 12:00:00, duration_minutes: 120, _incremental_ts: 2025-10-01 12:00:00}
@@ -1137,13 +1137,13 @@ unit_tests:
           - {charger_id: 'CH-003', location_id: 'LOC-001'}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-003', port_id: 'PORT-003'}
+          - {charger_id: 'CH-003', port_id: 'CH-003-3'}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-003', port_id: 'PORT-003', downtime_type: 'OFFLINE', duration_minutes: 120}
+        - {charger_id: 'CH-003', port_id: 'CH-003-3', downtime_type: 'OFFLINE', duration_minutes: 120}
 
   - name: test_downtime_daily_multi_day_outage_split_across_days
     description: >
@@ -1173,15 +1173,15 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001'}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1'}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01}
           - {date_id: 2025-10-02}
     expect:
       rows:
-        - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', outage_from_ts: '2025-10-01 22:00:00', outage_to_ts: '2025-10-02 04:00:00', duration_minutes: 120}
-        - {date_id: 2025-10-02, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', outage_from_ts: '2025-10-01 22:00:00', outage_to_ts: '2025-10-02 04:00:00', duration_minutes: 240}
+        - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', outage_from_ts: '2025-10-01 22:00:00', outage_to_ts: '2025-10-02 04:00:00', duration_minutes: 120}
+        - {date_id: 2025-10-02, charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'OFFLINE', reason: 'NoHeartbeat', outage_from_ts: '2025-10-01 22:00:00', outage_to_ts: '2025-10-02 04:00:00', duration_minutes: 240}
 
   - name: test_downtime_daily_outage_ending_at_midnight_has_no_row_for_next_day
     description: >
@@ -1211,7 +1211,7 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001'}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1'}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01}
@@ -1241,8 +1241,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: 'OtherError', latest_error_code: 'CX003', latest_taxonomy: 'https://chargex.inl.gov'}
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: 'OtherError', latest_error_code: 'CX003', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure'}
       - input: ref('int_offline_outages')
         rows: []
       - input: ref('dim_error_codes')
@@ -1254,14 +1254,14 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_count: 1}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'HighTemperature', duration_minutes: 60}
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'GroundFailure', duration_minutes: 60}
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', reason: 'HighTemperature', duration_minutes: 60}
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', reason: 'GroundFailure', duration_minutes: 60}
 
   - name: test_downtime_daily_same_reason_outages_keep_their_own_codes
     description: >
@@ -1282,8 +1282,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX002', latest_taxonomy: 'https://chargex.inl.gov'}
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX002', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: null, latest_taxonomy: null}
       - input: ref('int_offline_outages')
         rows: []
       - input: ref('dim_error_codes')
@@ -1295,7 +1295,7 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001'}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1'}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01}
@@ -1323,8 +1323,8 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 18:30:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'NoError', latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'NoError', latest_error_code: null, latest_taxonomy: null}
       - input: ref('int_offline_outages')
         rows:
           - {charger_id: 'CH-001', from_ts: 2025-10-01 18:00:00, to_ts: 2025-10-01 18:30:00, duration_minutes: 30}
@@ -1336,7 +1336,7 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001'}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1'}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01}
@@ -1367,7 +1367,7 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
       - input: ref('dim_error_codes')
         rows:
           - {error_code_key: '041082b7ab98aab67639e28925c6de4b', taxonomy: 'https://chargex.inl.gov', error_code: 'CX010', error_code_name: 'InvalidVehicleMode'}
@@ -1379,13 +1379,13 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_count: 1}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'InvalidVehicleMode', latest_error_code_key: '041082b7ab98aab67639e28925c6de4b'}
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', reason: 'InvalidVehicleMode', latest_error_code_key: '041082b7ab98aab67639e28925c6de4b'}
 
   - name: test_downtime_daily_error_code_key_does_not_fan_out_on_name_match
     description: >
@@ -1406,7 +1406,7 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
       - input: ref('dim_error_codes')
         rows:
           - {error_code_key: 'chargex-cx010', taxonomy: 'https://chargex.inl.gov', error_code: 'CX010', error_code_name: 'InvalidVehicleMode'}
@@ -1419,13 +1419,13 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_count: 1}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', latest_error_code_key: 'chargex-cx010'}
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', latest_error_code_key: 'chargex-cx010'}
 
   - name: test_downtime_daily_error_code_key_falls_back_to_ocpp_code
     description: >
@@ -1445,7 +1445,7 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'GroundFailure', latest_error_code: null, latest_taxonomy: null}
       - input: ref('dim_error_codes')
         rows:
           - {error_code_key: 'chargex-cx002', taxonomy: 'https://chargex.inl.gov', error_code: 'CX002', error_code_name: 'GroundFailure'}
@@ -1457,13 +1457,13 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_count: 1}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', latest_error_code_key: 'ocpp-groundfailure'}
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', latest_error_code_key: 'ocpp-groundfailure'}
 
   - name: test_downtime_daily_error_code_key_connector_lock_vendor_code_resolves_to_chargex
     description: >
@@ -1481,7 +1481,7 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX001', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX001', latest_taxonomy: 'https://chargex.inl.gov'}
       - input: ref('dim_error_codes')
         rows:
           - {error_code_key: '1646d9538fbd541d118d671bc26b5aa7', taxonomy: 'https://chargex.inl.gov', error_code: 'CX001', error_code_name: 'ConnectorLockFailure'}
@@ -1493,13 +1493,13 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_count: 1}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', latest_error_code_key: '1646d9538fbd541d118d671bc26b5aa7'}
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', latest_error_code_key: '1646d9538fbd541d118d671bc26b5aa7'}
 
   - name: test_downtime_daily_error_code_key_connector_lock_no_vendor_code_resolves_to_ocpp
     description: >
@@ -1517,7 +1517,7 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: null, latest_taxonomy: null}
       - input: ref('dim_error_codes')
         rows:
           - {error_code_key: '1646d9538fbd541d118d671bc26b5aa7', taxonomy: 'https://chargex.inl.gov', error_code: 'CX001', error_code_name: 'ConnectorLockFailure'}
@@ -1529,13 +1529,13 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_count: 1}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', latest_error_code_key: 'fe4efa7c07c2051ab3fb67456a7cbc08'}
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', latest_error_code_key: 'fe4efa7c07c2051ab3fb67456a7cbc08'}
 
   - name: test_downtime_daily_error_code_key_connector_lock_unknown_vendor_code_is_null
     description: >
@@ -1553,7 +1553,7 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 15:00:00}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX999', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 15:00:00, duration_minutes: 60, latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX999', latest_taxonomy: 'https://chargex.inl.gov'}
       - input: ref('dim_error_codes')
         rows:
           - {error_code_key: '1646d9538fbd541d118d671bc26b5aa7', taxonomy: 'https://chargex.inl.gov', error_code: 'CX001', error_code_name: 'ConnectorLockFailure'}
@@ -1565,13 +1565,13 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_count: 1}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
     expect:
       rows:
-        - {charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'UnknownError', latest_error_code_key: null}
+        - {charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', reason: 'UnknownError', latest_error_code_key: null}
 
   - name: test_downtime_daily_incremental_rewrites_only_reread_outages
     description: >
@@ -1597,12 +1597,12 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 20:00:00}
       - input: this
         rows:
-          - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 240}
+          - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 240}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 11:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 20:00:00, duration_minutes: 360, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 10:00:00, to_ts: 2025-10-01 11:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 14:00:00, to_ts: 2025-10-01 20:00:00, duration_minutes: 360, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
       - input: ref('int_offline_outages')
         rows: []
       - input: ref('dim_error_codes')
@@ -1612,7 +1612,7 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_count: 1}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
@@ -1645,12 +1645,12 @@ unit_tests:
           - {ingested_timestamp: 2025-10-03 06:00:00}
       - input: this
         rows:
-          - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 300}
-          - {date_id: 2025-10-02, charger_id: 'CH-001', port_id: 'PORT-001', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 1080}
+          - {date_id: 2025-10-01, charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 300}
+          - {date_id: 2025-10-02, charger_id: 'CH-001', port_id: 'CH-001-1', downtime_type: 'FAULTED', reason: 'NoError', duration_minutes: 1080}
       - input: ref('int_faulted_outages')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
-          - {charger_id: 'CH-001', port_id: 'PORT-001', from_ts: 2025-10-01 20:00:00, to_ts: 2025-10-03 06:00:00, duration_minutes: 2040, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 08:00:00, to_ts: 2025-10-01 09:00:00, duration_minutes: 60, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', from_ts: 2025-10-01 20:00:00, to_ts: 2025-10-03 06:00:00, duration_minutes: 2040, latest_error_code_name: null, latest_error_code: null, latest_taxonomy: null}
       - input: ref('int_offline_outages')
         rows: []
       - input: ref('dim_error_codes')
@@ -1660,7 +1660,7 @@ unit_tests:
           - {charger_id: 'CH-001', location_id: 'LOC-001', commissioned_ts: 2025-01-01, decommissioned_ts: null, port_count: 1}
       - input: ref('int_ports')
         rows:
-          - {charger_id: 'CH-001', port_id: 'PORT-001', connector_count: 1}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_count: 1}
       - input: ref('dim_dates')
         rows:
           - {date_id: 2025-10-01, date_day: 2025-10-01}
@@ -1686,16 +1686,16 @@ unit_tests:
     given:
       - input: ref('int_connectors')
         rows:
-          - {charger_id: 'CH-001', port_id: 'P-001', connector_id: '1', connector_type: 'CCS'}
-          - {charger_id: 'CH-001', port_id: 'P-002', connector_id: '2', connector_type: 'CCS'}
-          - {charger_id: 'CH-001', port_id: 'P-003', connector_id: '3', connector_type: 'CCS'}
-          - {charger_id: 'CH-001', port_id: 'P-004', connector_id: '4', connector_type: 'CCS'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-1', connector_id: 'CH-001-1', connector_type: 'CCS'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-2', connector_id: 'CH-001-2', connector_type: 'CCS'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-3', connector_id: 'CH-001-3', connector_type: 'CCS'}
+          - {charger_id: 'CH-001', port_id: 'CH-001-4', connector_id: 'CH-001-4', connector_type: 'CCS'}
       - input: ref('int_connector_latest_status')
         rows:
-          - {charger_id: 'CH-001', connector_id: '1', latest_status: 'Faulted', latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX001', latest_taxonomy: 'https://chargex.inl.gov'}
-          - {charger_id: 'CH-001', connector_id: '2', latest_status: 'Faulted', latest_error_code_name: 'ConnectorLockFailure', latest_error_code: null, latest_taxonomy: null}
-          - {charger_id: 'CH-001', connector_id: '3', latest_status: 'Faulted', latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX999', latest_taxonomy: 'https://chargex.inl.gov'}
-          - {charger_id: 'CH-001', connector_id: '4', latest_status: 'Faulted', latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', latest_status: 'Faulted', latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX001', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-2', latest_status: 'Faulted', latest_error_code_name: 'ConnectorLockFailure', latest_error_code: null, latest_taxonomy: null}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-3', latest_status: 'Faulted', latest_error_code_name: 'ConnectorLockFailure', latest_error_code: 'CX999', latest_taxonomy: 'https://chargex.inl.gov'}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-4', latest_status: 'Faulted', latest_error_code_name: 'GroundFailure', latest_error_code: 'CX010', latest_taxonomy: 'https://chargex.inl.gov'}
       - input: ref('dim_error_codes')
         rows:
           - {error_code_key: 'chargex-cx001', taxonomy: 'https://chargex.inl.gov', error_code: 'CX001', error_code_name: 'ConnectorLockFailure'}
@@ -1705,9 +1705,9 @@ unit_tests:
           - {error_code_key: 'ocpp-groundfailure', taxonomy: 'ocpp1.6', error_code: null, error_code_name: 'GroundFailure'}
     expect:
       rows:
-        - {connector_id: '1', latest_error_code_key: 'chargex-cx001'}
-        - {connector_id: '2', latest_error_code_key: 'ocpp-connectorlockfailure'}
-        - {connector_id: '3', latest_error_code_key: null}
-        - {connector_id: '4', latest_error_code_key: 'chargex-cx010'}
+        - {connector_id: 'CH-001-1', latest_error_code_key: 'chargex-cx001'}
+        - {connector_id: 'CH-001-2', latest_error_code_key: 'ocpp-connectorlockfailure'}
+        - {connector_id: 'CH-001-3', latest_error_code_key: null}
+        - {connector_id: 'CH-001-4', latest_error_code_key: 'chargex-cx010'}
 
 

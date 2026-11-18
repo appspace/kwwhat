@@ -9,6 +9,7 @@ with connectors as (
         charger_id,
         port_id,
         connector_id,
+        connector_number,
         connector_type,
         max_power_kw
     from {{ ref('int_connectors') }}
@@ -37,14 +38,11 @@ error_codes as (
 )
 
 select
-    {{ dbt_utils.generate_surrogate_key([
-        'connectors.charger_id',
-        'connectors.port_id',
-        'connectors.connector_id'
-        ]) }} as connector_key,
+    {{ dbt_utils.generate_surrogate_key(['connectors.connector_id']) }} as connector_key,
     connectors.charger_id,
     connectors.port_id,
     connectors.connector_id,
+    connectors.connector_number,
     connectors.connector_type,
     connectors.max_power_kw,
     latest_status.latest_status,
