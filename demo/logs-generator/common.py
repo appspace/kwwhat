@@ -198,6 +198,15 @@ def read_connectors(connectors_path: Path, charge_point_id: str) -> list[Connect
     return sorted(connectors, key=lambda c: (c.port_id, c.connector_id)) or fallback
 
 
+def read_id_tags(id_tags_path: Path) -> list[str]:
+    """Read the drivers' idTags from a CSV with an id_tag column."""
+    with id_tags_path.open("r", encoding="utf-8", newline="") as file:
+        id_tags = [row["id_tag"].strip() for row in csv.DictReader(file) if (row.get("id_tag") or "").strip()]
+    if not id_tags:
+        raise SystemExit(f"{id_tags_path} has no id_tag values.")
+    return id_tags
+
+
 def read_lifecycle(chargers_path: Path, charge_point_id: str) -> tuple[datetime | None, datetime | None]:
     """Read (commissioned_ts, decommissioned_ts) of one charger from a chargers.csv style file.
 
@@ -310,6 +319,7 @@ class SimulationConfig:
     hard_end: datetime | None = None
     continuation: bool = False
     first_heartbeat_at: datetime | None = None
+    authorize_probability: float = 0.0
 
     def fits(self, free_at: datetime) -> bool:
         """False if the port would still be busy after the charger was decommissioned."""
@@ -368,7 +378,7 @@ class Recorder:
         self.writer = writer
         self.clock = clock
 
-    async def exchange(self, action: str, prefix: str, ts: datetime, call: Any) -> None:
+    async def exchange(self, action: str, prefix: str, ts: datetime, call: Any) -> dict[str, Any]:
         await self.clock.wait_until(ts)
         request_payload, response_payload = await call
         if "currentTime" in response_payload:
@@ -382,6 +392,7 @@ class Recorder:
             msg_prefix=prefix,
             request_dt=ts,
         )
+        return response_payload
 
     async def status(
         self, connector: Connector, status: str, ts: datetime, fault: Fault | None = None
@@ -427,6 +438,8 @@ class ChargePlan:
     fault: Fault | None
     # When a faulted connector is repaired. Only that connector is out of service until then.
     repaired_at: datetime | None = None
+    # When the charger sends Authorize, or None when it starts from its local authorization cache.
+    authorize_at: datetime | None = None
 
     @property
     def done_at(self) -> datetime:
@@ -449,6 +462,7 @@ def _plan_charge_session(cfg: SimulationConfig, connector: Connector, ts: dateti
     else:
         fault = None
         repaired_at = None
+    authorizes_online = cfg.authorize_probability > 0 and random.random() < cfg.authorize_probability
     return ChargePlan(
         started_at=started_at,
         ended_at=ended_at,
@@ -456,6 +470,7 @@ def _plan_charge_session(cfg: SimulationConfig, connector: Connector, ts: dateti
         energy_wh_per_s=energy_wh_per_s,
         fault=fault,
         repaired_at=repaired_at,
+        authorize_at=ts + timedelta(seconds=random.randint(2, 4)) if authorizes_online else None,
     )
 
 
@@ -484,9 +499,9 @@ class PortRecorder:
             del self.repairs[connector]
             await self.recorder.status(connector, "Available", repaired_at)
 
-    async def exchange(self, action: str, prefix: str, ts: datetime, call: Any) -> None:
+    async def exchange(self, action: str, prefix: str, ts: datetime, call: Any) -> dict[str, Any]:
         await self.release_repairs(ts)
-        await self.recorder.exchange(action, prefix, ts, call)
+        return await self.recorder.exchange(action, prefix, ts, call)
 
     async def status(
         self, connector: Connector, status: str, ts: datetime, fault: Fault | None = None
@@ -503,13 +518,25 @@ async def _run_charge_session(
     ts: datetime,
     plan: ChargePlan,
 ) -> datetime:
-    """One driver session. Returns the time the port is free again."""
+    """One driver session. Returns the time the port is free again.
+
+    The rejections draw their timings only once they happen, so a run in which every idTag is
+    accepted gives the same log for the same seed as before authorization was simulated.
+    """
     charge_point = recorder.charge_point
     await recorder.status(connector, "Preparing", ts)
-    await recorder.exchange(
+    if plan.authorize_at:
+        authorization = await recorder.exchange(
+            "Authorize", "auth", plan.authorize_at, charge_point.send_authorize(id_tag)
+        )
+        if not _is_accepted(authorization):
+            return await _leave_after_rejection(recorder, connector, plan.authorize_at)
+    start = await recorder.exchange(
         charge_point.start_action_name, "tx", plan.started_at,
         charge_point.send_start_transaction(connector.port_id, connector.connector_id, id_tag, plan.started_at),
     )
+    if not _is_accepted(start):
+        return await _stop_deauthorized(recorder, connector, plan.started_at)
     await recorder.status(connector, "Charging", plan.started_at + timedelta(seconds=1))
 
     meter_at = plan.started_at + timedelta(seconds=cfg.meter_interval_s)
@@ -541,6 +568,34 @@ async def _run_charge_session(
         await recorder.status(connector, "Finishing", plan.ended_at + timedelta(seconds=1))
         await recorder.status(connector, "Available", plan.free_at)
     return plan.free_at
+
+
+def _is_accepted(response_payload: dict[str, Any]) -> bool:
+    """False when the central system rejected the idTag (OCPP 1.6 idTagInfo)."""
+    return (response_payload.get("idTagInfo") or {}).get("status", "Accepted") == "Accepted"
+
+
+async def _leave_after_rejection(recorder: PortRecorder, connector: Connector, rejected_at: datetime) -> datetime:
+    """Authorize was rejected: no transaction starts, the driver unplugs and leaves."""
+    free_at = rejected_at + timedelta(seconds=random.randint(20, 90))
+    await recorder.status(connector, "Available", free_at)
+    return free_at
+
+
+async def _stop_deauthorized(recorder: PortRecorder, connector: Connector, started_at: datetime) -> datetime:
+    """The charger started from its local authorization cache and the central system rejected the
+    idTag in StartTransaction.conf. The charger stops at once (StopTransactionOnInvalidId), before
+    any energy flows, and the driver leaves."""
+    charge_point = recorder.charge_point
+    stopped_at = started_at + timedelta(seconds=random.randint(1, 3))
+    await recorder.exchange(
+        charge_point.stop_action_name, "stop", stopped_at,
+        charge_point.send_stop_transaction(connector.port_id, connector.connector_id, stopped_at, "DeAuthorized", 0),
+    )
+    await recorder.status(connector, "Finishing", stopped_at + timedelta(seconds=1))
+    free_at = stopped_at + timedelta(seconds=random.randint(10, 60))
+    await recorder.status(connector, "Available", free_at)
+    return free_at
 
 
 async def _run_port(
@@ -603,15 +658,19 @@ async def run_simulation(
     writer: SessionLogWriter,
     cfg: SimulationConfig,
     connectors: list[Connector],
+    id_tags: list[str] | None = None,
 ) -> datetime:
     """Boot the charger (unless continuing), then run heartbeats and every port concurrently
-    in simulated time. Returns the first heartbeat time after the period."""
+    in simulated time. Returns the first heartbeat time after the period.
+
+    Without `id_tags`, the drivers are 25 random idTags of this charger alone."""
     clock = SimulationClock()
     recorder = Recorder(charge_point, writer, clock)
     if not cfg.continuation:
         await clock.run([_run_startup(recorder, cfg, connectors)])
 
-    id_tags = [f"ABC{number}XYZ" for number in random.sample(range(100, 1000), 25)]
+    if not id_tags:
+        id_tags = [f"ABC{number}XYZ" for number in random.sample(range(100, 1000), 25)]
     connectors_by_port: dict[int, list[Connector]] = defaultdict(list)
     for connector in connectors:
         connectors_by_port[connector.port_id].append(connector)
@@ -768,6 +827,20 @@ def parse_args() -> argparse.Namespace:
         help="Chance that an arrival never starts a transaction (default: 0.1).",
     )
     parser.add_argument(
+        "--id-tags-file",
+        type=Path,
+        default=None,
+        help="CSV with an id_tag column: the drivers who arrive, shared by every charger run that uses "
+        "the same file (default: 25 random idTags per run).",
+    )
+    parser.add_argument(
+        "--authorize-probability",
+        type=float,
+        default=0.0,
+        help="Chance that the charger authorizes a driver online with Authorize before the transaction, "
+        "otherwise it starts from its local authorization cache (default: 0). OCPP 1.6 only.",
+    )
+    parser.add_argument(
         "--fault-probability",
         type=float,
         default=0.05,
@@ -828,6 +901,9 @@ async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotoc
             f"--charge-point-id {args.charge_point_id!r} is longer than {MAX_CHARGE_POINT_ID_LENGTH} characters, "
             f"so the message ids built from it could exceed the OCPP limit of {MAX_MESSAGE_ID_LENGTH} characters."
         )
+    if args.authorize_probability > 0 and args.ocpp_version != "1.6":
+        raise SystemExit("--authorize-probability is supported for OCPP 1.6 only.")
+    id_tags = read_id_tags(args.id_tags_file) if args.id_tags_file else None
     state = load_append_state(args.output, args.charge_point_id, args.ocpp_version) if args.append else None
     if state and args.start:
         raise SystemExit(
@@ -867,6 +943,7 @@ async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotoc
         hard_end=hard_end,
         continuation=state is not None,
         first_heartbeat_at=state.next_heartbeat_at if state else None,
+        authorize_probability=args.authorize_probability,
     )
     if cfg.start >= cfg.end:
         print(
@@ -902,7 +979,7 @@ async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotoc
                 if hasattr(charge_point, "last_transaction_id"):
                     charge_point.last_transaction_id = state.last_transaction_id
             start_task = asyncio.create_task(charge_point.start())
-            next_heartbeat_at = await run_simulation(charge_point, writer, cfg, connectors)
+            next_heartbeat_at = await run_simulation(charge_point, writer, cfg, connectors, id_tags)
             meter_wh = dict(charge_point.meter_wh)
             last_transaction_id = getattr(charge_point, "last_transaction_id", None)
             await ws.close()

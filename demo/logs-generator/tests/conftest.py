@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import central_system_v16  # noqa: E402
 import common  # noqa: E402
+from auth_list import AuthList  # noqa: E402
 from client import PROTOCOLS  # noqa: E402
 from server import CHARGE_POINT_CLASSES  # noqa: E402
 
@@ -90,9 +91,10 @@ class MemoryServer:
         self.refuse = False
         self.restart()
 
-    def restart(self) -> None:
-        """Like restarting server.py: OCPP 1.6 transaction ids start again at 5001."""
+    def restart(self, auth_list: Path | None = None) -> None:
+        """Like restarting server.py (with --auth-list): OCPP 1.6 transaction ids start again at 5001."""
         central_system_v16.MyChargePoint._transaction_id_counter = itertools.count(5001)
+        central_system_v16.MyChargePoint.auth_list = AuthList.read(auth_list) if auth_list else AuthList()
 
     @asynccontextmanager
     async def connect(self, uri: str, subprotocols: list[str]):
