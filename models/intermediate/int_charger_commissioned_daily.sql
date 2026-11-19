@@ -13,14 +13,12 @@ with chargers as (
     where commissioned_ts is not null
 ),
 
+-- A charger still in commission counts up to the latest OCPP log, where ongoing offline outages also end
 charger_commissioned_span as (
     select
         charger_id,
         commissioned_ts,
-        coalesce(
-            decommissioned_ts,
-            cast({{ dbt.current_timestamp() }} as {{ dbt.type_timestamp() }})
-        ) as decommissioned_ts
+        coalesce(decommissioned_ts, {{ latest_ocpp_log_ts() }}) as decommissioned_ts
     from chargers
 ),
 
