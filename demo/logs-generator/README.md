@@ -9,6 +9,7 @@ One server and one client speak both OCPP 1.6 and OCPP 2.0.1. The client picks t
 | `server.py` | Central system on port 9000, serves both versions |
 | `client.py` | Charge point simulator, `--ocpp-version 1.6` (default) or `2.0.1` |
 | `common.py` | Code shared by both versions (simulation, CLI, CSV writer) |
+| `auth_list.py` | The idTag statuses the central system answers with, read from `--auth-list` |
 | `central_system_v16.py`, `central_system_v201.py` | Server side message handlers per version |
 | `charge_point_v16.py`, `charge_point_v201.py` | Client side messages per version |
 
@@ -25,12 +26,18 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-The tests need Python 3.10 or newer and no running server. They connect the real client to the real central system classes through an in-memory pipe that stands in for the websocket, so every message still goes through the `ocpp` library and its schema validation. They check what downstream dbt relies on: one driver per port, a fault taking only its own connector out of service, closed transactions, increasing transaction ids, meters that never go backwards, even heartbeats, the commissioned period, and `--append` continuing a series without a visible join.
+The tests need Python 3.10 or newer and no running server. They connect the real client to the real central system classes through an in-memory pipe that stands in for the websocket, so every message still goes through the `ocpp` library and its schema validation. They check what downstream dbt relies on: one driver per port, a fault taking only its own connector out of service, closed transactions, increasing transaction ids, meters that never go backwards, even heartbeats, the commissioned period, `--append` continuing a series without a visible join, and the authorization of drivers' idTags.
 
 ## Run server
 
 ```bash
 python server.py
+```
+
+By default the server accepts every idTag. With `--auth-list`, it answers OCPP 1.6 Authorize and StartTransaction with the statuses in a CSV, see Authorization below:
+
+```bash
+python server.py --auth-list auth_list.csv
 ```
 
 ## Run client
@@ -58,9 +65,32 @@ One client run simulates one charger over `--days` of simulated time. The websoc
 - **One driver per port:** a port never serves two drivers at once, and each arrival picks a random connector of the port. Different ports charge at the same time.
 - **Charging session:** Preparing, start transaction, Charging, MeterValues every `--meter-interval` seconds, stop transaction, Finishing, Available. Session length varies (median about 35 minutes) and the energy delivered depends on the connector's `max_power_kw`.
 - **Failed attempt:** with `--failed-attempt-probability`, the driver plugs in (Preparing) and leaves a minute or two later (Available) without a transaction.
+- **Drivers:** every charging session picks a driver's idTag at random. Without `--id-tags-file`, each run draws 25 idTags of its own, so no driver uses two chargers. With it, every run that uses the same file draws from the same drivers.
+- **Authorization (OCPP 1.6):** with `--authorize-probability`, the charger sends Authorize a few seconds after Preparing. Otherwise it starts the transaction from its local authorization cache, as every session did before. See Authorization below.
 - **Fault:** with `--fault-probability`, a session ends early with stop reason `Other`, the connector goes Faulted and returns to Available after 10 minutes to 4 hours of repair. Only the faulted connector is out of service. The driver leaves and the port keeps serving drivers on its other connectors, so a repair can finish in the middle of another session on the same port. The port is down only while all its connectors are faulted, which is also when dbt counts port downtime. A driver who arrives then leaves without plugging in. A session is not started if its repair could not finish before a decommissioning or the end of an appended run. In OCPP 1.6 the Faulted StatusNotification carries an `errorCode`, and with `--vendor-error-code-probability` it also carries `vendorId` and `vendorErrorCode` taken from `--vendor-codes-file` (ChargeX codes such as `CX003`). Codes without a standard OCPP 1.6 equivalent are sent with `errorCode` `OtherError`. OCPP 2.0.1 StatusNotification has no error fields, so 2.0.1 faults only show the Faulted status.
 
 All ports and the heartbeat run concurrently against the simulated clock, and requests reach the server in timestamp order. That is why the OCPP 1.6 transaction ids assigned by the server increase with time, as they would on a real central system.
+
+## Authorization
+
+The central system decides whether an idTag is accepted. `--auth-list` on the server points to a CSV with the columns `id_tag`, `status` (`Accepted`, `Blocked`, `Expired`, `Invalid` or `ConcurrentTx`), and optionally `from_ts` and `expiry_date`:
+
+```csv
+id_tag,status,from_ts,expiry_date
+DRV-0007,Blocked,,
+DRV-0012,Expired,2025-11-10T00:00:00Z,2025-11-09T23:59:59Z
+```
+
+A row applies from its `from_ts` (always, when blank), and the latest row that applies wins, so an idTag can be accepted at first and expire later. An idTag with no row that applies is Accepted. `expiry_date` is sent as `idTagInfo.expiryDate`. The central system has no simulated clock: it takes the time from the latest timestamp the charger sent (StatusNotification, StartTransaction, StopTransaction), so a status applies within a few seconds of its `from_ts`.
+
+A rejected idTag ends the session in one of two ways:
+
+- **Online authorization** (`--authorize-probability`): Authorize is rejected, no transaction starts, and the driver unplugs 20 to 90 seconds later (Preparing, then Available).
+- **Local authorization cache:** the charger starts the transaction and StartTransaction.conf rejects the idTag. The charger stops the transaction 1 to 3 seconds later with reason `DeAuthorized`, before any energy flows (`meterStop` equals `meterStart`), and the driver leaves (Preparing, Finishing, Available).
+
+In kwwhat's dbt models, Authorize carries no `connectorId` and doesn't join to a charge attempt, so a rejected Authorize shows as a failed attempt with no idTag. A rejection in StartTransaction.conf keeps the driver's idTag and its status.
+
+When every idTag is accepted, runs give the same log for the same seed as before authorization was added. The timings of a rejection are drawn only when it happens.
 
 ## Lifecycle
 
@@ -124,6 +154,8 @@ Use `--seed` together with `--start` for reproducible output. The OCPP 2.0.1 tra
 | `--days` | `1` | Days of charger activity to simulate. |
 | `--sessions-per-port-per-day` | `6` | Average driver arrivals per port per day. `0` disables sessions. |
 | `--failed-attempt-probability` | `0.1` | Chance that an arrival never starts a transaction. |
+| `--id-tags-file` | 25 random idTags per run | CSV with an `id_tag` column: the drivers who arrive. Runs that use the same file share the drivers. |
+| `--authorize-probability` | `0` | Chance that the charger authorizes a driver online with Authorize before the transaction, otherwise it starts from its local authorization cache. OCPP 1.6 only. |
 | `--fault-probability` | `0.05` | Chance that a charging session ends in a fault. |
 | `--vendor-codes-file` | `../../seeds/chargex_mrec_codes.csv` | Vendor fault codes CSV (`taxonomy`, `fault_code`, `ocpp_1_6_error_code`). Used by OCPP 1.6 only. If the file is missing, faults carry no vendor code. |
 | `--vendor-error-code-probability` | `0.8` | Chance that a fault also reports `vendorId` and `vendorErrorCode`. Otherwise only a plain `errorCode`. OCPP 1.6 only. |

@@ -1,10 +1,13 @@
 # server.py
+import argparse
 import asyncio
+from pathlib import Path
 
 import websockets
 
 import central_system_v16
 import central_system_v201
+from auth_list import AuthList
 
 # One central system serving both protocol versions. The client picks the version in the
 # websocket handshake by offering "ocpp1.6" or "ocpp2.0.1" as its subprotocol. Clients that
@@ -40,5 +43,20 @@ async def main():
     await server.wait_closed()
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the OCPP central system.")
+    parser.add_argument(
+        "--auth-list",
+        type=Path,
+        default=None,
+        help="Auth list CSV (id_tag, status, from_ts, expiry_date) with the idTag statuses to answer "
+        "with in OCPP 1.6 (default: every idTag is Accepted).",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    args = parse_args()
+    if args.auth_list:
+        central_system_v16.MyChargePoint.auth_list = AuthList.read(args.auth_list)
     asyncio.run(main())

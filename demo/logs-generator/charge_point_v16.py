@@ -90,6 +90,11 @@ class ChargePoint(cp):
         response: call_result.StatusNotification = await self.call(request)
         return request_payload, normalize_response_payload(response)
 
+    async def send_authorize(self, id_tag: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        request_payload = {"idTag": id_tag}
+        response: call_result.Authorize = await self.call(call.Authorize(id_tag=id_tag))
+        return request_payload, normalize_response_payload(response)
+
     async def send_start_transaction(
         self, port_id: int, connector_id: int, id_tag: str, ts: datetime
     ) -> tuple[dict[str, Any], dict[str, Any]]:
