@@ -497,7 +497,7 @@ models:
               - connector_id
 
   - name: int_charger_commissioned_daily
-    description: "Time each charger was in commission on each calendar day, between its commissioned and decommissioned timestamps (up to now if still in commission). Partial on the first and last day of the commission range. Used as the denominator for uptime. One row per charger_id + date_id."
+    description: "Time each charger was in commission on each calendar day, between its commissioned and decommissioned timestamps (up to the latest OCPP log if still in commission). Partial on the first and last day of the commission range. Used as the denominator for uptime. One row per charger_id + date_id."
     columns:
       - name: charger_id
         description: "Charger identifier"

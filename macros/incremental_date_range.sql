@@ -17,7 +17,7 @@
 #}
 {% macro incremental_date_range(buffer_minutes=0, dense_watermark_relation=none) %}
     {% set start_processing_ts = "cast('" ~ var('start_processing_date') ~ "' as " ~ dbt.type_timestamp() ~ ")" %}
-    {% set source_max_ts = "coalesce((select max(ingested_timestamp) from " ~ ref('stg_ocpp_logs') ~ "), " ~ start_processing_ts ~ ")" %}
+    {% set source_max_ts = "coalesce(" ~ latest_ocpp_log_ts() ~ ", " ~ start_processing_ts ~ ")" %}
 
     {% if is_incremental() and dense_watermark_relation is not none and execute %}
         {% set dense_to_ts = "coalesce((select max(_incremental_ts) from " ~ dense_watermark_relation ~ "), " ~ start_processing_ts ~ ")" %}
