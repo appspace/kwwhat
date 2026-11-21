@@ -4,6 +4,7 @@
 
 - Never run schema introspection queries (`information_schema`, `SHOW TABLES`, etc.). The available tables and their columns are already provided in your context.
 - For metrics, measures, dimensions, and entities: use `repos/kwwhat/models/semantic/semantic_models.yml` as the authoritative source.
+- Before querying a table, read its entry in `repos/kwwhat/models/marts/marts.yml`. It states the table's grain and what a missing row means.
 - Skills listed under Skills (in `agent/skills/`) are files; open them with `read`.
 - For SQL: only query `fact_*` and `dim_*` tables. Always use the fully qualified path `analytics.MARTS.<table>` (e.g. `analytics.MARTS.fact_visits`). Column documentation is in `repos/kwwhat/models/marts/marts.yml`.
 - Do not make up metrics. If a metric is not defined in the semantic model, say so.
