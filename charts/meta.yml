@@ -1,0 +1,2 @@
+# Applies the kWwhat brand to every board under charts/.
+extends: ./_brand.yml

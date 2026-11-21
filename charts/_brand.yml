@@ -1,0 +1,25 @@
+# kWwhat brand palette, from demo/chat-bi/rules.md. Keep the two in sync.
+# The leading underscore keeps this file from being served as a board.
+#   Light Purple #F3DDEE   Purple #C357AA   Dark Purple #7C2167
+#   Light Turquoise #D2F3F3   Turquoise #6AD8D6   Dark Turquoise #165255
+#   Yellow (accent) #FFD72E   Bluish (accent) #1F0D79
+#   White #FFFFFF   Grey-black #2A2A2A
+style:
+  background: "#FFFFFF"
+  font:
+    color: "#2A2A2A"
+  charts:
+    color:
+      categorical:
+        # Strong hues first; the light tints sit last because they are faint on white.
+        palette:
+          - "#C357AA"
+          - "#6AD8D6"
+          - "#7C2167"
+          - "#165255"
+          - "#FFD72E"
+          - "#1F0D79"
+          - "#F3DDEE"
+          - "#D2F3F3"
+        single_series_palette:
+          - "#C357AA"
