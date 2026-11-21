@@ -43,6 +43,21 @@ For static HTML output:
 dct render charts/charging_overview.yml --format html
 ```
 
+## Brand colors
+
+`charts/meta.yml` extends `charts/_brand.yml` for every board under `charts/`.
+The palette comes from `demo/chat-bi/rules.md`; keep the two in sync. The
+leading underscore keeps `_brand.yml` from being served as a board.
+
+`charging_overview.yml` pins colors to exact query values, so a renamed value
+loses its pin and falls back to the palette:
+
+- Each location keeps one hue: LOC-001 purple, LOC-002 turquoise. The dark shade
+  is authenticated and the mid shade is anonymous. New locations take the next
+  palette colors.
+- Outcomes: first-attempt success dark turquoise, troubled success turquoise,
+  failed dark purple, in progress yellow.
+
 ## Date range and metric definitions
 
 The board executes SQL, not live dbt Semantic Layer metric queries.
@@ -62,10 +77,8 @@ The board executes SQL, not live dbt Semantic Layer metric queries.
   Anonymous counts are distinct `visit_id` values where `id_tag` is null. These
   counts intentionally differ from the Semantic Layer's total visit count.
 - The daily query reshapes the two counts into `authentication_type` and
-  `visit_count` rows for plotting. Its interim color series combines location and
-  authentication type. Shared location colors, lighter anonymous fills, solid
-  authenticated fills, and the final stacking behavior still need renderer
-  verification; no unverified opacity configuration is included.
+  `visit_count` rows for plotting. Its color series combines location and
+  authentication type.
 - Outcome and location-summary definitions mirror
   `models/semantic/semantic_models.yml` and should be kept aligned with it.
 - First-attempt success means `is_successful` is true and
@@ -82,5 +95,4 @@ that directory becomes a served page.
 
 Verified locally on 2026-11-21 with `dbt-charts` 0.12.0: `dct validate` passes, and
 all three queries execute against `analytics.dbt_prod.fact_visits` with the default
-date range. The daily chart's series colors and stacking have not been reviewed in
-the browser yet. No dbt models or metric definitions were changed.
+date range, and a PNG render shows the brand pins applied. No dbt models or metric definitions were changed.

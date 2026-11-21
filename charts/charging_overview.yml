@@ -1,6 +1,25 @@
 title: "kWwhat charging overview"
 source: analytics
 
+# Brand palette comes from charts/_brand.yml via charts/meta.yml.
+# Pins keep each location on one hue (dark = authenticated, mid = anonymous)
+# and each outcome on a fixed color. New locations fall back to the palette.
+style:
+  charts:
+    category_colors:
+      chart_series:
+        values:
+          "LOC-001 / Authenticated": "#7C2167"
+          "LOC-001 / Anonymous": "#C357AA"
+          "LOC-002 / Authenticated": "#165255"
+          "LOC-002 / Anonymous": "#6AD8D6"
+      outcome:
+        values:
+          "First-attempt success": "#165255"
+          "Troubled success": "#6AD8D6"
+          "Failed": "#7C2167"
+          "In progress": "#FFD72E"
+
 # Shared visit end date filter, inclusive of both ends.
 variables:
   date_range:
@@ -85,16 +104,15 @@ charts:
     query: daily_visits
     x: visit_date
     y: visit_count
-    # Interim series colors; shared location hues and authentication opacity
-    # still require verification with the Charts renderer.
     color: chart_series
-    title: "Daily authenticated drivers and anonymous visits by location"
+    title: "Daily visits by location"
 
   visit_outcomes:
     type: bar
     query: visit_outcomes
     x: outcome
     y: total_visits
+    color: outcome
     title: "Visit outcomes (selected end dates)"
 
   location_summary:
