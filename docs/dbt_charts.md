@@ -9,10 +9,9 @@ drivers and anonymous visits by location, visit outcomes, and a location summary
 - This board uses Snowflake SQL and reads the confirmed deployed relation
   `analytics.dbt_prod.fact_visits` explicitly. Changing the connection's default
   schema does not redirect the board to development data.
-- The connection uses the `kwwhat` profile declared in `dbt_project.yml`, with
-  target `default`. Supply that profile and target in your local `profiles.yml`,
-  or update `dbt_charts.yml` to match your local profile and target. Studio manages
-  its own connection; its credentials are not exported by this configuration.
+- The connection uses the `kwwhat` profile declared in `dbt_project.yml` and that
+  profile's default target (no `target:` is pinned in `dbt_charts.yml`). Studio
+  manages its own connection; its credentials are not exported by this configuration.
 - The Snowflake role needs SELECT access to the deployed mart and USAGE on its
   database, schema, and warehouse. Keep credentials in `profiles.yml` or its
   environment variables, never in board files or Git.
@@ -20,13 +19,14 @@ drivers and anonymous visits by location, visit outcomes, and a location summary
 
 ## Preview locally
 
-Use Python 3.9+ and dbt 1.12+ as described in the
-[dbt Charts quickstart](https://docs.getdbt.com/guides/dbt-charts).
-The current Charts quickstart also requires the Python v1 adapter when using
-v2 Stable. Install the Snowflake adapter and Charts in your Python environment:
+See the [dbt Charts quickstart](https://docs.getdbt.com/guides/dbt-charts).
+Verified with `dbt-charts` 0.12.0, `dbt-snowflake` 1.11, Python 3.12. Install it
+into the project `.venv` (this also adds `dbt-duckdb` and bumps `dbt-protos`;
+`dbt-core` is unchanged):
 
 ```bash
-pip install dbt-snowflake dbt-charts
+uv pip install --python .venv/bin/python dbt-charts
+source .venv/bin/activate
 ```
 
 From the project root, with your local connection configured:
@@ -47,13 +47,12 @@ dct render charts/charging_overview.yml --format html
 
 The board executes SQL, not live dbt Semantic Layer metric queries.
 
-- A shared `date_range` variable is declared with a proposed default of October 1
-  through November 19, 2025. The `type: date_range` control declaration, two-date
-  default format, and end-date inclusivity still require validation with the
-  installed Charts version. They have not been verified in Studio.
-- All three queries use the user-supplied helper pattern:
-  `{{ filter_date_range('visit_end_ts', date_range) }}`. Charts must render this
-  expression before the SQL is sent to Snowflake; it is not a dbt macro.
+- A shared `date_range` variable (`input: daterange`) defaults to October 1
+  through November 19, 2025. Presets such as `last_30_days` are also accepted
+  as a `default`.
+- All three queries use `{{ filter_date_range('visit_end_ts', date_range) }}`, a
+  Charts template helper (not a dbt macro). It compares the timestamp by its
+  calendar date with `between`, so both the start and end dates are inclusive.
 - The existing `visit_end_ts` time basis is preserved. Visits whose end timestamp
   is null will be excluded by a date predicate, including visits still in progress.
 - Daily counts are grouped by end date and `location_id`. Missing dates are not
@@ -81,9 +80,7 @@ that directory becomes a served page.
 
 ## Validation status
 
-Earlier literal-date SQL queries were executed against the deployed mart from
-Studio. The new Charts date-range control and templated predicates have not been
-rendered or executed. No dbt models or metric definitions were changed. Studio's
-tools cannot run `dct`, install Python packages, or host its server. Use the local
-validation and preview steps above to check the variable declaration, SQL helper
-expansion, range boundaries, and browser behavior before relying on this version.
+Verified locally on 2026-11-21 with `dbt-charts` 0.12.0: `dct validate` passes, and
+all three queries execute against `analytics.dbt_prod.fact_visits` with the default
+date range. The daily chart's series colors and stacking have not been reviewed in
+the browser yet. No dbt models or metric definitions were changed.

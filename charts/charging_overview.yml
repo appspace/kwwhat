@@ -1,10 +1,11 @@
 title: "kWwhat charging overview"
 source: analytics
 
-# Validate this control declaration and its default format with dct validate.
+# Shared visit end date filter, inclusive of both ends.
 variables:
   date_range:
-    type: date_range
+    input: daterange
+    label: "Visit end date"
     default: ["2025-10-01", "2025-11-19"]
 
 # Snowflake board reading the deployed mart, independent of the connection's write schema.
@@ -53,7 +54,7 @@ queries:
           case
               when is_successful is null then 'In progress'
               when is_successful and charge_attempt_count = 1 then 'First-attempt success'
-              when is_successful and charge_attempt_count > 1 then 'Success after retries'
+              when is_successful and charge_attempt_count > 1 then 'Troubled success'
               when not is_successful then 'Failed'
               else 'Unclassified'
           end as "outcome",
