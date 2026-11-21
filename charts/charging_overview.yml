@@ -2,7 +2,7 @@ title: "kWwhat charging overview"
 source: analytics
 
 # Brand palette comes from charts/_brand.yml via charts/meta.yml.
-# Pins keep each location on one hue (dark = authenticated, mid = anonymous)
+# Pins keep each location on one hue (strong = authenticated, light tint = anonymous)
 # and each outcome on a fixed color. New locations fall back to the palette.
 style:
   charts:
@@ -10,9 +10,12 @@ style:
       chart_series:
         values:
           "LOC-001 / Authenticated": "#7C2167"
-          "LOC-001 / Anonymous": "#C357AA"
+          "LOC-001 / Anonymous": "#F3DDEE"
           "LOC-002 / Authenticated": "#165255"
-          "LOC-002 / Anonymous": "#6AD8D6"
+          "LOC-002 / Anonymous": "#D2F3F3"
+          # Brand has no light Bluish; category[6] is Bluish in _brand.yml, .pale derives its tint.
+          "LOC-003 / Authenticated": "#1F0D79"
+          "LOC-003 / Anonymous": category[6].pale
       outcome:
         values:
           "First-attempt success": "#165255"
@@ -65,7 +68,8 @@ queries:
           visit_count as "visit_count",
           location_id || ' / ' || authentication_type as "chart_series"
       from visit_series
-      order by visit_date, location_id, authentication_type
+      -- Authenticated first so it stacks at the bottom of each location, anonymous tint on top.
+      order by visit_date, location_id, case when authentication_type = 'Authenticated' then 1 else 2 end
 
   visit_outcomes:
     sql: |
