@@ -117,10 +117,12 @@ semantic_models:
     dimensions:
       - name: visit_end_ts
         type: time
+        description: "When the visit ended: its last charge attempt stopped. The default time dimension. Aggregate visit outcomes and reliability rates by it, since a visit's outcome is known only once it ends."
         type_params:
           time_granularity: day
       - name: visit_start_ts
         type: time
+        description: "When the visit started: its first charge attempt began. Not for reliability: cut by start, a period counts visits whose outcome isn't known yet, so its success and failure rates read low."
         type_params:
           time_granularity: day
       - name: first_charger_id
@@ -130,18 +132,18 @@ semantic_models:
       - name: is_first_attempt_success
         type: categorical
         description: "True when the visit was successful with only one attempt."
-        expr: case when is_successful and charge_attempt_count = 1 then true else false end
+        expr: case when is_successful is null then null when is_successful and charge_attempt_count = 1 then true else false end
       - name: is_troubled_success
         type: categorical
         description: "True when the visit succeeded but required more than one attempt."
-        expr: case when is_successful and charge_attempt_count > 1 then true else false end
+        expr: case when is_successful is null then null when is_successful and charge_attempt_count > 1 then true else false end
       - name: is_successful
         type: categorical
-        description: "True when the visit ended in a successful charge."
+        description: "True when the visit ended in a successful charge (its last charge attempt was successful), false when it failed, null while its last attempt is still in progress. Why a failed visit failed is charge_attempt__failure_reason, through the charge_attempt entity."
       - name: is_failed
         type: categorical
-        description: "True when the visit did not end in a successful charge."
-        expr: case when is_successful then false else true end
+        description: "True when the visit did not end in a successful charge. Null while its last attempt is still in progress."
+        expr: not is_successful
       - name: last_error_code
         type: categorical
         description: "The error_code of the most recent StatusNotification error observed across all attempts in the visit - not necessarily from the visit's last attempt. Null when no attempt in the visit had an error."
@@ -193,7 +195,7 @@ semantic_models:
       - name: failed_visits_count
         description: "Number of visits that failed (did not end in successful charge)."
         agg: count
-        expr: case when is_successful then null else visit_id end
+        expr: case when not is_successful then visit_id end
 
   - name: charge_attempts
     description: "Semantic model for analyzing individual charge attempts and success metrics."
@@ -224,8 +226,13 @@ semantic_models:
           time_granularity: day
       - name: is_successful
         type: categorical
-        description: "True when there is a transaction, the attempt does not end faulted, the stop reason is valid, and energy transferred exceeds 0.1 kWh."
-        expr: case when transaction_id is not null and (next_status is null or next_status != 'Faulted') and transaction_stop_reason in ('Local', 'Remote', 'EVDisconnected') and energy_transferred_kwh is not null and energy_transferred_kwh > 0.1 then true else false end
+        description: "True when there is a transaction, the driver's id_tag was not rejected, the attempt does not end faulted, the transaction stopped with a valid stop reason, and energy transferred exceeds 0.1 kWh. False when failure_reason is set; null while the attempt is in progress and hasn't failed yet (an open transaction, or no transaction yet while still in Preparing): neither successful nor failed."
+      - name: failure_reason
+        type: categorical
+        description: "Why a failed attempt failed: the most specific success criterion it missed, in this order. AUTH_REJECTED (the id_tag was rejected in StartTransaction.conf), FAULTED_AFTER (the next status after Preparing was Faulted), INVALID_STOP_REASON (stopped for a reason other than Local, Remote or EVDisconnected), LOW_KWH (0.1 kWh or less), and last NO_TRANSACTION (the connector left Preparing without a transaction and nothing more specific explains why, including authorization rejected before one). Null when the attempt was successful, and while it is in progress: an open transaction, or no transaction yet while the connector is still in Preparing. Split failed attempts or visits by it to attribute failures."
+      - name: id_tag_status
+        type: categorical
+        description: "Authorization status the central system returned for the driver's id_tag in StartTransaction.conf: Accepted, Blocked, Expired, Invalid or ConcurrentTx. Null for attempts without an id_tag."
       - name: next_status
         type: categorical
       - name: transaction_stop_reason
@@ -269,9 +276,9 @@ semantic_models:
         agg: average
         expr: case when is_successful then energy_transferred_kwh end
       - name: failed_attempts_count
-        description: "Number of failed charge attempts."
+        description: "Number of failed charge attempts. Open transactions are neither successful nor failed."
         agg: count
-        expr: case when is_successful then null else charge_attempt_id end
+        expr: case when not is_successful then charge_attempt_id end
       - name: attempts_with_transaction_count
         description: "Number of attempts that had an associated transaction."
         agg: count
@@ -462,7 +469,7 @@ metrics:
       measure: failed_visits_count
 
   - name: first_attempt_success_rate
-    description: "Primary reliability metric. Proportion of visits where the first attempt succeeded."
+    description: "Primary reliability metric. Proportion of visits where the first attempt succeeded. A visit still in progress (its last attempt's transaction open, or no transaction yet while still in Preparing) is in the denominator but in no numerator, so first_attempt_success_rate, troubled_success_rate and failed_rate can add up to less than 1; the remainder is the share of visits still in progress."
     label: "First attempt success rate"
     type: ratio
     type_params:
@@ -470,7 +477,7 @@ metrics:
       denominator: total_visits
 
   - name: troubled_success_rate
-    description: "Primary reliability metric. Proportion of visits that were troubled successes."
+    description: "Primary reliability metric. Proportion of visits that were troubled successes. A visit still in progress (its last attempt's transaction open, or no transaction yet while still in Preparing) is in the denominator but in no numerator, so first_attempt_success_rate, troubled_success_rate and failed_rate can add up to less than 1; the remainder is the share of visits still in progress."
     label: "Troubled success rate"
     type: ratio
     type_params:
@@ -478,7 +485,7 @@ metrics:
       denominator: total_visits
 
   - name: failed_rate
-    description: "Primary reliability metric. Proportion of visits that failed."
+    description: "Primary reliability metric. Proportion of visits that failed. A visit still in progress (its last attempt's transaction open, or no transaction yet while still in Preparing) is in the denominator but in no numerator, so first_attempt_success_rate, troubled_success_rate and failed_rate can add up to less than 1; the remainder is the share of visits still in progress."
     label: "Failed rate"
     type: ratio
     type_params:

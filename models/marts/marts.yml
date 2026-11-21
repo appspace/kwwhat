@@ -71,7 +71,7 @@ models:
       - name: id_tag
         description: "Driver identifier (id_tag) for this attempt — first element from the id_tags array. Null for unauthorized attempts."
       - name: id_tag_status
-        description: "Authorization status for the driver identifier (id_tag). Null when id_tag is null."
+        description: "Authorization status the central system returned for the driver identifier (id_tag) in StartTransaction.conf: Accepted, Blocked, Expired, Invalid or ConcurrentTx. Null when id_tag is null. Anything but Accepted makes the attempt fail with failure_reason AUTH_REJECTED."
       - name: transaction_id
         description: "Transaction ID (from charge attempt or transaction data)"
         data_tests:
@@ -105,13 +105,18 @@ models:
               arguments:
                 values: ['ConnectorLockFailure', 'EVCommunicationError', 'GroundFailure', 'HighTemperature', 'InternalError', 'LocalListConflict', 'OtherError', 'OverCurrentFailure', 'PowerMeterFailure', 'PowerSwitchFailure', 'ReaderFailure', 'ResetFailure', 'UnderVoltage', 'OverVoltage', 'WeakSignal']
       - name: is_successful
-        description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, next status is not 'Faulted', transaction stop reason is 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.1 kWh."
+        description: "Boolean flag indicating if the charge attempt was successful. True when: there is a transaction, the central system did not reject the driver's id_tag (id_tag_status is 'Accepted' or unknown), next status is not 'Faulted', the transaction stopped with stop reason 'Local', 'Remote' or 'EVDisconnected', and energy transferred is greater than 0.1 kWh (success_energy_threshold_kwh). False when failure_reason is set. Null while the attempt is in progress and hasn't already failed (rejected id_tag or fault): its transaction is open (started, no StopTransaction yet), or it has no transaction and the connector hasn't left Preparing yet (next_status null). Such an attempt is neutral, neither successful nor failed, until it stops or the connector reports its next status."
         data_tests:
-          - not_null
           - accepted_values:
               arguments:
                 values: [true, false]
                 quote: false
+      - name: failure_reason
+        description: "The most specific success criterion the attempt failed; null when the attempt was successful. Checked in this order, with NO_TRANSACTION, the least descriptive, last. AUTH_REJECTED: the central system rejected the id_tag in StartTransaction.conf (id_tag_status Blocked, Expired, Invalid or ConcurrentTx). FAULTED_AFTER: the connector's next status after Preparing was Faulted. INVALID_STOP_REASON: the transaction stopped with a reason other than Local, Remote or EVDisconnected, or none. LOW_KWH: the transaction's energy is missing or at most 0.1 kWh. NO_TRANSACTION: the connector reported its next status after Preparing without a transaction, and nothing more specific explains why (the driver left, or authorization was rejected before the transaction; OCPP 1.6 Authorize carries no connectorId, so that rejection can't be attached to the attempt). Null for an attempt in progress that hasn't already failed (is_successful is null): an open transaction, or no transaction yet while the connector is still in Preparing. Degenerate dimension stored directly on the fact; usable for filtering and grouping."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['AUTH_REJECTED', 'FAULTED_AFTER', 'INVALID_STOP_REASON', 'LOW_KWH', 'NO_TRANSACTION']
       - name: updated_ts
         description: "The latest source event reflected in this attempt: the later of the Preparing status change's and the transaction's updated_ts, carried forward across incremental runs. Downstream models (fact_visits, int_driver_aggregates) read changed attempts by it."
         data_tests:
@@ -126,6 +131,16 @@ models:
       - dbt_utils.expression_is_true:
           arguments:
             expression: "charge_attempt_stop_ts is null or charge_attempt_stop_ts >= charge_attempt_start_ts"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "coalesce(is_successful, true) = (failure_reason is null)"
+          config:
+            severity: error
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "(is_successful is null) = (failure_reason is null and ((transaction_id is not null and transaction_stop_ts is null) or (transaction_id is null and next_status is null)))"
           config:
             severity: error
 
@@ -344,11 +359,11 @@ models:
                 severity: warn
 
       - name: visit_start_ts
-        description: "Start timestamp of the first charge attempt in the visit (charge_attempt_start_ts)"
+        description: "Start timestamp of the first charge attempt in the visit (charge_attempt_start_ts). Not for reliability reporting: use visit_end_ts, since a visit's outcome is known only once it ends."
         data_tests:
           - not_null
       - name: visit_end_ts
-        description: "Stop timestamp of the last charge attempt in the visit (charge_attempt_stop_ts)"
+        description: "Stop timestamp of the last charge attempt in the visit (charge_attempt_stop_ts). Aggregate visit outcomes and reliability rates by it (the semantic model's default time dimension for visits)."
         data_tests:
           - not_null
       - name: charge_attempt_count
@@ -408,9 +423,8 @@ models:
       - name: last_charger_id
         description: "Charger ID where the visit ended. Kept as a degenerate dimension alongside last_port_key - the natural business identifier is retained on the fact for readability and debugging, downstream joins should use last_port_key."
       - name: is_successful
-        description: "Success status of the last charge attempt in the visit"
+        description: "Success status of the last charge attempt in the visit (fact_charge_attempts.is_successful). Null while that attempt is in progress (an open transaction, or no transaction yet while the connector is still in Preparing): the visit is neutral, neither successful nor failed, until it stops. Why a failed visit failed is that attempt's failure_reason, joined on last_charge_attempt_id."
         data_tests:
-          - not_null
           - accepted_values:
               arguments:
                 values: [true, false]

@@ -84,6 +84,31 @@ unit_tests:
       rows:
         - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 2, last_error_code: 'HighTemperature'}
 
+  - name: test_visit_is_neutral_while_its_last_attempt_is_open
+    description: >
+      Setup: one visit whose last charge attempt has an open transaction (is_successful null). Expected: the
+      visit's is_successful is null too, so it counts as neither successful nor failed until the attempt stops.
+    model: fact_visits
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-02 10:35:00}
+      - input: ref('fact_charge_attempts')
+        rows:
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', charge_attempt_start_ts: 2025-10-02 10:00:00, charge_attempt_stop_ts: 2025-10-02 10:01:00, id_tag: 'TAG-001', energy_transferred_kwh: null, is_successful: null, updated_ts: 2025-10-02 10:20:00}
+      - input: ref('dim_connectors')
+        format: sql
+        fixture: dim_connectors_fixture
+      - input: ref('dim_chargers')
+        format: sql
+        fixture: dim_chargers_fixture
+    expect:
+      rows:
+        - {location_id: 'LOC-001', id_tag: 'TAG-001', charge_attempt_count: 1, is_successful: null}
+
   - name: test_authorized_visits_15min_apart_different_location
     description: "Two authorized attempts 15 minutes apart in different locations should result in two separate visits (authorized visits group by location_id + idTag)"
     model: fact_visits
@@ -372,8 +397,9 @@ unit_tests:
 
   - name: test_charge_attempt_is_successful_when_all_conditions_met
     description: >
-      A charge attempt is successful when: transaction exists, next_status is not
-      Faulted, stop reason is Local/Remote/EVDisconnected, and energy > 0.1 kWh.
+      A charge attempt is successful when: transaction exists, the id_tag was not
+      rejected, next_status is not Faulted, stop reason is Local/Remote/EVDisconnected,
+      and energy > 0.1 kWh. Its failure_reason is null.
     model: fact_charge_attempts
     overrides:
       macros:
@@ -392,7 +418,7 @@ unit_tests:
         rows: []
     expect:
       rows:
-        - {is_successful: true}
+        - {is_successful: true, failure_reason: null}
 
   - name: test_charge_attempt_keeps_row_with_null_port_key_when_connector_not_in_reference_data
     description: >
@@ -441,11 +467,12 @@ unit_tests:
         rows: []
     expect:
       rows:
-        - {is_successful: false}
+        - {is_successful: false, failure_reason: 'LOW_KWH'}
 
   - name: test_charge_attempt_not_successful_when_no_transaction
     description: >
-      A charge attempt with no matching transaction is always unsuccessful.
+      A charge attempt whose connector went back to Available without a transaction, and no fault or
+      rejection, is unsuccessful with failure_reason NO_TRANSACTION, the least descriptive reason.
     model: fact_charge_attempts
     overrides:
       macros:
@@ -456,14 +483,62 @@ unit_tests:
           - {ingested_timestamp: 2025-10-01 10:05:00}
       - input: ref('int_connector_preparing')
         rows:
-          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:05:00, status: 'Preparing', transaction_id: null, updated_ts: 2025-10-01 10:05:00}
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:05:00, status: 'Preparing', next_status: 'Available', transaction_id: null, updated_ts: 2025-10-01 10:05:00}
       - input: ref('int_transactions')
         rows: []
       - input: ref('int_ocpp_logs')
         rows: []
     expect:
       rows:
-        - {is_successful: false}
+        - {is_successful: false, failure_reason: 'NO_TRANSACTION'}
+
+  - name: test_charge_attempt_still_preparing_is_neutral
+    description: >
+      Setup: a plug-in still in Preparing (next_status null) with no transaction yet, at the end of the data.
+      Expected: is_successful null and failure_reason null. A StartTransaction may still come, so the attempt
+      is neutral until the connector reports its next status.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:00:30}
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: null, status: 'Preparing', next_status: null, transaction_id: null, updated_ts: 2025-10-01 10:00:30}
+      - input: ref('int_transactions')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {is_successful: null, failure_reason: null}
+
+  - name: test_charge_attempt_fault_without_transaction_reports_faulted
+    description: >
+      Setup: a plug-in whose connector went Faulted right after Preparing, so no transaction started.
+      Expected: not successful, failure_reason FAULTED_AFTER. NO_TRANSACTION comes last, so the fault that
+      explains why no transaction started takes precedence.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00}
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:00:30, status: 'Preparing', next_status: 'Faulted', transaction_id: null, updated_ts: 2025-10-01 10:05:00}
+      - input: ref('int_transactions')
+        rows: []
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {is_successful: false, failure_reason: 'FAULTED_AFTER'}
 
   - name: test_charge_attempt_not_successful_when_next_status_faulted
     description: >
@@ -487,7 +562,7 @@ unit_tests:
         rows: []
     expect:
       rows:
-        - {is_successful: false}
+        - {is_successful: false, failure_reason: 'FAULTED_AFTER'}
 
   - name: test_charge_attempt_not_successful_when_invalid_stop_reason
     description: >
@@ -511,7 +586,180 @@ unit_tests:
         rows: []
     expect:
       rows:
-        - {is_successful: false}
+        - {is_successful: false, failure_reason: 'INVALID_STOP_REASON'}
+
+  - name: test_charge_attempt_not_successful_when_id_tag_rejected
+    description: >
+      Setup: a transaction that meets every other criterion (EVDisconnected, 5 kWh, not Faulted), but the
+      central system answered StartTransaction.conf with id_tag_status Expired. Expected: not successful,
+      failure_reason AUTH_REJECTED. Authorization alone fails the attempt.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:30:00}
+      - input: ref('int_transactions')
+        rows:
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'EVDisconnected', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, id_tags: ['TAG-001'], id_tag_statuses: ['Expired'], updated_ts: 2025-10-01 10:30:00}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {id_tag: 'TAG-001', id_tag_status: 'Expired', is_successful: false, failure_reason: 'AUTH_REJECTED'}
+
+  - name: test_charge_attempt_deauthorized_reports_auth_rejected_first
+    description: >
+      Setup: a rejected id_tag (Expired) whose transaction the charger stopped at once: stop reason
+      DeAuthorized and 0 kWh, so it also fails the stop reason and energy criteria. Expected: failure_reason
+      AUTH_REJECTED, the most specific criterion it failed, not INVALID_STOP_REASON or LOW_KWH.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:05:00}
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:05:00, status: 'Preparing', next_status: 'Finishing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:05:00}
+      - input: ref('int_transactions')
+        rows:
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:00:20, transaction_stop_ts: 2025-10-01 10:00:22, transaction_stop_reason: 'DeAuthorized', meter_start_wh: 1000, meter_stop_wh: 1000, energy_transferred_kwh: 0.0, id_tags: ['TAG-001'], id_tag_statuses: ['Expired'], updated_ts: 2025-10-01 10:05:00}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {is_successful: false, failure_reason: 'AUTH_REJECTED', transaction_stop_reason: 'DeAuthorized'}
+
+  - name: test_charge_attempt_accepted_id_tag_does_not_fail_authorization
+    description: >
+      Setup: a complete transaction with id_tag_status Accepted. Expected: successful, failure_reason null.
+      Pairs with the rejected case so the authorization criterion is tested both ways.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:30:00}
+      - input: ref('int_transactions')
+        rows:
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, id_tags: ['TAG-001'], id_tag_statuses: ['Accepted'], updated_ts: 2025-10-01 10:30:00}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {id_tag_status: 'Accepted', is_successful: true, failure_reason: null}
+
+  - name: test_charge_attempt_without_authorization_status_is_judged_by_its_transaction
+    description: >
+      Setup: a complete transaction (Local, 5 kWh) with no id_tag status at all, as when no authorization
+      was attempted or StartTransaction.conf is missing from the logs. Expected: successful, failure_reason
+      null. An attempt that was neither accepted nor rejected doesn't fail the authorization criterion.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:30:00}
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:30:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:30:00}
+      - input: ref('int_transactions')
+        rows:
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:29:00, transaction_stop_reason: 'Local', meter_start_wh: 1000, meter_stop_wh: 6000, energy_transferred_kwh: 5.0, id_tags: [], id_tag_statuses: [], updated_ts: 2025-10-01 10:30:00}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {id_tag_status: null, is_successful: true, failure_reason: null}
+
+  - name: test_charge_attempt_open_transaction_is_neutral
+    description: >
+      Setup: a transaction that started, was accepted and isn't faulted, but has no StopTransaction yet
+      (still charging when the data ends). Expected: is_successful null and failure_reason null. The attempt
+      is neutral, neither successful nor failed, until it stops.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:10:00}
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:01:01, status: 'Preparing', next_status: 'Charging', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:10:00}
+      - input: ref('int_transactions')
+        rows:
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: null, transaction_stop_reason: null, meter_start_wh: 1000, meter_stop_wh: null, energy_transferred_kwh: null, updated_ts: 2025-10-01 10:10:00}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {is_successful: null, failure_reason: null}
+
+  - name: test_charge_attempt_open_transaction_fails_when_already_rejected
+    description: >
+      Setup: an open transaction (no StopTransaction yet) whose id_tag the central system rejected as Expired.
+      Expected: not successful, failure_reason AUTH_REJECTED. An open transaction is neutral only while it
+      hasn't failed an earlier criterion.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:10:00}
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:01:01, status: 'Preparing', next_status: 'Charging', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:10:00}
+      - input: ref('int_transactions')
+        rows:
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: null, transaction_stop_reason: null, meter_start_wh: 1000, meter_stop_wh: null, energy_transferred_kwh: null, id_tags: ['TAG-001'], id_tag_statuses: ['Expired'], updated_ts: 2025-10-01 10:10:00}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {is_successful: false, failure_reason: 'AUTH_REJECTED'}
+
+  - name: test_charge_attempt_low_kwh_when_energy_missing
+    description: >
+      Setup: a stopped transaction with a valid stop reason but no energy reading (energy_transferred_kwh
+      null). Expected: not successful, failure_reason LOW_KWH, the same as energy at or below the threshold.
+    model: fact_charge_attempts
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_ocpp_logs')
+        rows:
+          - {ingested_timestamp: 2025-10-01 10:10:00}
+      - input: ref('int_connector_preparing')
+        rows:
+          - {charger_id: 'CH-001', connector_id: 'CH-001-1', unique_id: 'UID-001', ingested_ts: 2025-10-01 10:00:00, next_ingested_ts: 2025-10-01 10:10:00, status: 'Preparing', transaction_id: 'TXN-001', updated_ts: 2025-10-01 10:10:00}
+      - input: ref('int_transactions')
+        rows:
+          - {transaction_id: 'TXN-001', charger_id: 'CH-001', connector_id: 'CH-001-1', ingested_ts: 2025-10-01 10:00:00, transaction_start_ts: 2025-10-01 10:01:00, transaction_stop_ts: 2025-10-01 10:09:00, transaction_stop_reason: 'Local', meter_start_wh: null, meter_stop_wh: null, energy_transferred_kwh: null, updated_ts: 2025-10-01 10:10:00}
+      - input: ref('int_ocpp_logs')
+        rows: []
+    expect:
+      rows:
+        - {is_successful: false, failure_reason: 'LOW_KWH'}
 
   - name: test_charge_attempt_incremental_merge_fills_stop_data
     description: >
@@ -540,7 +788,7 @@ unit_tests:
         rows: []
     expect:
       rows:
-        - {is_successful: true, transaction_stop_reason: 'Local', energy_transferred_kwh: 5.0}
+        - {is_successful: true, failure_reason: null, transaction_stop_reason: 'Local', energy_transferred_kwh: 5.0}
 
   - name: test_charge_attempt_has_error_false_when_no_matching_status_notifications
     description: >

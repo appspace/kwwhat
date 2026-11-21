@@ -17,6 +17,39 @@
 
 
 {% set VALID_STOP_REASONS = ['Local', 'Remote', 'EVDisconnected'] %}
+{%- set id_tag_status_sql -%}
+    case
+        when id_tag_statuses is not null and {{ array_size('id_tag_statuses') }} > 0
+            then cast({{ array_first('id_tag_statuses') }} as {{ dbt.type_string() }})
+    end
+{%- endset -%}
+{#- The most specific success criterion the attempt failed: a rejected id_tag or a fault first, then the stop
+    reason and energy of its transaction, and NO_TRANSACTION, the least descriptive, only when nothing more
+    specific applies. Null when it meets them all, and while the attempt is in progress, which makes it neither
+    successful nor failed unless a rejection or fault already failed it: while its transaction is open (until
+    StopTransaction the stop reason and energy are unknown), and while it has no transaction and the connector
+    hasn't left Preparing (next_status null), since a StartTransaction may still come. Once the connector
+    reports its next status without a transaction, the transaction didn't happen: NO_TRANSACTION. -#}
+{%- set failure_reason_sql -%}
+    case
+        when ({{ id_tag_status_sql }}) is not null and ({{ id_tag_status_sql }}) != 'Accepted' then 'AUTH_REJECTED'
+        when next_status = 'Faulted' then 'FAULTED_AFTER'
+        when transaction_id is not null and transaction_stop_ts is null then null
+        when transaction_id is not null
+            and (
+                transaction_stop_reason is null
+                or transaction_stop_reason not in ({{ "'" + "', '".join(VALID_STOP_REASONS) + "'" }})
+            )
+            then 'INVALID_STOP_REASON'
+        when transaction_id is not null
+            and (
+                energy_transferred_kwh is null
+                or energy_transferred_kwh <= {{ var('success_energy_threshold_kwh') }}
+            )
+            then 'LOW_KWH'
+        when transaction_id is null and next_status is not null then 'NO_TRANSACTION'
+    end
+{%- endset %}
 {%- set _authorize_threshold = var("authorize_time_threshold_seconds") -%}
 
 with incremental_date_range as (
@@ -314,10 +347,7 @@ select
         when id_tags is not null and {{ array_size('id_tags') }} > 0
             then cast({{ array_first('id_tags') }} as {{ dbt.type_string() }})
     end as id_tag,
-    case
-        when id_tag_statuses is not null and {{ array_size('id_tag_statuses') }} > 0
-            then cast({{ array_first('id_tag_statuses') }} as {{ dbt.type_string() }})
-    end as id_tag_status,
+    {{ id_tag_status_sql }} as id_tag_status,
     transaction_id,
     transaction_ingested_ts,
     transaction_start_ts,
@@ -328,14 +358,12 @@ select
     energy_transferred_kwh,
     errors.last_error_code is not null as has_error,
     errors.last_error_code,
+    {{ failure_reason_sql }} as failure_reason,
     case
-        when transaction_id is not null
-            and (next_status is null or next_status != 'Faulted')
-            and transaction_stop_reason in ({{ "'" + "', '".join(VALID_STOP_REASONS) + "'" }})
-            and energy_transferred_kwh is not null
-            and energy_transferred_kwh > {{ var('success_energy_threshold_kwh') }}
-        then true
-        else false
+        when ({{ failure_reason_sql }}) is not null then false
+        when transaction_id is not null and transaction_stop_ts is null then null
+        when transaction_id is null and next_status is null then null
+        else true
     end as is_successful,
     updated_ts,
     (select to_timestamp from incremental_date_range) as _incremental_ts
