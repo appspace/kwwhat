@@ -1,0 +1,111 @@
+title: "kWwhat charging overview"
+source: analytics
+
+# Validate this control declaration and its default format with dct validate.
+variables:
+  date_range:
+    type: date_range
+    default: ["2025-10-01", "2025-11-19"]
+
+# Snowflake board reading the deployed mart, independent of the connection's write schema.
+# Outcome and summary SQL mirror models/semantic/semantic_models.yml.
+# Daily visits use the requested distinct-driver/anonymous-visit definition instead.
+queries:
+  daily_visits:
+    sql: |
+      with daily_counts as (
+          select
+              cast(visit_end_ts as date) as visit_date,
+              location_id,
+              count(distinct case when id_tag is not null then id_tag end) as authenticated_visits_count,
+              count(distinct case when id_tag is null then visit_id end) as anonymous_visits_count
+          from analytics.dbt_prod.fact_visits
+          where {{ filter_date_range('visit_end_ts', date_range) }}
+          group by cast(visit_end_ts as date), location_id
+      ),
+      visit_series as (
+          select
+              visit_date,
+              location_id,
+              'Authenticated' as authentication_type,
+              authenticated_visits_count as visit_count
+          from daily_counts
+          union all
+          select
+              visit_date,
+              location_id,
+              'Anonymous' as authentication_type,
+              anonymous_visits_count as visit_count
+          from daily_counts
+      )
+      select
+          to_char(visit_date, 'YYYY-MM-DD') as "visit_date",
+          location_id as "location_id",
+          authentication_type as "authentication_type",
+          visit_count as "visit_count",
+          location_id || ' / ' || authentication_type as "chart_series"
+      from visit_series
+      order by visit_date, location_id, authentication_type
+
+  visit_outcomes:
+    sql: |
+      select
+          case
+              when is_successful is null then 'In progress'
+              when is_successful and charge_attempt_count = 1 then 'First-attempt success'
+              when is_successful and charge_attempt_count > 1 then 'Success after retries'
+              when not is_successful then 'Failed'
+              else 'Unclassified'
+          end as "outcome",
+          count(visit_id) as "total_visits"
+      from analytics.dbt_prod.fact_visits
+      where {{ filter_date_range('visit_end_ts', date_range) }}
+      group by 1
+      order by 2 desc, 1
+
+  location_summary:
+    sql: |
+      select
+          location_id as "location_id",
+          count(visit_id) as "total_visits",
+          count(case when is_successful and charge_attempt_count = 1 then visit_id end) as "first_attempt_success",
+          count(case when is_successful and charge_attempt_count > 1 then visit_id end) as "troubled_success",
+          count(case when not is_successful then visit_id end) as "failed_visits",
+          count(case when is_successful is null then visit_id end) as "in_progress_visits",
+          1.0 * sum(charge_attempt_count) / nullif(count(visit_id), 0) as "average_attempts_per_visit"
+      from analytics.dbt_prod.fact_visits
+      where {{ filter_date_range('visit_end_ts', date_range) }}
+      group by 1
+      order by 2 desc, 1
+
+charts:
+  daily_visits:
+    type: bar
+    query: daily_visits
+    x: visit_date
+    y: visit_count
+    # Interim series colors; shared location hues and authentication opacity
+    # still require verification with the Charts renderer.
+    color: chart_series
+    title: "Daily authenticated drivers and anonymous visits by location"
+
+  visit_outcomes:
+    type: bar
+    query: visit_outcomes
+    x: outcome
+    y: total_visits
+    title: "Visit outcomes (selected end dates)"
+
+  location_summary:
+    type: table
+    query: location_summary
+    title: "Location summary (selected end dates)"
+
+rows:
+  - title: "Visits and outcomes"
+    cols:
+      - daily_visits
+      - visit_outcomes
+  - title: "Location detail"
+    rows:
+      - location_summary
