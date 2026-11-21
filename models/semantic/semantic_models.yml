@@ -201,7 +201,7 @@ semantic_models:
     description: "Semantic model for analyzing individual charge attempts and success metrics."
     model: ref('fact_charge_attempts')
     defaults:
-      agg_time_dimension: charge_attempt_start_ts
+      agg_time_dimension: charge_attempt_stop_ts
     entities:
       - name: charge_attempt
         type: primary
@@ -218,10 +218,12 @@ semantic_models:
     dimensions:
       - name: charge_attempt_start_ts
         type: time
+        description: "When the attempt started: Preparing, or StartTransaction when there was no Preparing. Not for reliability: cut by start, a period counts attempts whose outcome isn't known yet."
         type_params:
           time_granularity: day
       - name: charge_attempt_stop_ts
         type: time
+        description: "When the attempt stopped: StopTransaction, or the connector's next status after Preparing when there was no transaction. The default time dimension. Aggregate attempt outcomes by it, since an attempt's outcome is known only once it stops. Null while still in Preparing."
         type_params:
           time_granularity: day
       - name: is_successful

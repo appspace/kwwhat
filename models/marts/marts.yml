@@ -37,11 +37,11 @@ models:
           - not_null
           - scoped_by_charger
       - name: charge_attempt_start_ts
-        description: "Start timestamp of the charge attempt. Uses preparing_start_ts (coalesce of payload_ts and ingested_ts from StatusNotification) if available, otherwise transaction_start_ts."
+        description: "Start timestamp of the charge attempt. Uses preparing_start_ts (coalesce of payload_ts and ingested_ts from StatusNotification) if available, otherwise transaction_start_ts. Not for reliability reporting: use charge_attempt_stop_ts, since an attempt's outcome is known only once it stops."
         data_tests:
           - not_null
       - name: charge_attempt_stop_ts
-        description: "Stop timestamp of the charge attempt. Uses transaction_stop_ts if transaction exists, otherwise preparing_stop_ts (coalesce of next_payload_ts and next_ingested_ts)."
+        description: "Stop timestamp of the charge attempt. Uses transaction_stop_ts if transaction exists, otherwise preparing_stop_ts (coalesce of next_payload_ts and next_ingested_ts). Null while the attempt is still in Preparing. Aggregate attempt outcomes by it (the semantic model's default time dimension for charge attempts)."
       - name: preparing_unique_id
         description: "Unique identifier of the Status Notification OCPP message"
       - name: preparing_ingested_ts

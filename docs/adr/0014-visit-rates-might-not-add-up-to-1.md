@@ -25,7 +25,8 @@ numerators.
 - Aggregate visits for reliability by when they stop (`visit_end_ts`), not when they start. A visit's outcome
   is known only once it ends, so cut by end, the only visits without an outcome are those still in progress.
   `visit_end_ts` is the `visits` semantic model's `agg_time_dimension`, and both timestamps' descriptions say
-  which one to use.
+  which one to use. The same holds for charge attempts: `charge_attempts` aggregates by
+  `charge_attempt_stop_ts`, not `charge_attempt_start_ts`.
 - Say so in each rate's description in the semantic model and in the README's metrics table.
 
 ## Alternatives considered
