@@ -31,3 +31,5 @@ project-wide convention.
 | [0010](0010-stop-based-driver-lifecycle.md) | Stop-based driver lifecycle activity | Superseded by [0011](0011-visit-based-driver-first-last-seen.md) for first and last seen |
 | [0011](0011-visit-based-driver-first-last-seen.md) | Visit-based driver first and last seen | Proposed |
 | [0012](0012-network-unique-port-and-connector-ids.md) | Network-unique port and connector ids | Proposed |
+| [0013](0013-attempt-success-includes-authorization-and-failure-reason.md) | Attempt success includes authorization, failures carry a reason, and attempts in progress are neutral | Proposed |
+| [0014](0014-visit-rates-might-not-add-up-to-1.md) | First-attempt success, troubled success and failed rates might not add up to 1 | Proposed |

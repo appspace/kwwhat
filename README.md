@@ -30,10 +30,10 @@ This project is designed for AI engineers, data practitioners, and CSMS provider
 | `total_charge_attempts` | Total charge attempts across all visits |
 | `first_attempt_success` | Count of visits where the first attempt succeeded |
 | `troubled_success` | Count of visits that succeeded but required more than one attempt |
-| `failed_visits` | Count of visits that did not end in a successful charge |
+| `failed_visits` | Count of visits that did not end in a successful charge (a visit still in progress is neither) |
 | `first_attempt_success_rate` | Proportion of visits where the first attempt succeeded |
 | `troubled_success_rate` | Proportion of visits that were troubled success |
-| `failed_rate` | Proportion of visits that failed |
+| `failed_rate` | Proportion of visits that failed. With the two success rates it can add up to less than 1: the remainder is visits still in progress |
 | `average_attempts_per_visit` | Total charge attempts divided by total visits |
 
 ---
