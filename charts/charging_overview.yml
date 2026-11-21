@@ -105,6 +105,12 @@ charts:
     x: visit_date
     y: visit_count
     color: chart_series
+    style:
+      orientation: vertical
+      # One stacked column per day; segments follow the query's
+      # location then authentication order so each location stays together.
+      stack: zero
+      stack_order: data
     title: "Daily visits by location"
 
   visit_outcomes:
