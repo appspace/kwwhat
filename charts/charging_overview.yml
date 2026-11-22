@@ -1,3 +1,4 @@
+_schema_version: "0.12.0"  # written automatically by dct migrate
 title: "kWwhat charging overview"
 source: analytics
 
@@ -81,11 +82,16 @@ queries:
               when not is_successful then 'Failed'
               else 'Unclassified'
           end as "outcome",
-          count(visit_id) as "total_visits"
+          count(visit_id) as "total_visits",
+          -- Share of all visits, 0 to 1. Matches the semantic layer's ratio metrics
+          -- (first_attempt_success_rate, troubled_success_rate, failed_rate): outcome visits / total_visits.
+          1.0 * count(visit_id) / nullif(sum(count(visit_id)) over (), 0) as "visit_rate"
       from analytics.dbt_prod.fact_visits
       where {{ filter_date_range('visit_end_ts', date_range) }}
       group by 1
       order by 2 desc, 1
+    formats:
+      visit_rate: percent
 
   location_summary:
     sql: |
@@ -115,15 +121,28 @@ charts:
       # location then authentication order so each location stays together.
       stack: zero
       stack_order: data
+      # Hide the series labels (legend or direct labels) beside the plot.
+      key:
+        visible: false
     title: "Daily visits by location"
 
   visit_outcomes:
     type: bar
     query: visit_outcomes
     x: outcome
-    y: total_visits
+    y: visit_rate
     color: outcome
-    title: "Visit outcomes (selected end dates)"
+    tooltip:
+      - total_visits
+    style:
+      axis_y:
+        scale:
+          continuous:
+            domain: [0, 1]
+      # Outcome names are already on the axis, so the key is redundant.
+      key:
+        visible: false
+    title: "Success rates"
 
   location_summary:
     type: table
