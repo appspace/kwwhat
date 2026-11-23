@@ -52,9 +52,12 @@ leading underscore keeps `_brand.yml` from being served as a board.
 `charging_overview.yml` pins colors to exact query values, so a renamed value
 loses its pin and falls back to the palette:
 
-- Each location keeps one hue: LOC-001 purple, LOC-002 turquoise. The dark shade
-  is authenticated and the mid shade is anonymous. New locations take the next
-  palette colors.
+- Each location keeps one hue: LOC-001 purple, LOC-002 turquoise, LOC-003
+  bluish. The dark shade is authenticated and a light tint is anonymous, stacked
+  on top. LOC-003's tint is `category[6].pale` because the brand has no light
+  bluish. New locations take the next palette colors.
+- Bar charts cannot set per-series opacity or borders, so the light tint stands
+  in for a transparent anonymous segment.
 - Outcomes: first-attempt success dark turquoise, troubled success turquoise,
   failed dark purple, in progress yellow.
 
@@ -70,8 +73,11 @@ The board executes SQL, not live dbt Semantic Layer metric queries.
   calendar date with `between`, so both the start and end dates are inclusive.
 - The existing `visit_end_ts` time basis is preserved. Visits whose end timestamp
   is null will be excluded by a date predicate, including visits still in progress.
-- Daily counts are grouped by end date and `location_id`. Missing dates are not
-  zero-filled.
+- Daily counts are grouped by end date and `location_id`, then left joined onto
+  a date spine from `analytics.dbt_prod.dim_dates` (filtered by the same
+  `date_range`) crossed with the locations seen in the range. Days with no
+  visits show as empty columns instead of disappearing from the axis, so gaps
+  such as outages or a location not yet live stay visible.
 - Authenticated counts are distinct non-null `id_tag` values per day and location.
   Repeat visits by the same authenticated driver count once in that group.
   Anonymous counts are distinct `visit_id` values where `id_tag` is null. These
@@ -82,8 +88,11 @@ The board executes SQL, not live dbt Semantic Layer metric queries.
 - Outcome and location-summary definitions mirror
   `models/semantic/semantic_models.yml` and should be kept aligned with it.
 - First-attempt success means `is_successful` is true and
-  `charge_attempt_count = 1`. Success after retries means it is true and the
+  `charge_attempt_count = 1`. Troubled success means it is true and the
   attempt count is greater than one.
+- Success rates are each outcome's share of all visits in the range (0 to 1,
+  displayed as %), matching the Semantic Layer ratio metrics
+  `first_attempt_success_rate`, `troubled_success_rate` and `failed_rate`.
 - A null success status means in progress, not failed. A false status means failed.
 - Average attempts per visit is the sum of attempt counts divided by the visit
   count, with a guard against division by zero.

@@ -47,20 +47,42 @@ queries:
           where {{ filter_date_range('visit_end_ts', date_range) }}
           group by cast(visit_end_ts as date), location_id
       ),
+      -- Date spine so days with no visits still get a (zero) column on the axis.
+      calendar_days as (
+          select date_day as visit_date
+          from analytics.dbt_prod.dim_dates
+          where {{ filter_date_range('date_day', date_range) }}
+      ),
+      locations as (
+          select distinct location_id
+          from daily_counts
+      ),
+      daily_grid as (
+          select
+              calendar_days.visit_date,
+              locations.location_id,
+              coalesce(daily_counts.authenticated_visits_count, 0) as authenticated_visits_count,
+              coalesce(daily_counts.anonymous_visits_count, 0) as anonymous_visits_count
+          from calendar_days
+          cross join locations
+          left join daily_counts
+              on daily_counts.visit_date = calendar_days.visit_date
+              and daily_counts.location_id = locations.location_id
+      ),
       visit_series as (
           select
               visit_date,
               location_id,
               'Authenticated' as authentication_type,
               authenticated_visits_count as visit_count
-          from daily_counts
+          from daily_grid
           union all
           select
               visit_date,
               location_id,
               'Anonymous' as authentication_type,
               anonymous_visits_count as visit_count
-          from daily_counts
+          from daily_grid
       )
       select
           to_char(visit_date, 'YYYY-MM-DD') as "visit_date",
