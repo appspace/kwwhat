@@ -1,0 +1,6 @@
+# Uses the profile declared in dbt_project.yml. Credentials stay in profiles.yml.
+# Uses the profile's default target, which needs SELECT access to analytics.dbt_prod.
+sources:
+  analytics:
+    type: dbt_profile
+    profile: kwwhat
