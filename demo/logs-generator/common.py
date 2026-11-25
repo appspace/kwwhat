@@ -62,6 +62,17 @@ HOURLY_ARRIVAL_WEIGHTS = [
 ]
 
 
+def parse_offline_window(value: str) -> tuple[datetime, datetime]:
+    """`FROM/TO`, two ISO 8601 timestamps, for --offline."""
+    try:
+        offline_from, offline_to = (parse_timestamp(part) for part in value.split("/"))
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(f"expected FROM/TO as two ISO 8601 timestamps, got {value!r}") from e
+    if offline_from >= offline_to:
+        raise argparse.ArgumentTypeError(f"the window {value!r} ends before it starts")
+    return offline_from, offline_to
+
+
 def parse_timestamp(value: str) -> datetime:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
@@ -320,10 +331,24 @@ class SimulationConfig:
     continuation: bool = False
     first_heartbeat_at: datetime | None = None
     authorize_probability: float = 0.0
+    retry_probability: float = 0.0
+    # Periods in which the charger has no connection: it sends nothing, and drivers who arrive leave no record.
+    offline_windows: tuple[tuple[datetime, datetime], ...] = ()
 
-    def fits(self, free_at: datetime) -> bool:
-        """False if the port would still be busy after the charger was decommissioned."""
-        return self.hard_end is None or free_at <= self.hard_end
+    def fits(self, starts_at: datetime, free_at: datetime) -> bool:
+        """False if the port would still be busy after the charger was decommissioned or when it loses its
+        connection."""
+        if self.hard_end is not None and free_at > self.hard_end:
+            return False
+        return not any(starts_at < offline_to and free_at > offline_from for offline_from, offline_to in self.offline_windows)
+
+    def is_offline(self, ts: datetime) -> bool:
+        return any(offline_from <= ts < offline_to for offline_from, offline_to in self.offline_windows)
+
+    def retries(self) -> bool:
+        """Whether a driver whose attempt failed tries again. Draws nothing when retries are off, so a run
+        without them gives the same log for the same seed as before retries were simulated."""
+        return self.retry_probability > 0 and random.random() < self.retry_probability
 
     def pick_fault(self) -> Fault:
         if self.vendor_faults and random.random() < self.vendor_error_code_probability:
@@ -517,8 +542,8 @@ async def _run_charge_session(
     id_tag: str,
     ts: datetime,
     plan: ChargePlan,
-) -> datetime:
-    """One driver session. Returns the time the port is free again.
+) -> tuple[datetime, bool]:
+    """One driver session. Returns the time the port is free again, and whether the session faulted.
 
     The rejections draw their timings only once they happen, so a run in which every idTag is
     accepted gives the same log for the same seed as before authorization was simulated.
@@ -530,13 +555,13 @@ async def _run_charge_session(
             "Authorize", "auth", plan.authorize_at, charge_point.send_authorize(id_tag)
         )
         if not _is_accepted(authorization):
-            return await _leave_after_rejection(recorder, connector, plan.authorize_at)
+            return await _leave_after_rejection(recorder, connector, plan.authorize_at), False
     start = await recorder.exchange(
         charge_point.start_action_name, "tx", plan.started_at,
         charge_point.send_start_transaction(connector.port_id, connector.connector_id, id_tag, plan.started_at),
     )
     if not _is_accepted(start):
-        return await _stop_deauthorized(recorder, connector, plan.started_at)
+        return await _stop_deauthorized(recorder, connector, plan.started_at), False
     await recorder.status(connector, "Charging", plan.started_at + timedelta(seconds=1))
 
     meter_at = plan.started_at + timedelta(seconds=cfg.meter_interval_s)
@@ -567,7 +592,7 @@ async def _run_charge_session(
     else:
         await recorder.status(connector, "Finishing", plan.ended_at + timedelta(seconds=1))
         await recorder.status(connector, "Available", plan.free_at)
-    return plan.free_at
+    return plan.free_at, plan.fault is not None
 
 
 def _is_accepted(response_payload: dict[str, Any]) -> bool:
@@ -607,7 +632,8 @@ async def _run_port(
     """Run back to back sessions on one port. A port serves one driver at a time.
 
     A faulted connector is out of service until its repair, and drivers use the other connectors of
-    the port meanwhile. A driver who finds every connector faulted leaves without plugging in.
+    the port meanwhile. A driver who finds every connector faulted leaves without plugging in, and so
+    does a driver who arrives while the charger has no connection.
     """
     if cfg.sessions_per_port_per_day <= 0:
         return
@@ -617,6 +643,8 @@ async def _run_port(
         ts = _next_arrival(ts, cfg)
         if ts >= cfg.end:
             break
+        if cfg.is_offline(ts):
+            continue
         await port.release_repairs(ts)
         in_service = port.in_service(connectors)
         if not in_service:
@@ -624,16 +652,45 @@ async def _run_port(
         connector = random.choice(in_service)
         if random.random() < cfg.failed_attempt_probability:
             free_at = ts + timedelta(seconds=random.randint(20, 120))
-            if cfg.fits(free_at):
+            if cfg.fits(ts, free_at):
                 ts = await _run_failed_attempt(port, connector, ts, free_at)
+                if cfg.retries():
+                    ts = await _run_retry(port, cfg, connectors, random.choice(id_tags), ts)
         else:
             id_tag = random.choice(id_tags)
             plan = _plan_charge_session(cfg, connector, ts)
-            # The repair has to fit too, so every connector is Available at a decommissioning or at
-            # the end of an appended run.
-            if cfg.fits(plan.done_at):
-                ts = await _run_charge_session(port, cfg, connector, id_tag, ts, plan)
+            # The repair has to fit too, so every connector is Available at a decommissioning, at the
+            # end of an appended run, and when the charger loses its connection.
+            if cfg.fits(ts, plan.done_at):
+                ts, faulted = await _run_charge_session(port, cfg, connector, id_tag, ts, plan)
+                if faulted and cfg.retries():
+                    ts = await _run_retry(port, cfg, connectors, id_tag, ts)
     await port.release_repairs()
+
+
+async def _run_retry(
+    port: PortRecorder, cfg: SimulationConfig, connectors: list[Connector], id_tag: str, after: datetime
+) -> datetime:
+    """The driver whose attempt failed plugs in again on the same port, on a connector in service.
+
+    The retry starts 10 to 90 seconds after the port is free, so dbt groups it with the failed attempt into
+    one visit: an attempt without an idTag joins the driver's visit within 2 minutes on the same port, and
+    attempts with the same idTag join within 30 minutes. A rejected idTag is not retried, since plugging in
+    again can't fix it. Returns the time the port is free again.
+    """
+    ts = after + timedelta(seconds=random.randint(10, 90))
+    if ts >= cfg.end or cfg.is_offline(ts):
+        return after
+    await port.release_repairs(ts)
+    in_service = port.in_service(connectors)
+    if not in_service:
+        return after
+    connector = random.choice(in_service)
+    plan = _plan_charge_session(cfg, connector, ts)
+    if not cfg.fits(ts, plan.done_at):
+        return after
+    free_at, _ = await _run_charge_session(port, cfg, connector, id_tag, ts, plan)
+    return free_at
 
 
 async def _run_startup(recorder: Recorder, cfg: SimulationConfig, connectors: list[Connector]) -> None:
@@ -645,11 +702,25 @@ async def _run_startup(recorder: Recorder, cfg: SimulationConfig, connectors: li
 
 
 async def _run_heartbeats(recorder: Recorder, cfg: SimulationConfig) -> datetime:
-    """Send heartbeats until the end of the period. Returns the first heartbeat after it."""
+    """Send heartbeats until the end of the period. Returns the first heartbeat after it.
+
+    While the charger has no connection it sends none, so dbt sees the gap as an offline outage. It sends one
+    as it reconnects, at the end of the window, and then keeps to its usual schedule."""
     heartbeat_at = cfg.first_heartbeat_at or cfg.start + timedelta(seconds=cfg.heartbeat_interval_s)
-    while heartbeat_at < cfg.end:
-        await recorder.exchange("Heartbeat", "hb", heartbeat_at, recorder.charge_point.send_heartbeat())
-        heartbeat_at += timedelta(seconds=cfg.heartbeat_interval_s)
+    reconnects = sorted(offline_to for _, offline_to in cfg.offline_windows if cfg.start <= offline_to < cfg.end)
+    while heartbeat_at < cfg.end or reconnects:
+        if reconnects and reconnects[0] == heartbeat_at:
+            reconnects.pop(0)
+            continue
+        if reconnects and reconnects[0] < heartbeat_at:
+            send_at = reconnects.pop(0)
+        elif heartbeat_at < cfg.end:
+            send_at = heartbeat_at
+            heartbeat_at += timedelta(seconds=cfg.heartbeat_interval_s)
+        else:
+            break
+        if not cfg.is_offline(send_at):
+            await recorder.exchange("Heartbeat", "hb", send_at, recorder.charge_point.send_heartbeat())
     return heartbeat_at
 
 
@@ -841,6 +912,23 @@ def parse_args() -> argparse.Namespace:
         "otherwise it starts from its local authorization cache (default: 0). OCPP 1.6 only.",
     )
     parser.add_argument(
+        "--retry-probability",
+        type=float,
+        default=0.0,
+        help="Chance that a driver whose plug-in failed or whose session faulted plugs in again on the same "
+        "port, which dbt counts as one troubled visit (default: 0).",
+    )
+    parser.add_argument(
+        "--offline",
+        type=parse_offline_window,
+        action="append",
+        default=[],
+        metavar="FROM/TO",
+        help="A period in which the charger has no connection, as two ISO 8601 timestamps separated by a slash. "
+        "It sends nothing, drivers who arrive leave no record, and dbt sees an offline outage. Repeat for "
+        "several periods.",
+    )
+    parser.add_argument(
         "--fault-probability",
         type=float,
         default=0.05,
@@ -944,6 +1032,8 @@ async def run_client(args: argparse.Namespace, charge_point_cls: type, subprotoc
         continuation=state is not None,
         first_heartbeat_at=state.next_heartbeat_at if state else None,
         authorize_probability=args.authorize_probability,
+        retry_probability=args.retry_probability,
+        offline_windows=tuple(sorted(args.offline)),
     )
     if cfg.start >= cfg.end:
         print(
