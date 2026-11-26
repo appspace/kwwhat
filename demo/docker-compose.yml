@@ -7,7 +7,7 @@ services:
     build: ./duckdb-init
     volumes:
       - duckdb-data:/data
-      - ./seeds:/seeds:ro      # seed CSVs live here under demo/
+      - ./${SEED_DIR:-seeds}:/seeds:ro  # seed CSVs under demo/; SEED_DIR=seeds_confirmatory for the study's confirmatory run
 
   # ── Service 2 ──────────────────────────────────────────────────────────────
   # Runs dbt build: staging → intermediate → marts written to analytics.duckdb.
@@ -20,6 +20,8 @@ services:
     volumes:
       - duckdb-data:/data
       - ../:/kwwhat            # mount the kwwhat dbt project
+    environment:
+      - START_PROCESSING_DATE=${START_PROCESSING_DATE:-}   # empty keeps dbt_project.yml's default
 
   # ── Service 3 ──────────────────────────────────────────────────────────────
   # Interactive chat interface (nao) for querying the analytics database.
