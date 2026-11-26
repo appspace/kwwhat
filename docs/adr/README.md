@@ -33,3 +33,4 @@ project-wide convention.
 | [0012](0012-network-unique-port-and-connector-ids.md) | Network-unique port and connector ids | Proposed |
 | [0013](0013-attempt-success-includes-authorization-and-failure-reason.md) | Attempt success includes authorization, failures carry a reason, and attempts in progress are neutral | Proposed |
 | [0014](0014-visit-rates-might-not-add-up-to-1.md) | First-attempt success, troubled success and failed rates might not add up to 1 | Proposed |
+| [0015](0015-visit-membership-in-bridge-tables.md) | Visit membership lives in bridge tables, not array columns | Proposed |

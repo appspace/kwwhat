@@ -292,6 +292,25 @@ models:
               - connector_id
               - ingested_ts
 
+  - name: int_visits
+    description: "Driver visits built from charge attempts: a single trip to a charging location that may span several attempts. One row per location_id + first charger + first port + visit_start_ts. Holds the grouping and incremental merge logic behind fact_visits, plus the member arrays charger_ids and charge_attempt_ids. Arrays stay internal: use bridge_visit_chargers and bridge_visit_charge_attempts, not these columns. Business rules are in fact_visits."
+    columns:
+      - name: visit_id
+        description: "Surrogate key for the visit, generated from location_id, first_charger_id, first_port_id and visit_start_ts."
+        data_tests:
+          - not_null
+          - unique
+      - name: charger_ids
+        description: "Distinct chargers used during the visit. Internal array, read by bridge_visit_chargers."
+        data_type: array<string>
+      - name: charge_attempt_ids
+        description: "Distinct charge attempts in the visit. Internal array, read by bridge_visit_charge_attempts."
+        data_type: array<string>
+      - name: _incremental_ts
+        description: "Technical watermark: upper bound of the window in which the row was last written. Not a business attribute."
+        data_tests:
+          - not_null
+
   - name: int_driver_aggregates
     description: "Incremental per-driver history. First/last seen are the earliest/latest fact_visits.visit_end_ts. Each run merges drivers with a visit written in the window into stored state. first_visit_id and last_visit_id let a rewritten visit replace its own stored end, so an extended first visit moves first seen later. Visits with no end are excluded. Visits with no id_tag accumulate under __UNKNOWN__."
     columns:

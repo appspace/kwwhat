@@ -93,6 +93,33 @@ semantic_models:
       - name: is_authorization
         type: categorical
 
+  - name: visit_chargers
+    description: "Which chargers a visit used (one row per visit and charger). Dimension-only bridge for visit membership. It does not support slicing visit measures by charger: a visit that used two chargers appears under both, and its energy and duration belong to the visit, not to either charger. Keep visit measures at visit grain. visit is declared the primary entity only because MetricFlow requires one for dimensions; it is not unique in this model."
+    model: ref('bridge_visit_chargers')
+    primary_entity: visit
+    entities:
+      - name: visit
+        type: foreign
+        expr: visit_id
+      - name: charger
+        type: foreign
+        expr: charger_id
+    dimensions:
+      - name: charger_id
+        type: categorical
+
+  - name: visit_charge_attempts
+    description: "Which charge attempts make up a visit (one row per visit and charge attempt). Dimension-only bridge for visit membership. It does not support slicing visit measures by charge attempt. visit is declared the primary entity only because MetricFlow requires one for dimensions; it is not unique in this model."
+    model: ref('bridge_visit_charge_attempts')
+    primary_entity: visit
+    entities:
+      - name: visit
+        type: foreign
+        expr: visit_id
+    dimensions:
+      - name: charge_attempt_id
+        type: categorical
+
   - name: visits
     description: "Visit-level semantic model for driver visit outcomes, attempt counts, duration, and energy transferred."
     model: ref('fact_visits')

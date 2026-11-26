@@ -6,6 +6,7 @@ This folder holds the dbt **semantic layer** definitions used for metrics and BI
 
 - **`semantic_models.yml`** — dbt semantic models and metrics:
   - **visits** — Visit-level semantic model (backed by `fact_visits`): dimensions, measures, and metrics for charging visits, success/failure, first-attempt vs troubled success.
+  - **visit_chargers**, **visit_charge_attempts** — Dimension-only bridges for visit membership (backed by `bridge_visit_chargers` and `bridge_visit_charge_attempts`). They do not support slicing visit measures by charger or charge attempt, and charger membership is non-additive across chargers (see ADR 0015).
   - **charge_attempts** — Charge-attempt-level semantic model (backed by `fact_charge_attempts`): dimensions and measures for individual charge attempts and success rates.
   - **uptime** — Port-level daily uptime (backed by `fact_uptime_daily`): dimensions charger_id, port_id (network-unique, e.g. `CH-002-1`), date_id; measures commissioned_minutes_total, uptime_minutes_total, downtime_minutes_total, offline_downtime_minutes_total and faulted_downtime_minutes_total.
 

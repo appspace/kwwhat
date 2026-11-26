@@ -3,7 +3,7 @@
       Cross-warehouse compatible unnest for native (non-JSON) arrays. For json-encoded
       array columns, use json_array_unnest instead.
       Example: cross join {{ array_unnest('error_codes') }} as ec - reference the element
-      via ec.value (Snowflake's flatten output column; other adapters bind the alias itself).
+      via ec.value on every adapter (Snowflake's flatten output column; BigQuery wraps each element in a one-field struct).
     #}
     {{ return(adapter.dispatch('array_unnest', 'kwwhat')(array_column)) }}
 {% endmacro %}
@@ -17,5 +17,10 @@
 {% endmacro %}
 
 {% macro bigquery__array_unnest(array_column) %}
-    cross join unnest({{ array_column }})
+    {# Wrapped in a one-field struct so callers can use `<alias>.value` like on Snowflake. #}
+    cross join unnest(array(select as struct x as value from unnest({{ array_column }}) as x))
+{% endmacro %}
+
+{% macro duckdb__array_unnest(array_column) %}
+    cross join lateral (select unnest({{ array_column }}) as value)
 {% endmacro %}
